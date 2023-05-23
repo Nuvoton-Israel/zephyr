@@ -1,0 +1,9 @@
+description: NUVOTON NCT6694 FAMILY UART
+
+compatible: "nuvoton,nct6694b-uart"
+
+include: uart-controller.yaml
+
+properties:
+    reg:
+      required: true
