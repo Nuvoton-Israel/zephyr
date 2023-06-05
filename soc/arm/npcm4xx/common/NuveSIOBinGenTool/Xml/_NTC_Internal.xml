@@ -1,0 +1,239 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<Description>
+	<Config>
+		<GenOTP>1</GenOTP>
+		<CryptoSelect>0</CryptoSelect>  							<!-- 0 for OpenSSL, 1 for CNG, 2 for PKCS#11-->
+		<AESencrypt>0</AESencrypt>									<!-- 1 for AES Encrypt-->
+		<ToolPath>../../soc/arm/npcm4xx/common/NuveSIOBinGenTool</ToolPath> 			<!-- The path between "caller" and NuveSIOBinGenTool.exe -->
+	</Config>
+
+	<Crypto>
+		<OpenSSL>
+			<EcFwSigKey>RSA2048key_pri.der</EcFwSigKey>
+			<EcFwSigKey_Idx>0</EcFwSigKey_Idx>						<!-- public key index 0 , 1 -->
+			<EcFwPubKey0>RSA2048key_pub.der</EcFwPubKey0>
+			<EcFwPubKey1></EcFwPubKey1>
+			<SySFwPubKey0></SySFwPubKey0>
+			<SySFwPubKey1></SySFwPubKey1>
+			<BuildersPrivKey>ECDSA256key_pri.pem</BuildersPrivKey>	<!-- support EC P-256, for generating AES key, random generate if empty-->
+			<SessPubKey>ECDSA256key_pub.pem</SessPubKey>		    <!-- support EC P-256, for generating AES key-->
+			<SessPrivKey></SessPrivKey>
+		</OpenSSL>
+		<CNG>
+			<SignCert_Idx>0</SignCert_Idx>
+			<EcFwCert0_Subject>nuv_rsa_2048</EcFwCert0_Subject>	<!-- oSigPubKey0Hash -->
+			<EcFwCert1_Subject>nuv_ecdsa_256</EcFwCert1_Subject>		<!-- oSigPubKey1Hash -->
+			<SySFwCert0_Subject></SySFwCert0_Subject>				<!-- oSySFwPubKey0Hash -->
+			<SySFwCert1_Subject></SySFwCert1_Subject>				<!-- oSySFwPubKey1Hash -->
+			<AESCert_Subject></AESCert_Subject>						<!-- oSessPrivKey -->
+		</CNG>
+		<PKCS11>
+			<KeyID>1</KeyID>			<!-- PKCS#11 KeyID -->
+		</PKCS11>
+	</Crypto>
+
+	<FileName>
+		<FirmwareImage>@inputfile.bin</FirmwareImage>
+		<BBImage></BBImage> 				<!-- Could be empty-->
+		<OutputFWName>@inputfile_signed.bin</OutputFWName>
+		<FanTables>
+			<Table></Table>
+		</FanTables>
+	</FileName>
+
+	<FWImageHeader>
+		<hImageTag>%FiMg94@</hImageTag>
+		<hActiveEcFwOffset>0x00</hActiveEcFwOffset>			    <!-- Unit: MCP size / 256 -->
+		<hRecoveryEcFwOffset>0x80</hRecoveryEcFwOffset>			<!-- Unit: MCP size / 256 -->
+		<hSystemECFWOffset>0x00</hSystemECFWOffset>		    	<!-- Unit: byte, align 4K -->
+
+		<hSecureBoot>0</hSecureBoot>							<!-- Effective when secure mode is not enabled -->
+		<hSecurityLvl>0</hSecurityLvl>							<!-- Effective when secure mode is not enabled -->
+		<hOTPRefToTable>1</hOTPRefToTable>						<!-- Effective when secure mode is not enabled -->
+		<hHwTrimRefOTPTable>0</hHwTrimRefOTPTable>			    <!-- Effective when secure mode is not enabled -->
+		<hNotUpdateOTPRegister>1</hNotUpdateOTPRegister>		<!-- Effective when secure mode is not enabled -->
+		<hNotEraseOTPTable>1</hNotEraseOTPTable>
+		<hOTPRefToSrcTable>0</hOTPRefToSrcTable>
+		<hNotDoBackup>0</hNotDoBackup>
+
+		<hFlashLockReg0>0x00</hFlashLockReg0>					<!-- 0x94: 2M upper 1/2 + register, 0xB4: 2M lower 1/2 + register -->
+		<hEcFwRegionSize>0x7E</hEcFwRegionSize>					<!-- Unit: MCP size / 256 , 0: Full -->
+		<hUserFWEntryPoint></hUserFWEntryPoint>					<!-- Get value from input FW file if it's "none", keep it empty -->
+		<hUserFWRamCodeFlashStart></hUserFWRamCodeFlashStart>	<!-- Get value from input FW file if it's "none", keep it empty -->
+		<hUserFWRamCodeFlashEnd></hUserFWRamCodeFlashEnd>		<!-- Get value from input FW file if it's "none", keep it empty -->
+		<hUserFWRamCodeRamStart></hUserFWRamCodeRamStart>		<!-- Get value from input FW file if it's "none", keep it empty -->
+		<hMajorVer>0x00</hMajorVer>								<!-- ranging from 0 ~ 56 -->
+		<hMinorVer>0x0000</hMinorVer>
+		<hRevokeKey></hRevokeKey>								<!-- Should be 0x58, 0x59 or "none" -->
+		<hBBWorkRAM></hBBWorkRAM> 								<!-- excution-time address of RAM area for BB to work it -->
+		<hOEMversion>NUV0000A</hOEMversion>
+		<hReleaseDate>0x170101</hReleaseDate>
+		<hProjectID>0x4919</hProjectID>
+		<hHook1Ptr></hHook1Ptr>
+		<hHook2Ptr></hHook2Ptr>
+		<hHook3Ptr></hHook3Ptr>
+		<hHook4Ptr></hHook4Ptr>
+	</FWImageHeader>
+
+	<OTPImageHeader>
+		<hOtpImgTag>%OtPmAp@</hOtpImgTag>
+	</OTPImageHeader>
+
+	<OTPbitmap>
+		<!-- SPI Configuration -->
+		<oFlashConnection>0</oFlashConnection>		<!-- 0: MCP/MCP, 1:MCP/FIU, 2:FIU/FIU, 3: FIU/MCP-->
+
+		<oStrapMode1>0</oStrapMode1>
+		<oStrapMode2>0</oStrapMode2>
+
+		<oNotTrySysIfFIUShd>0</oNotTrySysIfFIUShd>
+		<oNotTrySysIfFIUPvt>0</oNotTrySysIfFIUPvt>
+		<oNotTrySysIfFIUBkp>0</oNotTrySysIfFIUBkp>
+		<oNotTryMafAndAMD>0</oNotTryMafAndAMD>
+		<oNotTrySysIfSPI1>0</oNotTrySysIfSPI1>
+
+		<oFwNotUse4KStep>0</oFwNotUse4KStep>
+		<oFwNotUse2NStep>0</oFwNotUse2NStep>
+		<oECPTRCheckCRC>0</oECPTRCheckCRC>
+
+		<oVSpiExistNoTimeOut>0</oVSpiExistNoTimeOut>
+		<oNoWaitVSpiExist>0</oNoWaitVSpiExist>
+
+		<oMCPFlashSize>0</oMCPFlashSize>			<!-- 0: By ID, 1: 1M, 2: 2M, 3: 4M -->
+		<oFIUShr4BMode>0</oFIUShr4BMode>
+		<oSPIP4BMode>0</oSPIP4BMode>
+		<oSpiQuadPEn>1</oSpiQuadPEn>
+
+		<oMCPFLMode>3</oMCPFLMode>					<!-- 0: Single, 1: Dual, 2: Dual I/O, 3: Quad I/O -->
+		<oFIUShrFLMode>3</oFIUShrFLMode>
+		<oSPIPFLMode>3</oSPIPFLMode>
+
+		<oFIUClkDiv>0</oFIUClkDiv>					<!-- Range: 0-3 -->
+		<oSPIPClkDiv>1</oSPIPClkDiv>
+		<oSPIMClkDiv>0</oSPIMClkDiv>
+
+		<!-- Security Configuration -->
+		<oSecureBoot>0</oSecureBoot>
+		<oSecurityLvl>0</oSecurityLvl>
+
+		<oRSAPubKeySts>0x1</oRSAPubKeySts>    	<!-- bit 0: RSA key0 exist, bit 1: RSA key1 exist -->
+		<oECPubKeySts>0x0</oECPubKeySts>		<!-- bit 0: EC key0 exist, 	bit 1: ECkey1 exist -->
+		<oRevokeKeySts>0x0</oRevokeKeySts>		<!-- bit 0: key0 revoke, 	bit 1: key1 revoke -->
+		<oSHA512Used>0</oSHA512Used>			<!-- 0: Use SHA256, 		1: Use SHA512 -->
+		<oLongKeyUsed>0</oLongKeyUsed>			<!-- 0: Use RSA2048/EC256, 	1: Use RSA3072/RSA4096/EC384/EC521 -->
+		<oLongKeySel>0</oLongKeySel>  			<!-- 0: Use RSA4096, 		1: Use RSA3072 -->
+		<oRSAPKCPAD>0</oRSAPKCPAD>				<!-- 0: RSA PKCS1-v1_5, 	1: RSA PKCS1-v2_1 -->
+
+		<oUnmapRomBfXferCtl>0</oUnmapRomBfXferCtl>
+		<oDisableDBGAtRst>0</oDisableDBGAtRst>
+
+		<oAESKeyLock>0</oAESKeyLock>
+		<oAESDecryptEn>0</oAESDecryptEn>		<!-- 0: Disable, 1: AES-ECB, 2:AES-GCM -->
+		<oAESKey>AES.enc</oAESKey>
+
+		<!-- Halt Configuration -->
+		<oHaltIfMafRollbk>0</oHaltIfMafRollbk>
+		<oHaltIfActiveRollbk>0</oHaltIfActiveRollbk>
+		<oHaltIfOnlyMafValid>0</oHaltIfOnlyMafValid>
+		<oTryBootIfAllCrashed>0</oTryBootIfAllCrashed>
+
+		<!-- OTP Lock Configuration -->
+		<oOTPRegionRdLock>0</oOTPRegionRdLock>
+		<oHWCfgFieldLock>0</oHWCfgFieldLock>
+		<oOtpRgn2Lock>0</oOtpRgn2Lock>
+		<oOtpRgn3Lock>0</oOtpRgn3Lock>
+		<oOtpRgn4Lock>0</oOtpRgn4Lock>
+		<oOtpRgn5Lock>0</oOtpRgn5Lock>
+		<oOtpRgn6Lock>0</oOtpRgn6Lock>
+
+		<!-- MISC Configuration -->
+		<oSecEvnLogLoc>0x00FE</oSecEvnLogLoc>		<!--  Uint is 4K, 2 bytes  -->
+		<oOTPDatValid0>0x00</oOTPDatValid0>			<!--  value 0x02 to enable event log when using OTPTable -->
+		<oOTPDatValid1>0x00</oOTPDatValid1>
+
+		<!-- Flow Configuration -->
+		<oRetryLimitEn>0</oRetryLimitEn>
+		<oSkipCtyptoSelfTest>1</oSkipCtyptoSelfTest>
+		<oOlnyLogCriticalEvent>1</oOlnyLogCriticalEvent>
+		<oClrRamExitRom>0</oClrRamExitRom>
+		<oTryBootNotCtrlFWRdy>0</oTryBootNotCtrlFWRdy>
+		<oNotUpdateToPrvFw>0</oNotUpdateToPrvFw>
+
+		<!-- System PFR Configuration -->
+		<oSysPfrWP0En>0</oSysPfrWP0En>					<!--  1: Active WP0  -->
+		<oSysPfrWP1En>0</oSysPfrWP1En>					<!--  1: Active WP1  -->
+		<oSysFwSigPubKeySts>0x00</oSysFwSigPubKeySts>
+
+		<!-- LED Configuration -->
+		<!-- 0: Disable, 1: PWM_0, 2: PWM_1, 3: PWM_2, 4: PWM_3, 5: PWM_4, 6: PWM_5, 7: PWM_6, 8: PWM_7, 9: PWM_8, 10: PWM_9, 11: GRN_LED, 12: YLE_LED -->
+		<oLed1Sel>0xB</oLed1Sel>
+		<oLed1Pole>0</oLed1Pole> 						<!--  0: Active low, 1: Active high  -->
+		<oLed2Sel>0xC</oLed2Sel>
+		<oLed2Pole>0</oLed2Pole>
+		<oLedActRbkBlkDef>0x5</oLedActRbkBlkDef> 		<!--  0: OFF, 1: 1HZ, 2: 2HZ, 3: ON -->
+		<oLedSysRbkBlkDef>0x6</oLedSysRbkBlkDef>
+		<oLedFwCpyBlkDef>0x7</oLedFwCpyBlkDef>
+		<oLedSysOnlyBlkDef>0x8</oLedSysOnlyBlkDef>
+		<oLedAllCrashBlkDef>0xA</oLedAllCrashBlkDef>
+		<oLedCryptoTestFailBlkDef>0xA</oLedCryptoTestFailBlkDef>
+
+		<!-- Chip Configuration -->
+		<oPartID>0</oPartID>						<!--  0: Normal chip, 1: Secuity function disable  -->
+		<oAESNotSupport>0</oAESNotSupport>	        <!--  0: Normal chip, 1: AES disable  -->
+		<oMCUClkNNotDiv2>1</oMCUClkNNotDiv2>
+		<oMCPRdDly>0</oMCPRdDly>                    <!--  0-7 -->
+		<oMCPRdEdge>0</oMCPRdEdge>                  <!--  0: Riging edge, 1:Falling edge -->
+		<oMCPSel>0</oMCPSel>                        <!--  0: 16M, 1: 8M -->
+		<oChipTesterID>0x00</oChipTesterID>			<!--  4 bytes, keep '0'  -->
+
+		<!-- ROM Configuration -->
+		<oOTPWriteTime>0</oOTPWriteTime>			<!--  0: Program 1 time -->
+		<oDnxDPOkWidth>0</oDnxDPOkWidth>			<!--  0: 100ms, others: 10ms*oDnxDPOkWidth -->
+		<oDnxRsmrstWidth>0</oDnxRsmrstWidth>		<!--  0: 300ms, others: 10ms*oDnxRsmrstWidth -->
+		<oVSpiExistWaitCnter>0</oVSpiExistWaitCnter><!--  0: 2sec, others: 16ms*oPltRdyTimeOut -->
+		<oPwmLedAdj>0</oPwmLedAdj>					<!--  0: 10, others: 5*oPwmLedAdj -->
+
+		<!-- ROM Clock Configuration -->
+		<oRefOTPClk>0</oRefOTPClk>					<!--  0: Not refer, 1: clock value -->
+		<oXFRANGE>0</oXFRANGE>						<!--  48Mhz: 0, 96Mhz: 1 -->
+		<oFPRED>1</oFPRED>							<!--  48Mhz: 0, 96Mhz: 1 -->
+		<oAHB6DIV>0</oAHB6DIV>						<!--  48Mhz: 0, 96Mhz: 1 -->
+		<oAPB1DIV>7</oAPB1DIV>		  			    <!--  48Mhz: 7, 96Mhz: 15 -->
+		<oAPB2DIV>3</oAPB2DIV>						<!--  48Mhz: 3, 96Mhz: 7 -->
+		<oAPB3DIV>1</oAPB3DIV>						<!--  48Mhz: 0, 96Mhz: 1 -->
+
+		<!-- Trim value -->
+		<oANAD2Low>0x00</oANAD2Low>
+		<oANAD2High>0x0</oANAD2High>
+		<oValANAD>0</oValANAD>
+		<oDevId>0x00</oDevId>
+		<oValDevId>0</oValDevId>
+		<oRSMRST_L>0x00</oRSMRST_L>
+		<oValRSMRST_L>0</oValRSMRST_L>
+		<oRSMRST_Sys>0x00</oRSMRST_Sys>
+		<oValRSMRST_Sys>0</oValRSMRST_Sys>
+		<oDivMinLow>0x00</oDivMinLow>
+		<oDivMinHigh>0x00</oDivMinHigh>
+		<oValDivMin>0</oValDivMin>
+		<oDivMaxLow>0x00</oDivMaxLow>
+		<oDivMaxHigh>0x00</oDivMaxHigh>
+		<oValDivMax>0</oValDivMax>
+		<oFrcDivLow>0x00</oFrcDivLow>
+		<oFrcDivHigh>0x00</oFrcDivHigh>
+		<oValFrcDiv>0</oValFrcDiv>
+		<oFR_CLK>0x00</oFR_CLK>
+		<oValFR_CLK>0</oValFR_CLK>
+
+		<!-- Test Mode -->
+		<oECTestMode0>0x0</oECTestMode0>
+
+		<!-- OTP User Data Field -->
+		<oUserDataField>0x0</oUserDataField>		<!--  20 bytes, big edian  -->
+
+		<oUserDataField1>0x0</oUserDataField1>		<!--  128 bytes, big edian  -->
+		<oUserDataField2>0x0</oUserDataField2>		<!--  128 bytes, big edian  -->
+		<oUserDataField3>0x0</oUserDataField3>		<!--  128 bytes, big edian  -->
+		<oUserDataField4>0x0</oUserDataField4>		<!--  128 bytes, big edian  -->
+	</OTPbitmap>
+</Description>

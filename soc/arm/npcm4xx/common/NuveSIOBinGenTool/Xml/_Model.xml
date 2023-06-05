@@ -1,0 +1,32 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<Description>
+	<Config>
+		<BaseEcFwImg>ROM_BIST_NCT6694D_eSIO_Signed.bin</BaseEcFwImg>
+		<OutputEcFwImg>ROM_BIST_NCT6694D_eSIO_Signed_Model.bin</OutputEcFwImg>
+		<ReleaseMode>0</ReleaseMode>				<!-- Set 1 and the SecurityMode is not 0, security mode will be enabled and can not be disabled -->
+		<SecurityMode>1</SecurityMode>				<!-- 0: Normal, 1: Standard Security, 2: NIST SP800-193(PFR) compliant -->
+		<EcFwMajorVer>0x00</EcFwMajorVer>
+		<EcFwMinorVer>0x0001</EcFwMinorVer>
+		<EcFwKeyRevocation>0</EcFwKeyRevocation>
+		<CryptoSelect>1</CryptoSelect>  			<!-- 0 for OpenSSL, 1 for CNG -->
+		<HashType>0</HashType>						<!-- Not use, 0 for SHA-256, 1 for SHA-512 -->
+		<RSAPKCPAD>0</RSAPKCPAD>					<!-- 0: RSA PKCS1-v1_5, 1: RSA PKCS1-v2_1 -->
+	</Config>
+
+	<Crypto>
+		<OpenSSL>
+			<!-- Key file name -->
+			<EcFwSigKey>RSA2048key_pri.pem</EcFwSigKey>
+			<EcFwSigKey_Idx>0</EcFwSigKey_Idx>
+			<EcFwPubKey0>RSA2048key_pub.pem</EcFwPubKey0>
+			<EcFwPubKey1>ECDSA256key_pub.pem</EcFwPubKey1>
+		</OpenSSL>
+		<CNG>
+			<!-- Certificate subject name -->
+			<SignCert_Idx>1</SignCert_Idx>
+			<EcFwCert0_Subject>nuv_ecdsa_521</EcFwCert0_Subject>
+			<EcFwCert1_Subject>nuv_rsa_2048</EcFwCert1_Subject>
+		</CNG>
+	</Crypto>
+</Description>
