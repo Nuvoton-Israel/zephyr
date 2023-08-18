@@ -176,6 +176,18 @@
 	dcr = <0xCC>;
 	busno = <0x0>;
 	pinctrl-0 = <&pinctrl_i3c0_default>;
+
+	/*test-i3c-dev@420000ABCD12345678 {*/
+	/*	compatible = "vnd,i3c-device";*/
+	/*	label = "TEST_I3C_DEV_42";*/
+	/*	reg = < 0x42 0xABCD 0x12345678 >;*/
+	/*};*/
+
+	/*test-i3c-i2c-dev@380000000000000050 {*/
+	/*	compatible = "vnd,i3c-i2c-device";*/
+	/*	label = "TEST_I3C_I2C_DEV_38";*/
+	/*	reg = < 0x38 0x0 0x50 >;*/
+	/*};*/
 };
 
 &i3c1 {
@@ -187,23 +199,11 @@
 	/* vendor-def-id = <0x5607>; */
 	bcr = <0x66>;
 	dcr = <0xCC>;
+	part-id = <0x1234>;
+	vendor-def-id = <0x567>;
+
 	slave;
 	secondary;
 	busno = <0x0>;
 	pinctrl-0 = <&pinctrl_i3c1_default>;
-
-	/* #address-cells = <1>; */
-	/* #size-cells = <0>; */
-
-	/*
-	 * i3c1_smq:i3c-slave-mqueue@21 {
-	 *	compatible = "aspeed,i3c-slave-mqueue";
-	 *	reg = <0x21>;
-	 *	msg-size = <256>;
-	 *	num-of-msgs = <4>;
-	 *	mandatory-data-byte = <0xbf>;
-	 *	label = "I3C_1_SMQ";
-	 *	status = "okay";
-	 * };
-	 */
 };

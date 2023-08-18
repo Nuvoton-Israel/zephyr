@@ -318,6 +318,7 @@ I3C_ErrCode_Enum I3C_Port_Default_Setting(I3C_PORT_Enum port)
 	pDevice->vendorID = 0;
 	pDevice->partNumber = 0;
 
+	pDevice->regCnt = 0;
 	pDevice->pReg = NULL;
 	pDevice->cmdIndex = CMD_DEFAULT;
 	pDevice->stopSplitRead = FALSE;

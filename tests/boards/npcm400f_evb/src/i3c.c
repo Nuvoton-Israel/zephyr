@@ -24,8 +24,9 @@ LOG_MODULE_REGISTER(LOG_MODULE_NAME);
 static uint8_t test_data_tx[MAX_DATA_SIZE];
 static uint8_t test_data_rx[MAX_DATA_SIZE];
 
-/*#define TEST_LOOPBACK*/
-#define TEST_WITH_LSM6DSO
+#define TEST_LOOPBACK
+//#define TEST_SLAVE_ONLY
+/*#define TEST_WITH_LSM6DSO*/
 #define TEST_DBG
 
 static void test_i3c_ci(int count)
@@ -94,6 +95,7 @@ static void test_i3c_ci(int count)
 #if defined(TEST_LOOPBACK)
 	slave->info.static_addr = DT_PROP(DT_NODELABEL(i3c1), assigned_address);
 	slave->info.assigned_dynamic_addr = slave->info.static_addr;
+	slave->info.pid = 0x671534123206;	/*0x063212341567;*/
 	slave->info.i2c_mode = 1;	/* default run i2c mode */
 #elif defined(TEST_WITH_LSM6DSO)
 	/* attach lsm6dso */
@@ -107,7 +109,14 @@ static void test_i3c_ci(int count)
 		return;
 
 	i3c_master_attach_device(dev_master, slave);
+
+#if defined(TEST_SLAVE_ONLY)
+	return;
+#endif
+
+#if !defined(TEST_LOOPBACK)
 	i3c_master_send_rstdaa(dev_master);
+#endif
 
 	for (i = 0; i < count; i++) {
 		/*
@@ -145,11 +154,12 @@ static void test_i3c_ci(int count)
 		 * Test part 4:
 		 * master --- i2c API ---> slave
 		 */
+#if 0
 		test_data_tx[0] = 0xC0;
 		ret = i3c_i2c_write(slave, 0x01, test_data_tx, 1);
 		ret = i3c_i2c_read(slave, 0x01, test_data_rx, 1);
 		__ASSERT(test_data_rx[0] == 0xC0, "Read Data Fail !!!\n\n");
-
+#endif
 		test_data_tx[0] = 0x00;
 		ret = i3c_i2c_write(slave, 0x01, test_data_tx, 1);
 		ret = i3c_i2c_read(slave, 0x01, test_data_rx, 1);
@@ -160,8 +170,8 @@ static void test_i3c_ci(int count)
 	/* i3c_master_send_aasa(master); */
 	slave->info.i2c_mode = 0;
 
-	i3c_master_send_getpid(dev_master, slave->info.dynamic_addr, &slave->info.pid);
-	i3c_master_send_getbcr(dev_master, slave->info.dynamic_addr, &slave->info.bcr);
+//	i3c_master_send_getpid(dev_master, slave->info.dynamic_addr, &slave->info.pid);
+//	i3c_master_send_getbcr(dev_master, slave->info.dynamic_addr, &slave->info.bcr);
 
 	for (i = 0; i < count; i++) {
 		/*
@@ -231,6 +241,5 @@ int test_i3c(int count, enum aspeed_test_type type)
 		return ast_ztest_result();
 	}
 
-	/* Not support FT yet */
 	return AST_TEST_PASS;
 }

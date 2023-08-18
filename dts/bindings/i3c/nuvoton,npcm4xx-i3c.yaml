@@ -35,16 +35,13 @@ properties:
     type: boolean
     description: Initialized as a secondary master
 
-  manufacture-id:
-    required: false
-    type: int
-    description: PID[47:32]
-
+# slave/secondary master --> declare for bus enumeration
   part-id:
     required: false
     type: int
     description: PID[31:16]
 
+# slave/secondary master --> declare for bus enumeration
   vendor-def-id:
     required: false
     type: int

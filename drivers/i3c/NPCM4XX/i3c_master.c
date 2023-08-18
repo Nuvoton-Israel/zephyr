@@ -11,6 +11,8 @@
 
 LOG_MODULE_REGISTER(npcm4xx_i3c_master, CONFIG_I3C_LOG_LEVEL);
 
+extern struct k_work npcm4xx_i3c_work_retry[I3C_PORT_MAX];
+
 /**
  * @brief                           Callback for I3C master
  * @param [in]      TaskInfo        Pointer to the running task
@@ -299,6 +301,9 @@ __u32 I3C_DO_NACK(I3C_TASK_INFO_t *pTaskInfo)
 		if (pTask->protocol == I3C_TRANSFER_PROTOCOL_ENTDAA) {
 			pFrame->flag |= I3C_TRANSFER_REPEAT_START;
 			I3C_Master_Start_Request((__u32)pTaskInfo);
+		} else {
+			/* add for zephyr */
+			k_work_submit(&npcm4xx_i3c_work_retry[pTaskInfo->Port]);
 		}
 	} else if ((pDevice->mode == I3C_DEVICE_MODE_SLAVE_ONLY) ||
 			   (pDevice->mode == I3C_DEVICE_MODE_SECONDARY_MASTER)) {
@@ -978,7 +983,8 @@ void I3C_Master_Start_Request(__u32 Parm)
 	} else if (I3C_IS_BUS_WAIT_STOP_OR_RETRY(pBus)) {
 		hal_I3C_Process_Task(pTaskInfo);
 	} else {
-		hal_I3C_Master_Stall(pBus, pTaskInfo->Port);
+		/* run retry after isr, let slave's isr can complete its task in time */
+		/* hal_I3C_Master_Stall(pBus, pTaskInfo->Port); */
 
 		if (I3C_IS_BUS_DETECT_SLVSTART(pBus) && (protocol != I3C_TRANSFER_PROTOCOL_EVENT)) {
 			pBus->pCurrentTask = NULL;
@@ -1024,6 +1030,46 @@ void I3C_Master_Stop_Request(__u32 Parm)
 
 	I3C_Master_Callback((uint32_t) pTaskInfo, pTaskInfo->result);
 	hal_I3C_Stop(port);
+}
+
+/*---------------------------------------------------------------------------------------------------------*/
+/**
+ * @brief                           Retry master task
+ * @param [in]      Parm       		Pointer to task
+ * @return                          none
+ */
+/*---------------------------------------------------------------------------------------------------------*/
+void I3C_Master_Retry_Frame(__u32 Parm)
+{
+	I3C_TRANSFER_TASK_t *pTask;
+	I3C_TRANSFER_FRAME_t *pFrame;
+	I3C_TASK_INFO_t *pTaskInfo;
+
+	if (Parm == 0) return;
+
+	pTask = (I3C_TRANSFER_TASK_t *)Parm;
+	if (pTask->frame_idx >= pTask->frame_count) return;
+	if (pTask->pTaskInfo == NULL) return;
+
+	pTaskInfo = pTask->pTaskInfo;
+
+	pFrame = &pTask->pFrameList[pTask->frame_idx];
+	if ((pFrame->flag & I3C_TRANSFER_RETRY_ENABLE) && (pFrame->retry_count >= 1)) {
+		pFrame->retry_count--;
+
+		if (pFrame->flag & I3C_TRANSFER_RETRY_WITHOUT_STOP) {
+			pFrame->flag |= I3C_TRANSFER_REPEAT_START;
+		} else {
+			I3C_Master_Stop_Request((__u32) pTask);
+		}
+
+		/* wait a moment for slave to prepare response data */
+		k_msleep(WAIT_SLAVE_PREPARE_RESPONSE_TIME);
+		I3C_Master_Start_Request((__u32) pTaskInfo);
+	}
+	else {
+		I3C_Master_Stop_Request((__u32) pTask);
+	}
 }
 
 /*------------------------------------------------------------------------------*/
@@ -1130,10 +1176,13 @@ void I3C_Master_Run_Next_Frame(__u32 Parm)
 			pDev = pDev->pNextDev;
 		}
 	}
-#undef ASSIGN_NEW_ADDRESS
 
 	pTask->frame_idx++;
-	I3C_Master_Start_Request((__u32)pTaskInfo);
+//	I3C_Master_Start_Request((__u32)pTaskInfo);
+
+pBus->pCurrentTask = NULL;
+//extern k_tid_t retry_thread_tid;
+//	k_thread_start(retry_thread_tid);
 }
 #undef MACRO
 

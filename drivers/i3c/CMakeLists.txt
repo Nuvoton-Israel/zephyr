@@ -11,3 +11,4 @@ add_subdirectory_ifdef(CONFIG_I3C_NPCM4XX		NPCM4XX)
 zephyr_library_sources_ifdef(CONFIG_I3C_NPCM4XX	i3c_npcm4xx.c)
 #zephyr_library_sources_ifdef(CONFIG_I3C_SHELL	i3c_shell.c)
 #add_subdirectory_ifdef(CONFIG_I3C_SLAVE		slave)
+

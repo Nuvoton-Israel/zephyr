@@ -11,7 +11,16 @@
 #include <drivers/i3c/NPCM4XX/i3c_drv.h>
 #include <drivers/i3c/NPCM4XX/api_i3c.h>
 
-I3C_REG_ITEM_t *pSlaveReg[I3C_PORT_MAX] = { NULL, NULL };
+I3C_REG_ITEM_t *pSlaveReg[I3C_PORT_MAX] = {
+	NULL,
+	NULL,
+#if (I3C_PORT_MAX > 2)
+	NULL,
+	NULL,
+	NULL,
+	NULL,
+#endif
+};
 
 /*------------------------------------------------------------------------------*/
 /**

@@ -95,6 +95,10 @@ struct i3c_npcm4xx_config {
 	bool secondary;
 	uint32_t i3c_scl_hz;
 	uint32_t i2c_scl_hz;
+	/* uint16_t manufacture-id; PID[5:4] */
+  	uint16_t part_id; /* PID[3:2] */
+	uint16_t vendor_def_id; /* PID[1:0] */
+
 	uint16_t pid_extra_info;
 	int ibi_append_pec;
 	int priv_xfer_pec;
