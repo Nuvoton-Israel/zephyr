@@ -598,6 +598,8 @@ static void work_queue_main(void *workq_ptr, void *p2, void *p3)
 			flag_set(&work->flags, K_WORK_RUNNING_BIT);
 			flag_clear(&work->flags, K_WORK_QUEUED_BIT);
 			handler = work->handler;
+			if (handler == NULL)
+				printk("1234");
 		} else if (flag_test_and_clear(&queue->flags,
 					       K_WORK_QUEUE_DRAIN_BIT)) {
 			/* Not busy and draining: move threads waiting for
@@ -635,6 +637,8 @@ static void work_queue_main(void *workq_ptr, void *p2, void *p3)
 			bool yield;
 
 			__ASSERT_NO_MSG(handler != NULL);
+			if (handler == NULL)
+				printk("3456");
 			handler(work);
 
 			/* Mark the work item as no longer running and deal

@@ -145,7 +145,7 @@ static void test_i3c_ci(int count)
 		 * Test part 3: for those who support stopsplitread
 		 * master --- i2c private write then read transfer ---> slave
 		 */
-		memset(test_data_rx, 0x00, sizeof(test_data_rx));
+//		memset(test_data_rx, 0x00, sizeof(test_data_rx));
 
 		i3c_i2c_read(slave, 0x0F, test_data_rx, 1);
 		__ASSERT(test_data_rx[0] == 0x6C, "Read Data Fail !!!\n\n");

@@ -27,14 +27,14 @@
 
 LOG_MODULE_REGISTER(npcm4xx_i3c_drv, CONFIG_I3C_LOG_LEVEL);
 
-//K_THREAD_STACK_DEFINE(npcm4xx_i3c_drv_stack_area, 512);
-//struct k_work_q npcm4xx_i3c_drv_work_q[I3C_PORT_MAX];
-struct k_work npcm4xx_i3c_work_stop[I3C_PORT_MAX];
-struct k_work npcm4xx_i3c_work_next[I3C_PORT_MAX];
-struct k_work npcm4xx_i3c_work_retry[I3C_PORT_MAX];
-//struct k_work npcm4xx_i3c_work_finish[I3C_PORT_MAX];
+#if 0
+#define NPCM4XX_I3C_DRV_STACK_SIZE 1024
+#define NPCM4XX_I3C_DRV_PRIORITY 5
 
-void NPCM4xx_I3C_DRV_STOP(struct k_work *work)
+k_tid_t npcm4xx_i3c_drv_tid = NULL;
+struct k_thread npcm4xx_i3c_drv_thread_data;
+
+void npcm4xx_i3c_drv_entry_point(void *p1, void *p2, void *p3)
 {
 	int i;
 	I3C_DEVICE_INFO_t *pDevice;
@@ -56,82 +56,98 @@ void NPCM4xx_I3C_DRV_STOP(struct k_work *work)
 	pTask = pBus->pCurrentTask;
 
 	api_I3C_Master_Stop((uint32_t)pBus->pCurrentTask);
-}
-
-void NPCM4xx_I3C_DRV_NEXT(struct k_work *work)
-{
-	int i;
-	I3C_DEVICE_INFO_t *pDevice;
-	I3C_BUS_INFO_t *pBus;
-	I3C_TRANSFER_TASK_t *pTask;
-
-	for (i = 0; i < I3C_PORT_MAX; i++) {
-		if (&npcm4xx_i3c_work_stop[i] == work) {
-			break;
-		}
-	}
-
-	if (i == I3C_PORT_MAX) {
-		return;
-	}
-
-	pDevice = api_I3C_Get_Current_Master_From_Port(i);
-	pBus = api_I3C_Get_Bus_From_Port(i);
-	pTask = pBus->pCurrentTask;
-
 	api_I3C_Master_Run_Next_Frame((uint32_t)pBus->pCurrentTask);
-}
-
-void NPCM4xx_I3C_DRV_RETRY(struct k_work *work)
-{
-	int i;
-	I3C_DEVICE_INFO_t *pDevice;
-	I3C_BUS_INFO_t *pBus;
-	I3C_TRANSFER_TASK_t *pTask;
-
-	for (i = 0; i < I3C_PORT_MAX; i++) {
-		if (&npcm4xx_i3c_work_stop[i] == work) {
-			break;
-		}
-	}
-
-	if (i == I3C_PORT_MAX) {
-		return;
-	}
-
-	pDevice = api_I3C_Get_Current_Master_From_Port(i);
-	pBus = api_I3C_Get_Bus_From_Port(i);
-	pTask = pBus->pCurrentTask;
-
 	api_I3C_Master_Retry((uint32_t)pBus->pCurrentTask);
-}
-
-#if 0
-void NPCM4xx_I3C_DRV_FINISH(struct k_work *work)
-{
-	int i;
-	I3C_DEVICE_INFO_t *pDevice;
-	I3C_BUS_INFO_t *pBus;
-	I3C_TRANSFER_TASK_t *pTask;
-	I3C_TASK_INFO_t *pTaskInfo;
-
-	for (i = 0; i < I3C_PORT_MAX; i++) {
-		if (&npcm4xx_i3c_work_stop[i] == work) {
-			break;
-		}
-	}
-
-	if (i == I3C_PORT_MAX) {
-		return;
-	}
-
-	pDevice = api_I3C_Get_Current_Master_From_Port(i);
-	pBus = api_I3C_Get_Bus_From_Port(i);
-	pTask = pBus->pCurrentTask;
-
-//	api_I3C_Master_Stop((uint32_t)pBus->pCurrentTask);
+	//	api_I3C_Master_Stop((uint32_t)pBus->pCurrentTask);
 }
 #endif
+
+#define NPCM4XX_I3C_WORK_QUEUE_STACK_SIZE 512
+#define NPCM4XX_I3C_WORK_QUEUE_PRIORITY 5
+K_THREAD_STACK_DEFINE(npcm4xx_i3c_stack_area, NPCM4XX_I3C_WORK_QUEUE_STACK_SIZE);
+struct k_work_q npcm4xx_i3c_work_q[I3C_PORT_MAX];
+
+struct k_work work_stop[I3C_PORT_MAX];
+struct k_work work_next[I3C_PORT_MAX];
+struct k_work work_retry[I3C_PORT_MAX];
+
+void work_stop_fun(struct k_work *item)
+{
+	uint8_t i;
+	I3C_BUS_INFO_t *pBus;
+	I3C_DEVICE_INFO_t *pDevice;
+	I3C_TRANSFER_TASK_t *pTask;
+
+	for (i = 0; i < I3C_PORT_MAX; i++)
+	{
+		if (item == &work_stop[i]) break;
+	}
+
+	if (i == I3C_PORT_MAX) return;
+
+	pDevice = api_I3C_Get_Current_Master_From_Port(i);
+	if (pDevice == NULL) return;
+
+	pBus = api_I3C_Get_Bus_From_Port(i);
+	if (pBus == NULL) return;
+
+	pTask = pDevice->pTaskListHead;
+	if (pTask == NULL) return;
+
+	api_I3C_Master_Stop((uint32_t)pTask);
+}
+
+void work_next_fun(struct k_work *item)
+{
+	uint8_t i;
+	I3C_BUS_INFO_t *pBus;
+	I3C_DEVICE_INFO_t *pDevice;
+	I3C_TRANSFER_TASK_t *pTask;
+
+	for (i = 0; i < I3C_PORT_MAX; i++)
+	{
+		if (item == &work_stop[i]) break;
+	}
+
+	if (i == I3C_PORT_MAX) return;
+
+	pDevice = api_I3C_Get_Current_Master_From_Port(i);
+	if (pDevice == NULL) return;
+
+	pBus = api_I3C_Get_Bus_From_Port(i);
+	if (pBus == NULL) return;
+
+	pTask = pDevice->pTaskListHead;
+	if (pTask == NULL) return;
+
+	api_I3C_Master_Run_Next_Frame((uint32_t)pTask);
+}
+
+void work_retry_fun(struct k_work *item)
+{
+	uint8_t i;
+	I3C_BUS_INFO_t *pBus;
+	I3C_DEVICE_INFO_t *pDevice;
+	I3C_TRANSFER_TASK_t *pTask;
+
+	for (i = 0; i < I3C_PORT_MAX; i++)
+	{
+		if (item == &work_stop[i]) break;
+	}
+
+	if (i == I3C_PORT_MAX) return;
+
+	pDevice = api_I3C_Get_Current_Master_From_Port(i);
+	if (pDevice == NULL) return;
+
+	pBus = api_I3C_Get_Bus_From_Port(i);
+	if (pBus == NULL) return;
+
+	pTask = pDevice->pTaskListHead;
+	if (pTask == NULL) return;
+
+	api_I3C_Master_Retry((uint32_t)pTask);
+}
 
 #define I3C_NPCM4XX_CCC_TIMEOUT		K_MSEC(10)
 #define I3C_NPCM4XX_XFER_TIMEOUT	K_MSEC(10)
@@ -1751,7 +1767,7 @@ static void i3c_npcm4xx_start_xfer(struct i3c_npcm4xx_obj *obj, struct i3c_npcm4
 	I3C_BUS_INFO_t *pBus;
 	I3C_TRANSFER_TASK_t *pTask;
 	I3C_TASK_INFO_t *pTaskInfo;
-//	k_spinlock_key_t key;
+	k_spinlock_key_t key;
 
 	config = obj->config;
 	port = config->inst_id;
@@ -1763,7 +1779,7 @@ static void i3c_npcm4xx_start_xfer(struct i3c_npcm4xx_obj *obj, struct i3c_npcm4
 			pTask = pDevice->pTaskListHead;
 			pBus->pCurrentTask = pTask;
 
-//			key = k_spin_lock(&obj->lock);
+			key = k_spin_lock(&obj->lock);
 			obj->curr_xfer = xfer;
 
 			pTaskInfo = pTask->pTaskInfo;
@@ -1773,8 +1789,8 @@ static void i3c_npcm4xx_start_xfer(struct i3c_npcm4xx_obj *obj, struct i3c_npcm4
 				I3C_Slave_Start_Request((__u32)pTaskInfo);
 
 //			retry_thread_tid = k_thread_create(&retry_thread_data, retry_thread_stack, K_THREAD_STACK_SIZEOF(retry_thread_stack), retry_thread, obj, xfer, NULL, RETRY_THREAD_PRIORITY, 0, K_FOREVER);
-//			k_spin_unlock(&obj->lock, key);
-//			return;
+			k_spin_unlock(&obj->lock, key);
+			return;
 		}
 	}
 }
@@ -2682,10 +2698,10 @@ void I3C_Master_ISR(uint8_t I3C_IF)
 
 					pTask->pTaskInfo->result = I3C_ERR_SLVSTART;
 					I3C_SET_REG_MINTSET(I3C_IF, I3C_MINTSET_SLVSTART_MASK);
-					k_work_submit(&npcm4xx_i3c_work_stop[I3C_IF]); /*api_I3C_Master_Stop((uint32_t) pTask);*/
+					k_work_submit_to_queue(&npcm4xx_i3c_work_q[I3C_IF], &work_stop[I3C_IF]); /*api_I3C_Master_Stop((uint32_t) pTask);*/
 				} else {
 					pTask->pTaskInfo->result = I3C_ERR_NACK;
-					k_work_submit(&npcm4xx_i3c_work_stop[I3C_IF]); /*api_I3C_Master_Stop((uint32_t) pTask);*/
+					k_work_submit_to_queue(&npcm4xx_i3c_work_q[I3C_IF], &work_stop[I3C_IF]); /*api_I3C_Master_Stop((uint32_t) pTask);*/
 					EXIT_MASTER_ISR();
 					return;
 				}
@@ -2700,7 +2716,7 @@ void I3C_Master_ISR(uint8_t I3C_IF)
 				I3C_GET_REG_MDMACTRL(I3C_IF) & ~I3C_MDMACTRL_DMATB_MASK);
 			I3C_SET_REG_MDATACTRL(I3C_IF,
 					I3C_GET_REG_MDATACTRL(I3C_IF) | I3C_MDATACTRL_FLUSHTB_MASK);
-			k_work_submit(&npcm4xx_i3c_work_stop[I3C_IF]); /* api_I3C_Master_Stop((uint32_t) pDevice->pTaskListHead); */
+			k_work_submit_to_queue(&npcm4xx_i3c_work_q[I3C_IF], &work_stop[I3C_IF]); /* api_I3C_Master_Stop((uint32_t) pDevice->pTaskListHead); */
 			break;
 
 		default:
@@ -2792,7 +2808,7 @@ void I3C_Master_ISR(uint8_t I3C_IF)
 
 				if (mstatus & I3C_MSTATUS_BETWEEN_MASK) {
 					pTaskInfo->result = I3C_ERR_OK;
-					k_work_submit(&npcm4xx_i3c_work_stop[I3C_IF]); /* api_I3C_Master_Stop((uint32_t) pDevice->pTaskListHead); */
+					k_work_submit_to_queue(&npcm4xx_i3c_work_q[I3C_IF], &work_stop[I3C_IF]); /* api_I3C_Master_Stop((uint32_t) pDevice->pTaskListHead); */
 				}
 			} else {
 				while ((pTask->pFrameList[pTask->frame_idx + 1].access_idx <
@@ -2803,7 +2819,7 @@ void I3C_Master_ISR(uint8_t I3C_IF)
 					pTask->pFrameList[pTask->frame_idx + 1].access_idx++;
 				}
 
-				k_work_submit(&npcm4xx_i3c_work_next[I3C_IF]); /* api_I3C_Master_Run_Next_Frame((uint32_t) pTask); */
+				k_work_submit_to_queue(&npcm4xx_i3c_work_q[I3C_IF], &work_next[I3C_IF]); /* api_I3C_Master_Run_Next_Frame((uint32_t) pTask); */
 			}
 		} else if (pTask->protocol == I3C_TRANSFER_PROTOCOL_ENTDAA) {
 			/* no slave want to participate ENTDAA, but slave ack 7E+Wr
@@ -2819,7 +2835,7 @@ void I3C_Master_ISR(uint8_t I3C_IF)
 					return;
 				}
 
-				k_work_submit(&npcm4xx_i3c_work_next[I3C_IF]); /* api_I3C_Master_Run_Next_Frame((uint32_t) pTask); */
+				k_work_submit(&work_next[I3C_IF]); /* api_I3C_Master_Run_Next_Frame((uint32_t) pTask); */
 			} else {
 				mstatus = I3C_GET_REG_MSTATUS(I3C_IF);
 				if (mstatus & I3C_MSTATUS_SLVSTART_MASK) {
@@ -2886,7 +2902,7 @@ void I3C_Master_ISR(uint8_t I3C_IF)
 
 		/* Error has been caught, but complete also assert */
 		if (pTaskInfo->result == I3C_ERR_WRABT) {
-			k_work_submit(&npcm4xx_i3c_work_stop[I3C_IF]); /* api_I3C_Master_Stop((uint32_t) pTask); */
+			k_work_submit_to_queue(&npcm4xx_i3c_work_q[I3C_IF], &work_stop[I3C_IF]); /* api_I3C_Master_Stop((uint32_t) pTask); */
 			EXIT_MASTER_ISR();
 			return;
 		}
@@ -2896,13 +2912,13 @@ void I3C_Master_ISR(uint8_t I3C_IF)
 			slvRxOffset[I3C_IF] = *pTask->pRdLen;
 			memcpy(&slvRxBuf[I3C_IF][0], pTask->pRdBuf, slvRxOffset[I3C_IF]);
 
-			k_work_submit(&npcm4xx_i3c_work_stop[I3C_IF]); /* api_I3C_Master_Stop((uint32_t) pTask); */
+			k_work_submit_to_queue(&npcm4xx_i3c_work_q[I3C_IF], &work_stop[I3C_IF]); /* api_I3C_Master_Stop((uint32_t) pTask); */
 			EXIT_MASTER_ISR();
 			return;
 		}
 
 		if (pTaskInfo->result == I3C_ERR_MR) {
-			k_work_submit(&npcm4xx_i3c_work_stop[I3C_IF]); /* api_I3C_Master_Stop((uint32_t) pTask); */
+			k_work_submit_to_queue(&npcm4xx_i3c_work_q[I3C_IF], &work_stop[I3C_IF]); /* api_I3C_Master_Stop((uint32_t) pTask); */
 			EXIT_MASTER_ISR();
 			return;
 		}
@@ -2925,7 +2941,7 @@ void I3C_Master_ISR(uint8_t I3C_IF)
 		}
 
 		if (pFrame->flag & I3C_TRANSFER_NO_STOP) {
-			k_work_submit(&npcm4xx_i3c_work_next[I3C_IF]); /* api_I3C_Master_Run_Next_Frame((uint32_t) pTask); */
+			k_work_submit_to_queue(&npcm4xx_i3c_work_q[I3C_IF], &work_next[I3C_IF]); /* api_I3C_Master_Run_Next_Frame((uint32_t) pTask); */
 			EXIT_MASTER_ISR();
 			return;
 		}
@@ -2953,7 +2969,7 @@ void I3C_Master_ISR(uint8_t I3C_IF)
 			}
 		}
 
-		k_work_submit(&npcm4xx_i3c_work_stop[I3C_IF]); /* api_I3C_Master_Stop((uint32_t) pTask); */
+		k_work_submit_to_queue(&npcm4xx_i3c_work_q[I3C_IF], &work_stop[I3C_IF]); /* api_I3C_Master_Stop((uint32_t) pTask); */
 		EXIT_MASTER_ISR();
 		return;
 	}
@@ -3484,13 +3500,23 @@ static int i3c_npcm4xx_init(const struct device *dev)
 	obj->config = config;
 	obj->hw_dat_free_pos = GENMASK(DEVICE_COUNT_MAX - 1, 0);
 
-//	k_work_queue_init(&npcm4xx_i3c_drv_work_q[port]);
-//	k_work_q_start(&npcm4xx_i3c_drv_work_q[port], npcm4xx_i3c_drv_stack_area, K_THREAD_STACK_SIZEOF(npcm4xx_i3c_drv_stack_area), CONFIG_SYSTEM_WORKQUEUE_PRIORITY);
+#if 0
+	if (npcm4xx_i3c_drv_tid == NULL) {
+		K_THREAD_STACK_DEFINE(npcm4xx_i3c_drv_stack_area, NPCM4XX_I3C_DRV_STACK_SIZE);
 
-//	k_work_init(&npcm4xx_i3c_work_stop[port], NPCM4xx_I3C_DRV_STOP);
-//	k_work_init(&npcm4xx_i3c_work_next[port], NPCM4xx_I3C_DRV_NEXT);
-//	k_work_init(&npcm4xx_i3c_work_retry[port], NPCM4xx_I3C_DRV_RETRY);
-//	k_work_init(&npcm4xx_i3c_work_finish[port], NPCM4xx_I3C_DRV_FINISH);
+		npcm4xx_i3c_drv_tid = k_thread_create(&npcm4xx_i3c_drv_thread_data,
+			npcm4xx_i3c_drv_stack_area, K_THREAD_STACK_SIZEOF(npcm4xx_i3c_drv_stack_area),
+			npcm4xx_i3c_drv_entry_point, NULL, NULL, NULL,
+			NPCM4XX_I3C_DRV_PRIORITY, 0, K_NO_WAIT);
+	}
+#endif
+
+	// k_work_queue_init(&npcm4xx_i3c_work_q[port]);
+	k_work_queue_start(&npcm4xx_i3c_work_q[port], npcm4xx_i3c_stack_area, K_THREAD_STACK_SIZEOF(npcm4xx_i3c_stack_area), NPCM4XX_I3C_WORK_QUEUE_PRIORITY, NULL);
+
+	k_work_init(&work_stop[port], work_stop_fun);
+	k_work_init(&work_next[port], work_next_fun);
+	k_work_init(&work_retry[port], work_retry_fun);
 
 	/* update default setting */
 	I3C_Port_Default_Setting(port);

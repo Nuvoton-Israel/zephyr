@@ -11,7 +11,9 @@
 
 LOG_MODULE_REGISTER(npcm4xx_i3c_master, CONFIG_I3C_LOG_LEVEL);
 
-extern struct k_work npcm4xx_i3c_work_retry[I3C_PORT_MAX];
+extern struct k_work_q npcm4xx_i3c_work_q[I3C_PORT_MAX];
+//extern struct k_work npcm4xx_i3c_work_retry[I3C_PORT_MAX];
+extern struct k_work work_retry[I3C_PORT_MAX];
 
 /**
  * @brief                           Callback for I3C master
@@ -303,7 +305,7 @@ __u32 I3C_DO_NACK(I3C_TASK_INFO_t *pTaskInfo)
 			I3C_Master_Start_Request((__u32)pTaskInfo);
 		} else {
 			/* add for zephyr */
-			k_work_submit(&npcm4xx_i3c_work_retry[pTaskInfo->Port]);
+			k_work_submit_to_queue(&npcm4xx_i3c_work_q[pTaskInfo->Port], &work_retry[pTaskInfo->Port]);
 		}
 	} else if ((pDevice->mode == I3C_DEVICE_MODE_SLAVE_ONLY) ||
 			   (pDevice->mode == I3C_DEVICE_MODE_SECONDARY_MASTER)) {
