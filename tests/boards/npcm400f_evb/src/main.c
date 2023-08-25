@@ -24,7 +24,7 @@ extern void test_i3c(void);
 #define TEST_SLT_TIMEOUT	20
 #define TEST_FT_TIMEOUT		5
 
-#define TEST_CI_FUNC_COUNT	1
+#define TEST_CI_FUNC_COUNT	100
 #define TEST_SLT_FUNC_COUNT	1
 #define TEST_FT_FUNC_COUNT	1
 

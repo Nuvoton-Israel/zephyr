@@ -14,7 +14,7 @@
 #include <common/reg/reg_def.h>
 #include <common/reg/reg_access.h>
 
-#define WAIT_SLAVE_PREPARE_RESPONSE_TIME 2 /* unit: ms */
+#define WAIT_SLAVE_PREPARE_RESPONSE_TIME 10 /* unit: us */
 
 /* generic data type used in lib source for compatibility */
 typedef uint8_t		__u8;
@@ -72,7 +72,7 @@ typedef int32_t		__s32;
 
 #define I3C_TRANSFER_SPEED_UNDEF  0
 
-#define I3C_PAYLOAD_SIZE_MAX	69
+#define I3C_PAYLOAD_SIZE_MAX	256
 #define IBI_PAYLOAD_SIZE_MAX	8
 
 enum I3C_PORT {
@@ -97,6 +97,8 @@ enum I3C_PORT {
 #define I3C_DYNAMIC_ADDR_DEFAULT_7BIT 0x00U
 
 /*#define I3C_BROADCAST_ADDR	0x7E*/
+
+#define RX_HANDLER_MAX	3
 
 enum I3C_DEVICE_TYPE {
 	I3C_DEVICE_TYPE_PURE_I3C = 0U,
@@ -469,6 +471,8 @@ enum I3C_IBITYPE {
 
 #define I3C_IBITYPE_Enum enum I3C_IBITYPE
 
+//typedef int (*i3c_callback_handler_t)(const struct device *port, uint16_t buf_len, uint8_t *buf);
+
 typedef __u32 (*ptrI3C_RetFunc)(__u32 TaskInfo, __u32 ErrDetail);
 
 struct I3C_CAPABILITY_INFO {
@@ -519,6 +523,9 @@ struct I3C_DEVICE_INFO {
 	__u8 bcr;                /* Bus characteristics register information.*/
 	__u16 vendorID;          /* Device vendor ID (manufacture ID).*/
 	__u32 partNumber;        /* Device part number info */
+
+	__u32 max_rd_len;
+	__u32 max_wr_len;
 
 	/* master config */
 	_Bool enableOpenDrainHigh;

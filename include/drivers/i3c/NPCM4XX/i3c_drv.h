@@ -134,7 +134,12 @@ struct i3c_npcm4xx_obj {
 	struct i3c_dev_desc *dev_descs[DEVICE_COUNT_MAX];
 
 	/* slave mode data */
+	struct i3c_slave_payload *msg_curr;
+	struct i3c_slave_payload *msg_queue;
+	int in; /* msg in id */
+	int out; /* msg end id */
 	struct i3c_slave_setup slave_data;
+
 	osEventFlagsId_t ibi_event;
 	osEventFlagsId_t data_event;
 	uint16_t extra_val;
