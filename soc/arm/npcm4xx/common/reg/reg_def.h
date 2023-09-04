@@ -537,82 +537,199 @@ struct spip_reg {
 
 /* SPIP register fields */
 /* 0x00: SPI_CTL fields */
-#define NPCM4XX_CTL_QUADIOEN                (22)
-#define NPCM4XX_CTL_DUALIOEN                (21)
-#define NPCM4XX_CTL_QDIODIR                 (20)
-#define NPCM4XX_CTL_REORDER                 (19)
-#define NPCM4XX_CTL_SLAVE                   (18)
-#define NPCM4XX_CTL_UNITIEN                 (17)
-#define NPCM4XX_CTL_TWOBIT                  (16)
-#define NPCM4XX_CTL_LSB                     (13)
-#define NPCM4XX_CTL_DWIDTH                   (8)
-#define NPCM4XX_CTL_SUSPITV                  (4)
-#define NPCM4XX_CTL_CLKPOL                   (3)
-#define NPCM4XX_CTL_TXNEG                    (2)
-#define NPCM4XX_CTL_RXNEG                    (1)
-#define NPCM4XX_CTL_SPIEN                    (0)
+#define NPCM4XX_CTL_QUADIOEN			(22)
+#define NPCM4XX_CTL_DUALIOEN			(21)
+#define NPCM4XX_CTL_QDIODIR			(20)
+#define NPCM4XX_CTL_REORDER			(19)
+#define NPCM4XX_CTL_SLAVE			(18)
+#define NPCM4XX_CTL_UNITIEN			(17)
+#define NPCM4XX_CTL_TWOBIT			(16)
+#define NPCM4XX_CTL_LSB				(13)
+#define NPCM4XX_CTL_DWIDTH			(8)
+#define NPCM4XX_CTL_SUSPITV			(4)
+#define NPCM4XX_CTL_CLKPOL			(3)
+#define NPCM4XX_CTL_TXNEG			(2)
+#define NPCM4XX_CTL_RXNEG			(1)
+#define NPCM4XX_CTL_SPIEN			(0)
 
 /* 0x04: SPI_CLKDIV fields */
-#define NPCM4XX_CLKDIV_DIVIDER               (0)
+#define NPCM4XX_CLKDIV_DIVIDER			(0)
 
 /* 0x08: SPI_SSCTL fields */
-#define NPCM4XX_SSCTL_SLVTOCNT              (16)
-#define NPCM4XX_SSCTL_SSINAIEN              (13)
-#define NPCM4XX_SSCTL_SSACTIEN              (12)
-#define NPCM4XX_SSCTL_SLVURIEN               (9)
-#define NPCM4XX_SSCTL_SLVBEIEN               (8)
-#define NPCM4XX_SSCTL_SLVTORST               (6)
-#define NPCM4XX_SSCTL_SLVTOIEN               (5)
-#define NPCM4XX_SSCTL_SLV3WIRE               (4)
-#define NPCM4XX_SSCTL_AUTOSS                 (3)
-#define NPCM4XX_SSCTL_SSACTPOL               (2)
-#define NPCM4XX_SSCTL_SS                     (0)
+#define NPCM4XX_SSCTL_SLVTOCNT			(16)
+#define NPCM4XX_SSCTL_SSINAIEN			(13)
+#define NPCM4XX_SSCTL_SSACTIEN			(12)
+#define NPCM4XX_SSCTL_SLVURIEN			(9)
+#define NPCM4XX_SSCTL_SLVBEIEN			(8)
+#define NPCM4XX_SSCTL_SLVTORST			(6)
+#define NPCM4XX_SSCTL_SLVTOIEN			(5)
+#define NPCM4XX_SSCTL_SLV3WIRE			(4)
+#define NPCM4XX_SSCTL_AUTOSS			(3)
+#define NPCM4XX_SSCTL_SSACTPOL			(2)
+#define NPCM4XX_SSCTL_SS			(0)
 
 /* 0x0C: SPI_PDMACTL fields */
-#define NPCM4XX_PDMACTL_PDMARST              (2)
-#define NPCM4XX_PDMACTL_RXPDMAEN             (1)
-#define NPCM4XX_PDMACTL_TXPDMAEN             (0)
+#define NPCM4XX_PDMACTL_PDMARST			(2)
+#define NPCM4XX_PDMACTL_RXPDMAEN		(1)
+#define NPCM4XX_PDMACTL_TXPDMAEN		(0)
 
 /* 0x10: SPI_FIFOCTL fields */
-#define NPCM4XX_FIFOCTL_TXTH                (28)
-#define NPCM4XX_FIFOCTL_RXTH                (24)
-#define NPCM4XX_FIFOCTL_TXUFIEN              (7)
-#define NPCM4XX_FIFOCTL_TXUFPOL              (6)
-#define NPCM4XX_FIFOCTL_RXOVIEN              (5)
-#define NPCM4XX_FIFOCTL_RXTOIEN              (4)
-#define NPCM4XX_FIFOCTL_TXTHIEN              (3)
-#define NPCM4XX_FIFOCTL_RXTHIEN              (2)
-#define NPCM4XX_FIFOCTL_TXRST                (1)
-#define NPCM4XX_FIFOCTL_RXRST                (0)
+#define NPCM4XX_FIFOCTL_TXTH			(28)
+#define NPCM4XX_FIFOCTL_RXTH			(24)
+#define NPCM4XX_FIFOCTL_TXUFIEN			(7)
+#define NPCM4XX_FIFOCTL_TXUFPOL			(6)
+#define NPCM4XX_FIFOCTL_RXOVIEN			(5)
+#define NPCM4XX_FIFOCTL_RXTOIEN			(4)
+#define NPCM4XX_FIFOCTL_TXTHIEN			(3)
+#define NPCM4XX_FIFOCTL_RXTHIEN			(2)
+#define NPCM4XX_FIFOCTL_TXRST			(1)
+#define NPCM4XX_FIFOCTL_RXRST			(0)
 
 /* 0x14: SPI_STATUS fields */
-#define NPCM4XX_STATUS_TXCNT                (28)
-#define NPCM4XX_STATUS_RXCNT                (24)
-#define NPCM4XX_STATUS_TXRXRST              (23)
-#define NPCM4XX_STATUS_TXUFIF               (19)
-#define NPCM4XX_STATUS_TXTHIF               (18)
-#define NPCM4XX_STATUS_TXFULL               (17)
-#define NPCM4XX_STATUS_TXEMPTY              (16)
-#define NPCM4XX_STATUS_SPIENSTS             (15)
-#define NPCM4XX_STATUS_RXTOIF               (12)
-#define NPCM4XX_STATUS_RXOVIF               (11)
-#define NPCM4XX_STATUS_RXTHIF               (10)
-#define NPCM4XX_STATUS_RXFULL                (9)
-#define NPCM4XX_STATUS_RXEMPTY               (8)
-#define NPCM4XX_STATUS_SLVUDRIF              (7)
-#define NPCM4XX_STATUS_SLVBEIF               (6)
-#define NPCM4XX_STATUS_SLVTOIF               (5)
-#define NPCM4XX_STATUS_SSLINE                (4)
-#define NPCM4XX_STATUS_SSINAIF               (3)
-#define NPCM4XX_STATUS_SSACTIF               (2)
-#define NPCM4XX_STATUS_UNITIF                (1)
-#define NPCM4XX_STATUS_BUSY                  (0)
+#define NPCM4XX_STATUS_TXCNT			(28)
+#define NPCM4XX_STATUS_RXCNT			(24)
+#define NPCM4XX_STATUS_TXRXRST			(23)
+#define NPCM4XX_STATUS_TXUFIF			(19)
+#define NPCM4XX_STATUS_TXTHIF			(18)
+#define NPCM4XX_STATUS_TXFULL			(17)
+#define NPCM4XX_STATUS_TXEMPTY			(16)
+#define NPCM4XX_STATUS_SPIENSTS			(15)
+#define NPCM4XX_STATUS_RXTOIF			(12)
+#define NPCM4XX_STATUS_RXOVIF			(11)
+#define NPCM4XX_STATUS_RXTHIF			(10)
+#define NPCM4XX_STATUS_RXFULL			(9)
+#define NPCM4XX_STATUS_RXEMPTY			(8)
+#define NPCM4XX_STATUS_SLVUDRIF			(7)
+#define NPCM4XX_STATUS_SLVBEIF			(6)
+#define NPCM4XX_STATUS_SLVTOIF			(5)
+#define NPCM4XX_STATUS_SSLINE			(4)
+#define NPCM4XX_STATUS_SSINAIF			(3)
+#define NPCM4XX_STATUS_SSACTIF			(2)
+#define NPCM4XX_STATUS_UNITIF			(1)
+#define NPCM4XX_STATUS_BUSY			(0)
 
 /* 0x20: SPI_TX fields */
-#define NPCM4XX_TX_TX                        (0)
+#define NPCM4XX_TX_TX				(0)
 
 /* 0x30: SPI_RX fields */
-#define NPCM4XX_RX_RX                        (0)
+#define NPCM4XX_RX_RX				(0)
+
+#define NPCM4XX_SPIP_SINGLE_DUMMY_BYTE		0x8
+
+#define NPCM4XX_SPIP_SPI_NOR_READ_INIT		0
+#define NPCM4XX_SPIP_SPI_NOR_WRITE_INIT		1
+#define NPCM4XX_SPIP_SPI_NOR_READ_INIT_OK	BIT(NPCM4XX_SPIP_SPI_NOR_READ_INIT)
+#define NPCM4XX_SPIP_SPI_NOR_WRITE_INIT_OK	BIT(NPCM4XX_SPIP_SPI_NOR_WRITE_INIT)
+
+/*
+ * SPI Synchronous serial Interface Controller (SPIM) device registers
+ */
+struct spim_reg {
+	/* 0x000: Control and Status Register 0 */
+	volatile uint32_t SPIM_CTL0;
+	/* 0x004: Control and Status Register 1 */
+	volatile uint32_t SPIM_CTL1;
+	volatile uint32_t reserved1;
+	/* 0x00C: RX Clock Delay Control Register */
+	volatile uint32_t SPIM_RXCLKDLY;
+	/* 0x010: Data Receive Register 0 */
+	volatile uint32_t SPIM_RX0;
+	/* 0x014: Data Receive Register 1 */
+	volatile uint32_t SPIM_RX1;
+	/* 0x018: Data Receive Register 2 */
+	volatile uint32_t SPIM_RX2;
+	/* 0x01C: Data Receive Register 3 */
+	volatile uint32_t SPIM_RX3;
+	/* 0x020: Data Transmit Register 0 */
+	volatile uint32_t SPIM_TX0;
+	/* 0x024: Data Transmit Register 1 */
+	volatile uint32_t SPIM_TX1;
+	/* 0x028: Data Transmit Register 2 */
+	volatile uint32_t SPIM_TX2;
+	/* 0x02C: Data Transmit Register 3 */
+	volatile uint32_t SPIM_TX3;
+	/* 0x030: SRAM Memory Address Register */
+	volatile uint32_t SPIM_SRAMADDR;
+	/* 0x034: DMA Transfer Byte Count Register */
+	volatile uint32_t SPIM_DMACNT;
+	/* 0x038: SPI Flash Address Register */
+	volatile uint32_t SPIM_FADDR;
+	volatile uint32_t reserved2[2];
+	/* 0x044: Direct Memory Mapping Mode Control Register */
+	volatile uint32_t SPIM_DMMCTL;
+	/* 0x048: Control Register 2 */
+	volatile uint32_t SPIM_CTL2;
+};
+
+/* SPIM register fields */
+
+/* 0x000: SPIM_CTL0 */
+#define NPCM4XX_SPIM_CTL0_CMDCODE		FIELD(24, 8)
+
+#define NPCM4XX_SPIM_CTL0_OPMODE		FIELD(22, 2)
+#define NPCM4XX_SPIM_CTL0_OPMODE_NORMAL_IO      0x0
+#define NPCM4XX_SPIM_CTL0_OPMODE_DMA_WRITE      0x1
+#define NPCM4XX_SPIM_CTL0_OPMODE_DMA_READ       0x2
+#define NPCM4XX_SPIM_CTL0_OPMODE_DMM            0x3
+
+#define NPCM4XX_SPIM_CTL0_BITMODE		FIELD(20, 2)
+#define NPCM4XX_SPIM_CTL0_BITMODE_STANDARD      0x0
+#define NPCM4XX_SPIM_CTL0_BITMODE_DUAL          0x1
+#define NPCM4XX_SPIM_CTL0_BITMODE_QUAD          0x2
+
+#define NPCM4XX_SPIM_CTL0_SUSPITV		FIELD(16, 4)
+#define NPCM4XX_SPIM_CTL0_QDIODIR		15
+
+#define NPCM4XX_SPIM_CTL0_BURSTNUM		FIELD(13, 2)
+#define NPCM4XX_SPIM_CTL0_BURSTNUM_1            0x0
+#define NPCM4XX_SPIM_CTL0_BURSTNUM_2            0x1
+#define NPCM4XX_SPIM_CTL0_BURSTNUM_3            0x2
+#define NPCM4XX_SPIM_CTL0_BURSTNUM_4            0x3
+
+#define NPCM4XX_SPIM_CTL0_DWIDTH		FIELD(8, 5)
+#define NPCM4XX_SPIM_CTL0_DWIDTH_8              0x7
+#define NPCM4XX_SPIM_CTL0_DWIDTH_16             0xF
+#define NPCM4XX_SPIM_CTL0_DWIDTH_24             0x17
+#define NPCM4XX_SPIM_CTL0_DWIDTH_32             0x1F
+
+#define NPCM4XX_SPIM_CTL0_IF			7
+#define NPCM4XX_SPIM_CTL0_IEN			6
+#define NPCM4XX_SPIM_CTL0_B4ADDREN		5
+#define NPCM4XX_SPIM_CTL0_CIPHOFF		0
+
+/* 0x004: SPIM_CTL1 */
+#define NPCM4XX_SPIM_CTL1_DIVIDER		FIELD(16, 16)
+#define NPCM4XX_SPIM_CTL1_IDLE_TIME		FIELD(8, 4)
+#define NPCM4XX_SPIM_CTL1_SSACTPOL		5
+#define NPCM4XX_SPIM_CTL1_SS			4
+#define NPCM4XX_SPIM_CTL1_CDINVAL		3
+#define NPCM4XX_SPIM_CTL1_CACHEOFF		1
+#define NPCM4XX_SPIM_CTL1_SPIMEN		0
+
+/* 0x00C: SPIM_RXCLKDLY */
+#define NPCM4XX_SPIM_RXCLKDLY_RDDLYSEL		FIELD(16, 3)
+#define NPCM4XX_SPIM_RXCLKDLY_PHDELSEL          FIELD(8, 8)
+#define NPCM4XX_SPIM_RXCLKDLY_DWDELSEL		FIELD(0, 8)
+
+/* 0x044: SPIM_DMMCTL */
+#define NPCM4XX_SPIM_DMMCTL_ACTSCLKT		FIELD(28, 4)
+#define NPCM4XX_SPIM_DMMCTL_UACTSCLK		26
+#define NPCM4XX_SPIM_DMMCTL_CREN		25
+#define NPCM4XX_SPIM_DMMCTL_BWEN		24
+#define NPCM4XX_SPIM_DMMCTL_DESELTIM		FIELD(16, 5)
+#define NPCM4XX_SPIM_DMMCTL_CRMDAT		FIELD(8, 8)
+
+/* 0x048: SPIM_CTL2 */
+#define NPCM4XX_SPIM_CTL2_DCNUM			FIELD(24, 5)
+#define NPCM4XX_SPIM_CTL2_USETEN		16
+
+/* SPIM read write command init flags */
+#define NPCM4XX_SPIM_SPI_NOR_READ_INIT		0
+#define NPCM4XX_SPIM_SPI_NOR_WRITE_INIT		1
+#define NPCM4XX_SPIM_SPI_NOR_READ_INIT_OK	BIT(NPCM4XX_SPIM_SPI_NOR_READ_INIT)
+#define NPCM4XX_SPIM_SPI_NOR_WRITE_INIT_OK	BIT(NPCM4XX_SPIM_SPI_NOR_WRITE_INIT)
+
+#define NPCM4XX_SPIM_SINGLE_DUMMY_BYTE		0x8
 
 /* Flash Interface Unit (FIU) device registers */
 struct fiu_reg {
@@ -2160,5 +2277,285 @@ struct pdma_reg {
 };
 
 #define PDMA_BASE_ADDR                    (0x40015000)
+
+/*
+ * USB device controller (USBD) device registers
+ */
+struct usbd_ep_reg {
+	union {
+	    /* 0x64+x*0x28:  Endpoint x Data Register */
+		volatile uint32_t USBD_EPDAT;
+	    /* 0x64+x*0x28:  Endpoint x Data Register for Byte Access */
+		volatile uint8_t  USBD_EPDAT_BYTE;
+	};
+	/* 0x68+x*0x28:  Endpoint x Interrupt Status Register */
+	volatile uint32_t USBD_EPINTSTS;
+	/* 0x6C+x*0x28:  USBD_Endpoint x Interrupt Enable Register */
+	volatile uint32_t USBD_EPINTEN;
+	/* 0x70+x*0x28:  Endpoint x Data Available Count Register */
+	volatile  uint32_t USBD_EPDATCNT;
+	/* 0x74+x*0x28:  Endpoint x Response Control Register */
+	volatile uint32_t USBD_EPRSPCTL;
+	/* 0x78+x*0x28:  Endpoint x Maximum Packet Size Register */
+	volatile uint32_t USBD_EPMPS;
+	/* 0x7C+x*0x28:  Endpoint x Transfer Count Register */
+	volatile uint32_t USBD_EPTXCNT;
+	/* 0x80+x*0x28:  Endpoint x Configuration Register */
+	volatile uint32_t USBD_EPCFG;
+	/* 0x84+x*0x28:  Endpoint x RAM Start Address Register */
+	volatile uint32_t USBD_EPBUFSTART;
+	/* 0x88+x*0x28:  Endpoint x RAM End Address Register */
+	volatile uint32_t USBD_EPBUFEND;
+};
+
+struct usbd_reg {
+	/* 0x00:  Interrupt Status Low Register */
+	volatile  uint32_t USBD_GINTSTS;
+	uint32_t RESERVE0[1];
+	/* 0x08:  Interrupt Enable Low Register */
+	volatile uint32_t USBD_GINTEN;
+	uint32_t RESERVE1[1];
+	/* 0x10:  USB Bus Interrupt Status Register */
+	volatile uint32_t USBD_BUSINTSTS;
+	/* 0x14:  USB Bus Interrupt Enable Register */
+	volatile uint32_t USBD_BUSINTEN;
+	/* 0x18:  USB Operational Register */
+	volatile uint32_t USBD_OPER;
+	/* 0x1C:  USB Frame Count Register */
+	volatile  uint32_t USBD_FRAMECNT;
+	/* 0x20:  USB Function Address Register */
+	volatile uint32_t USBD_FADDR;
+	/* 0x24:  USB Test Mode Register */
+	volatile uint32_t USBD_TEST;
+	union {
+		/* 0x28:  Control-Endpoint Data Buffer */
+		volatile uint32_t USBD_CEPDAT;
+		/* 0x28:  Control-Endpoint Data Buffer for Byte Access */
+		volatile uint8_t  USBD_CEPDAT_BYTE;
+	};
+	/* 0x2C:  Control-Endpoint Control and Status */
+	volatile uint32_t USBD_CEPCTL;
+	/* 0x30:  Control-Endpoint Interrupt Enable */
+	volatile uint32_t USBD_CEPINTEN;
+	/* 0x34:  Control-Endpoint Interrupt Status */
+	volatile uint32_t USBD_CEPINTSTS;
+	/* 0x38:  Control-Endpoint In-transfer Data Count */
+	volatile uint32_t USBD_CEPTXCNT;
+	/* 0x3C:  Control-Endpoint Out-transfer Data Count */
+	volatile  uint32_t USBD_CEPRXCNT;
+	/* 0x40:  Control-Endpoint data count */
+	volatile  uint32_t USBD_CEPDATCNT;
+	/* 0x44:  Setup1 & Setup0 bytes */
+	volatile  uint32_t USBD_SETUP1_0;
+	/* 0x48:  Setup3 & Setup2 Bytes */
+	volatile  uint32_t USBD_SETUP3_2;
+	/* 0x4C:  Setup5 & Setup4 Bytes */
+	volatile  uint32_t USBD_SETUP5_4;
+	/* 0x50:  Setup7 & Setup6 Bytes */
+	volatile  uint32_t USBD_SETUP7_6;
+	/* 0x54:  Control Endpoint RAM Start Address Register */
+	volatile uint32_t USBD_CEPBUFSTART;
+	/* 0x58:  Control Endpoint RAM End Address Register */
+	volatile uint32_t USBD_CEPBUFEND;
+	/* 0x5C:  DMA Control Status Register */
+	volatile uint32_t USBD_DMACTL;
+	/* 0x60:  DMA Count Register */
+	volatile uint32_t USBD_DMACNT;
+
+	/* 0x64-0x240:  Endpoint Register */
+	struct usbd_ep_reg EP[12];
+
+	uint32_t RESERVE2[303];
+	/* 0x700:  AHB DMA Address Register*/
+	volatile uint32_t USBD_DMAADDR;
+	/* 0x704:  USB PHY Control Register */
+	volatile uint32_t USBD_PHYCTL;
+};
+
+/* USBD register fields */
+#define NPCM4XX_USBD_GINTSTS_USBIF           (0)
+#define NPCM4XX_USBD_GINTSTS_CEPIF           (1)
+#define NPCM4XX_USBD_GINTSTS_EPAIF           (2)
+#define NPCM4XX_USBD_GINTSTS_EPBIF           (3)
+#define NPCM4XX_USBD_GINTSTS_EPCIF           (4)
+#define NPCM4XX_USBD_GINTSTS_EPDIF           (5)
+#define NPCM4XX_USBD_GINTSTS_EPEIF           (6)
+#define NPCM4XX_USBD_GINTSTS_EPFIF           (7)
+#define NPCM4XX_USBD_GINTSTS_EPGIF           (8)
+#define NPCM4XX_USBD_GINTSTS_EPHIF           (9)
+#define NPCM4XX_USBD_GINTSTS_EPIIF           (10)
+#define NPCM4XX_USBD_GINTSTS_EPJIF           (11)
+#define NPCM4XX_USBD_GINTSTS_EPKIF           (12)
+#define NPCM4XX_USBD_GINTSTS_EPLIF           (13)
+
+#define NPCM4XX_USBD_GINTEN_USBIEN           (0)
+#define NPCM4XX_USBD_GINTEN_CEPIEN           (1)
+#define NPCM4XX_USBD_GINTEN_EPAIEN           (2)
+#define NPCM4XX_USBD_GINTEN_EPBIEN           (3)
+#define NPCM4XX_USBD_GINTEN_EPCIEN           (4)
+#define NPCM4XX_USBD_GINTEN_EPDIEN           (5)
+#define NPCM4XX_USBD_GINTEN_EPEIEN           (6)
+#define NPCM4XX_USBD_GINTEN_EPFIEN           (7)
+#define NPCM4XX_USBD_GINTEN_EPGIEN           (8)
+#define NPCM4XX_USBD_GINTEN_EPHIEN           (9)
+#define NPCM4XX_USBD_GINTEN_EPIIEN           (10)
+#define NPCM4XX_USBD_GINTEN_EPJIEN           (11)
+#define NPCM4XX_USBD_GINTEN_EPKIEN           (12)
+#define NPCM4XX_USBD_GINTEN_EPLIEN           (13)
+
+#define NPCM4XX_USBD_BUSINTSTS_SOFIF         (0)
+#define NPCM4XX_USBD_BUSINTSTS_RSTIF         (1)
+#define NPCM4XX_USBD_BUSINTSTS_RESUMEIF      (2)
+#define NPCM4XX_USBD_BUSINTSTS_SUSPENDIF     (3)
+#define NPCM4XX_USBD_BUSINTSTS_HISPDIF       (4)
+#define NPCM4XX_USBD_BUSINTSTS_DMADONEIF     (5)
+#define NPCM4XX_USBD_BUSINTSTS_PHYCLKVLDIF   (6)
+#define NPCM4XX_USBD_BUSINTSTS_VBUSDETIF     (8)
+
+#define NPCM4XX_USBD_BUSINTEN_SOFIEN         (0)
+#define NPCM4XX_USBD_BUSINTEN_RSTIEN         (1)
+#define NPCM4XX_USBD_BUSINTEN_RESUMEIEN      (2)
+#define NPCM4XX_USBD_BUSINTEN_SUSPENDIEN     (3)
+#define NPCM4XX_USBD_BUSINTEN_HISPDIEN       (4)
+#define NPCM4XX_USBD_BUSINTEN_DMADONEIEN     (5)
+#define NPCM4XX_USBD_BUSINTEN_PHYCLKVLDIEN   (6)
+#define NPCM4XX_USBD_BUSINTEN_VBUSDETIEN     (8)
+
+#define NPCM4XX_USBD_OPER_RESUMEEN           (0)
+#define NPCM4XX_USBD_OPER_HISPDEN            (1)
+#define NPCM4XX_USBD_OPER_CURSPD             (2)
+
+#define NPCM4XX_USBD_FRAMECNT_MFRAMECNT      FIELD(0, 3)
+#define NPCM4XX_USBD_FRAMECNT_FRAMECNT       FIELD(3, 11)
+
+#define NPCM4XX_USBD_FADDR_FADDR             FILED(0, 7)
+
+#define NPCM4XX_USBD_CEPDAT_DAT              FILED(0, 32)
+
+#define NPCM4XX_USBD_CEPCTL_NAKCLR           (0)
+#define NPCM4XX_USBD_CEPCTL_STALLEN          (1)
+#define NPCM4XX_USBD_CEPCTL_ZEROLEN          (2)
+#define NPCM4XX_USBD_CEPCTL_FLUSH            (3)
+
+#define NPCM4XX_USBD_CEPINTEN_SETUPTKIEN     (0)
+#define NPCM4XX_USBD_CEPINTEN_SETUPPKIEN     (1)
+#define NPCM4XX_USBD_CEPINTEN_OUTTKIEN       (2)
+#define NPCM4XX_USBD_CEPINTEN_INTKIEN        (3)
+#define NPCM4XX_USBD_CEPINTEN_PINGIEN        (4)
+#define NPCM4XX_USBD_CEPINTEN_TXPKIEN        (5)
+#define NPCM4XX_USBD_CEPINTEN_RXPKIEN        (6)
+#define NPCM4XX_USBD_CEPINTEN_NAKIEN         (7)
+#define NPCM4XX_USBD_CEPINTEN_STALLIEN       (8)
+#define NPCM4XX_USBD_CEPINTEN_ERRIEN         (9)
+#define NPCM4XX_USBD_CEPINTEN_STSDONEIEN     (10)
+#define NPCM4XX_USBD_CEPINTEN_BUFFULLIEN     (11)
+#define NPCM4XX_USBD_CEPINTEN_BUFEMPTYIEN    (12)
+
+#define NPCM4XX_USBD_CEPINTSTS_SETUPTKIF     (0)
+#define NPCM4XX_USBD_CEPINTSTS_SETUPPKIF     (1)
+#define NPCM4XX_USBD_CEPINTSTS_OUTTKIF       (2)
+#define NPCM4XX_USBD_CEPINTSTS_INTKIF        (3)
+#define NPCM4XX_USBD_CEPINTSTS_PINGIF        (4)
+#define NPCM4XX_USBD_CEPINTSTS_TXPKIF        (5)
+#define NPCM4XX_USBD_CEPINTSTS_RXPKIF        (6)
+#define NPCM4XX_USBD_CEPINTSTS_NAKIF         (7)
+#define NPCM4XX_USBD_CEPINTSTS_STALLIF       (8)
+#define NPCM4XX_USBD_CEPINTSTS_ERRIF         (9)
+#define NPCM4XX_USBD_CEPINTSTS_STSDONEIF     (10)
+#define NPCM4XX_USBD_CEPINTSTS_BUFFULLIF     (11)
+#define NPCM4XX_USBD_CEPINTSTS_BUFEMPTYIF    (12)
+
+#define NPCM4XX_USBD_CEPTXCNT_TXCNT          FIELD(0, 8)
+
+#define NPCM4XX_USBD_CEPRXCNT_RXCNT          FIELD(0, 8)
+
+#define NPCM4XX_USBD_CEPDATCNT_DATCNT        FIELD(0, 16)
+
+#define NPCM4XX_USBD_SETUP1_0_SETUP0         FIELD(0, 8)
+#define NPCM4XX_USBD_SETUP1_0_SETUP1         FIELD(8, 8)
+
+#define NPCM4XX_USBD_SETUP3_2_SETUP2         FIELD(0, 8)
+#define NPCM4XX_USBD_SETUP3_2_SETUP3         FIELD(8, 8)
+
+#define NPCM4XX_USBD_SETUP5_4_SETUP4         FIELD(0, 8)
+#define NPCM4XX_USBD_SETUP5_4_SETUP5         FIELD(8, 8)
+
+#define NPCM4XX_USBD_SETUP7_6_SETUP6         FIELD(0, 8)
+#define NPCM4XX_USBD_SETUP7_6_SETUP7         FIELD(8, 8)
+
+#define NPCM4XX_USBD_CEPBUFSTART_SADDR       FIELD(0, 12)
+
+#define NPCM4XX_USBD_CEPBUFEND_EADDR         FIELD(0, 12)
+
+#define NPCM4XX_USBD_DMACTL_EPNUM            FIELD(0, 4)
+#define NPCM4XX_USBD_DMACTL_DMARD            (4)
+#define NPCM4XX_USBD_DMACTL_DMAEN            (5)
+#define NPCM4XX_USBD_DMACTL_SGEN             (6)
+#define NPCM4XX_USBD_DMACTL_DMARST           (7)
+#define NPCM4XX_USBD_DMACTL_SVINEP           (8)
+
+#define NPCM4XX_USBD_DMACNT_DMACNT           FIELD(0, 20)
+
+#define NPCM4XX_USBD_EPDAT_EPDAT             FIELD(0, 32)
+
+#define NPCM4XX_USBD_EPINTSTS_BUFFULLIF      (0)
+#define NPCM4XX_USBD_EPINTSTS_BUFEMPTYIF     (1)
+#define NPCM4XX_USBD_EPINTSTS_SHORTTXIF      (2)
+#define NPCM4XX_USBD_EPINTSTS_TXPKIF         (3)
+#define NPCM4XX_USBD_EPINTSTS_RXPKIF         (4)
+#define NPCM4XX_USBD_EPINTSTS_OUTTKIF        (5)
+#define NPCM4XX_USBD_EPINTSTS_INTKIF         (6)
+#define NPCM4XX_USBD_EPINTSTS_PINGIF         (7)
+#define NPCM4XX_USBD_EPINTSTS_NAKIF          (8)
+#define NPCM4XX_USBD_EPINTSTS_STALLIF        (9)
+#define NPCM4XX_USBD_EPINTSTS_NYETIF         (10)
+#define NPCM4XX_USBD_EPINTSTS_ERRIF          (11)
+#define NPCM4XX_USBD_EPINTSTS_SHORTRXIF      (12)
+
+#define NPCM4XX_USBD_EPINTEN_BUFFULLIEN      (0)
+#define NPCM4XX_USBD_EPINTEN_BUFEMPTYIEN     (1)
+#define NPCM4XX_USBD_EPINTEN_SHORTTXIEN      (2)
+#define NPCM4XX_USBD_EPINTEN_TXPKIEN         (3)
+#define NPCM4XX_USBD_EPINTEN_RXPKIEN         (4)
+#define NPCM4XX_USBD_EPINTEN_OUTTKIEN        (5)
+#define NPCM4XX_USBD_EPINTEN_INTKIEN         (6)
+#define NPCM4XX_USBD_EPINTEN_PINGIEN         (7)
+#define NPCM4XX_USBD_EPINTEN_NAKIEN          (8)
+#define NPCM4XX_USBD_EPINTEN_STALLIEN        (9)
+#define NPCM4XX_USBD_EPINTEN_NYETIEN         (10)
+#define NPCM4XX_USBD_EPINTEN_ERRIEN          (11)
+#define NPCM4XX_USBD_EPINTEN_SHORTRXIEN      (12)
+
+#define NPCM4XX_USBD_EPDATCNT_DATCNT         FIELD(0, 16)
+#define NPCM4XX_USBD_EPDATCNT_DMALOOP        FIELD(16, 15)
+
+#define NPCM4XX_USBD_EPRSPCTL_FLUSH          (0)
+#define NPCM4XX_USBD_EPRSPCTL_MODE           FIELD(1, 2)
+#define NPCM4XX_USBD_EPRSPCTL_TOGGLE         (3)
+#define NPCM4XX_USBD_EPRSPCTL_HALT           (4)
+#define NPCM4XX_USBD_EPRSPCTL_ZEROLEN        (5)
+#define NPCM4XX_USBD_EPRSPCTL_SHORTTXEN      (6)
+#define NPCM4XX_USBD_EPRSPCTL_DISBUF         (7)
+
+#define NPCM4XX_USBD_EPMPS_EPMPS             FIELD(0, 11)
+
+#define NPCM4XX_USBD_EPTXCNT_TXCNT           FIELD(0, 11)
+
+#define NPCM4XX_USBD_EPCFG_EPEN              (0)
+#define NPCM4XX_USBD_EPCFG_EPTYPE            FIELD(1, 2)
+#define NPCM4XX_USBD_EPCFG_EPDIR             (3)
+#define NPCM4XX_USBD_EPCFG_EPNUM             FIELD(4, 4)
+
+#define NPCM4XX_USBD_EPBUFSTART_SADDR        FIELD(0, 12)
+
+#define NPCM4XX_USBD_EPBUFEND_EADDR          FIELD(0, 12)
+
+#define NPCM4XX_USBD_DMAADDR_DMAADDR         FIELD(0, 32)
+
+#define NPCM4XX_USBD_PHYCTL_DPPUEN           (8)
+#define NPCM4XX_USBD_PHYCTL_PHYEN            (9)
+#define NPCM4XX_USBD_PHYCTL_WKEN             (24)
+#define NPCM4XX_USBD_PHYCTL_VBUSDET          (31)
+
 
 #endif /* _NUVOTON_NPCM4XX_REG_DEF_H */
