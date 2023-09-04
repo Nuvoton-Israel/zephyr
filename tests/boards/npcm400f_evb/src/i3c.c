@@ -89,7 +89,7 @@ static void test_i3c_slave_task(void *arg1, void *arg2, void *arg3)
 		/* Test part 1: read and compare the data */
 
 		/* reset rx buffer */
-		/* memset(test_data_rx_slv, 0x00, sizeof(test_data_rx_slv)); */
+		memset(test_data_rx_slv, 0x00, sizeof(test_data_rx_slv));
 
 		while (1) {
 			ret = i3c_slave_mqueue_read(slave_mq, (uint8_t *)test_data_rx_slv, TEST_PRIV_XFER_SIZE);
@@ -108,6 +108,8 @@ static void test_i3c_slave_task(void *arg1, void *arg2, void *arg3)
 
 		/* Test part 2: send IBI to notify the master device to get the pending data */
 		/* prepare_test_data(test_data_tx_slv, TEST_IBI_PAYLOAD_SIZE); */
+
+		/* for debug only */
 		memcpy(test_data_tx_slv, test_data_rx_slv, TEST_IBI_PAYLOAD_SIZE);
 		ret = i3c_slave_mqueue_write(slave_mq, test_data_tx_slv, TEST_IBI_PAYLOAD_SIZE);
 		ast_zassert_equal(ret, 0, "failed to do slave mqueue write");
@@ -157,14 +159,12 @@ static void test_i3c_ci(int count)
 	/* try to enter i3c mode */
 	/* assign dynamic address with setdasa or entdaa, doesn't support setaasa in slave mode */
 	i3c_master_send_rstdaa(dev_master);
-	/* i3c_master_send_aasa(dev_master); */
+	i3c_master_send_aasa(dev_master); /* Compatibility test for JESD403 */
 	i3c_master_send_entdaa(slave);
 	slave->info.i2c_mode = 0;
 
 	/* must wait for a while, for slave finish sir_allowed_worker ? */
-	/* if skip the delay, the following getpid will be nacked */
-	/* and dma will capture enec mask data later */
-	k_sleep(K_MSEC(2000));
+	/* k_sleep(K_USEC(1)); */
 
 	/* try to collect more slave info if called setaasa in the former */
 	i3c_master_send_getpid(dev_master, slave->info.dynamic_addr, &slave->info.pid);
@@ -193,7 +193,8 @@ static void test_i3c_ci(int count)
 	for (i = 0; i < count; i++) {
 		/* prepare request message */
 		prepare_test_data(test_data_tx_mst, TEST_PRIV_XFER_SIZE);
-		test_data_tx_mst[0] = i; /* for debug only */
+		/* test_data_tx_mst[0] = i; */ /* for debug only */
+		/* k_usleep(100); */ /* debug only */
 
 		/* Requester send request message */
 		xfer[0].rnw = 0;
@@ -227,6 +228,7 @@ static void test_i3c_ci(int count)
 		k_yield();
 		ret = i3c_master_priv_xfer(slave, &xfer[0], 1);
 		ast_zassert_mem_equal(test_data_tx_slv, test_data_rx_mst, TEST_IBI_PAYLOAD_SIZE, "data mismatch");
+		/*k_usleep(100);*/ /* debug only */
 	}
 }
 

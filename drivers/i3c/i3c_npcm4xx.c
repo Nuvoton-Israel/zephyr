@@ -582,8 +582,8 @@ I3C_ErrCode_Enum hal_I3C_Config_Device(I3C_DEVICE_INFO_t *pDevice)
 		PDMA->SCATBA = (uint32_t) I3C_SCATTER_GATHER_TABLE.SCAT_DSCT;
 	}
 
-//	hal_I3C_set_MAXRD(port, pDevice->max_rd_len);
-//	hal_I3C_set_MAXWR(port, pDevice->max_wr_len);
+	hal_I3C_set_MAXRD(port, pDevice->max_rd_len);
+	hal_I3C_set_MAXWR(port, pDevice->max_wr_len);
 
 	/* Used for the Mixed bus to send the first START frame */
 	mconfig &= ~I3C_MCONFIG_ODHPP_MASK;
@@ -3430,7 +3430,10 @@ if (intmasked == 0) return;
 		 * 1. We must terminate previous RX DMA / FIFO before master send "Index" / Data
 		 * 2. We must init RX DMA to get "Index" and data
 		 */
-		I3C_Slave_Handle_DMA((uint32_t)pDevice);
+		if (intmasked & I3C_INTMASKED_STOP_MASK) {
+			/* update tx buffer here, only when slave doesn't get STOP */
+			I3C_Slave_Handle_DMA((uint32_t)pDevice);
+		}
 
 		I3C_SET_REG_STATUS(I3C_IF, I3C_STATUS_START_MASK);
 	}
@@ -3441,7 +3444,8 @@ if (intmasked == 0) return;
 	}
 
 	if (intmasked & I3C_INTMASKED_CCC_MASK) {
-		I3C_SET_REG_STATUS(I3C_IF, I3C_STATUS_CCC_MASK);
+		/* Can't reset here, will validate CCC in I3C_Slave_Handle_DMA() */
+		/* I3C_SET_REG_STATUS(I3C_IF, I3C_STATUS_CCC_MASK); */
 	}
 
 	if (intmasked & I3C_INTMASKED_DDRMATCHED_MASK) {
@@ -3645,9 +3649,9 @@ void I3C_Slave_Handle_DMA(__u32 Parm)
 			PDMA->CHCTL &= ~MaskBit(port + I3C_PORT_MAX);
 
 			if (I3C_GET_REG_STATUS(port) & I3C_STATUS_CCC_MASK) {
-				/* reserved for vendor CCC */
+				/* reserved for vendor CCC, drop rx data directly */
 				if (slvRxBuf[port][0] == CCC_BROADCAST_SETAASA) {
-
+					LOG_WRN("rcv setaasa...");
 				}
 
 				/* we can't support SETAASA because DYNADDR is RO. */
@@ -3938,7 +3942,7 @@ static void sir_allowed_worker(struct k_work *work)
 {
 	struct i3c_npcm4xx_obj *obj = CONTAINER_OF(work, struct i3c_npcm4xx_obj, work);
 
-	k_msleep(1000);
+	/* k_msleep(1000); */
 	obj->sir_allowed_by_sw = 1;
 }
 
@@ -3991,8 +3995,8 @@ static int i3c_npcm4xx_init(const struct device *dev)
 
 	pDevice->staticAddr = config->assigned_addr;
 
-	pDevice->max_rd_len = 1024; // I3C_PAYLOAD_SIZE_MAX;
-	pDevice->max_wr_len = 1024; // I3C_PAYLOAD_SIZE_MAX;
+	pDevice->max_rd_len = I3C_PAYLOAD_SIZE_MAX;
+	pDevice->max_wr_len = I3C_PAYLOAD_SIZE_MAX;
 
 	if (config->slave) {
 		if (config->secondary)
