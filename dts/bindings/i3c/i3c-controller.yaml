@@ -6,13 +6,16 @@ include: base.yaml
 bus: i3c
 
 properties:
+
     label:
       required: true
+
     i2c-scl-hz:
       required: false
       type: int
       default: 1000000
-      description: I2C mode and Open-drain mode SCL frequency in HZ
+      description: I2C mode SCL frequency in HZ
+
     i3c-scl-hz:
       required: false
       type: int

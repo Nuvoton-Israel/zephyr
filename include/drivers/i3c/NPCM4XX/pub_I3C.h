@@ -14,6 +14,8 @@
 #include <common/reg/reg_def.h>
 #include <common/reg/reg_access.h>
 
+#define WAIT_SLAVE_PREPARE_RESPONSE_TIME 10 /* unit: us */
+
 /* generic data type used in lib source for compatibility */
 typedef uint8_t		__u8;
 typedef uint16_t	__u16;
@@ -70,7 +72,7 @@ typedef int32_t		__s32;
 
 #define I3C_TRANSFER_SPEED_UNDEF  0
 
-#define I3C_PAYLOAD_SIZE_MAX	69
+#define I3C_PAYLOAD_SIZE_MAX	256
 #define IBI_PAYLOAD_SIZE_MAX	8
 
 enum I3C_PORT {
@@ -95,6 +97,8 @@ enum I3C_PORT {
 #define I3C_DYNAMIC_ADDR_DEFAULT_7BIT 0x00U
 
 /*#define I3C_BROADCAST_ADDR	0x7E*/
+
+#define RX_HANDLER_MAX	3
 
 enum I3C_DEVICE_TYPE {
 	I3C_DEVICE_TYPE_PURE_I3C = 0U,
@@ -240,10 +244,10 @@ struct I3C_DEVICE_INFO_SHORT;
 #define cmd_t union cmd_t
 
 /*typedef */struct cmd_attrib {
-	__u8 endian	: 1;	/* 0b: little, 1b: bigh endian, if width != 0 */
-	__u8 width : 1;		/* 0b = 1, 1b = 2 */
-	__u8 write : 1;
-	__u8 read  : 1;
+	__u8 endian	: 1;    /* 0b: little, 1b: bigh endian, if width != 0 */
+	__u8 width : 1;     /* 0b = 1, 1b = 2 */
+	__u8 write : 1;     /* wrtiable */
+	__u8 read  : 1;     /* readable */
 } /* cmd_attrib_t */;
 
 #define cmd_attrib_t struct cmd_attrib
@@ -467,6 +471,8 @@ enum I3C_IBITYPE {
 
 #define I3C_IBITYPE_Enum enum I3C_IBITYPE
 
+//typedef int (*i3c_callback_handler_t)(const struct device *port, uint16_t buf_len, uint8_t *buf);
+
 typedef __u32 (*ptrI3C_RetFunc)(__u32 TaskInfo, __u32 ErrDetail);
 
 struct I3C_CAPABILITY_INFO {
@@ -518,6 +524,9 @@ struct I3C_DEVICE_INFO {
 	__u16 vendorID;          /* Device vendor ID (manufacture ID).*/
 	__u32 partNumber;        /* Device part number info */
 
+	__u32 max_rd_len;
+	__u32 max_wr_len;
+
 	/* master config */
 	_Bool enableOpenDrainHigh;
 	_Bool enableOpenDrainStop;
@@ -541,6 +550,7 @@ struct I3C_DEVICE_INFO {
 						 /* 0b: slave should reset command, RX DMA/FIFO */
 	__u8 cmdIndex;
 	I3C_REG_ITEM_t *pReg;
+	uint8_t regCnt;
 
 	_Bool bAbort;
 	volatile __u8 task_count;
