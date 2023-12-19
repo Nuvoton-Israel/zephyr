@@ -1,0 +1,6 @@
+# Copyright 2023 Nuvoton
+# SPDX-License-Identifier: Apache-2.0
+
+config BOARD_NPCM8XX_EVB
+	bool "NUVOTON NPCM8XX EVB"
+	select ARM64

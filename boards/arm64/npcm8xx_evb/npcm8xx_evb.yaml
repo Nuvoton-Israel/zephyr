@@ -1,0 +1,8 @@
+identifier: npcm8xx_evb
+name: NUVOTON NPCM8XX EVB
+type: soc
+arch: arm64
+toolchain:
+  - zephyr
+  - cross-compile
+ram: 256

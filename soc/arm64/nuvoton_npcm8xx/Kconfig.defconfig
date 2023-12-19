@@ -1,0 +1,17 @@
+# Copyright 2023 Nuvoton
+# SPDX-License-Identifier: Apache-2.0
+
+if SOC_NUVOTON_NPCM8XX
+
+config SOC
+	default "nuvoton_npcm8xx"
+
+config NUM_IRQS
+	int
+	default 256
+
+config SYS_CLOCK_HW_CYCLES_PER_SEC
+	int
+	default 1000000000
+
+endif

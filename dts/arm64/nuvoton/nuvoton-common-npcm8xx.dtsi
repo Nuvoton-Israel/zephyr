@@ -1,0 +1,70 @@
+/*
+ * Copyright 2023 Nuvoton
+ *
+ * SPDX-License-Identifier: Apache-2.0
+ */
+
+#include <mem.h>
+#include <arm64/armv8-a.dtsi>
+#include <zephyr/dt-bindings/interrupt-controller/arm-gic.h>
+
+/ {
+	#address-cells = <2>;
+	#size-cells = <2>;
+
+	chosen {
+		zephyr,console = &uart0;
+		zephyr,shell-uart = &uart0;
+		zephyr,sram = &sram0;
+	};
+
+	cpus {
+		#address-cells = <1>;
+		#size-cells = <0>;
+
+		cpu@0 {
+			device_type = "cpu";
+			compatible = "arm,cortex-a53";
+			reg = <0>;
+		};
+	};
+
+	timer {
+		compatible = "arm,armv8-timer";
+		interrupts = <GIC_PPI 13 IRQ_TYPE_LEVEL
+			      IRQ_DEFAULT_PRIORITY>,
+			     <GIC_PPI 14 IRQ_TYPE_LEVEL
+			      IRQ_DEFAULT_PRIORITY>,
+			     <GIC_PPI 11 IRQ_TYPE_LEVEL
+			      IRQ_DEFAULT_PRIORITY>,
+			     <GIC_PPI 10 IRQ_TYPE_LEVEL
+			      IRQ_DEFAULT_PRIORITY>;
+		interrupt-parent = <&gic>;
+	};
+
+	soc {
+
+		#address-cells = <2>;
+		#size-cells = <2>;
+		ranges;
+
+		gic: interrupt-controller@dfff9000 {
+			compatible = "arm,gic-400", "arm,gic-v2", "arm,gic";
+			#interrupt-cells = <4>;
+			#address-cells = <0>;
+			interrupt-controller;
+			reg = <0 0xDFFF9000 0 0x1000>,
+				<0 0xDFFFA000 0 0x6000>;
+			status = "okay";
+		};
+
+		uart0: serial@f0000000 {
+			compatible = "ns16550";
+			reg = <0 0xf0000000 0 0x1000>;
+			interrupts = <GIC_SPI 192 IRQ_TYPE_LEVEL IRQ_DEFAULT_PRIORITY>;
+			reg-shift = <2>;
+			interrupt-parent = <&gic>;
+			status = "disabled";
+		};
+	};
+};
