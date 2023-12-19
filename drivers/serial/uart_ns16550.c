@@ -106,7 +106,7 @@ BUILD_ASSERT(IS_ENABLED(CONFIG_PCIE), "NS16550(s) in DT need CONFIG_PCIE");
 #define IIR_LS    0x06 /* receiver line status interrupt */
 #define IIR_MASK  0x07 /* interrupt id bits mask  */
 #define IIR_ID    0x06 /* interrupt ID mask without NIP */
-#define IIR_FE    0xC0 /* FIFO mode enabled */
+#define IIR_FE    0x80 /* FIFO mode enabled */
 #define IIR_CH    0x0C /* Character timeout*/
 
 /* equates for FIFO control register */
@@ -410,6 +410,8 @@ static void set_baud_rate(const struct device *dev, uint32_t baud_rate, uint32_t
 		divisor = ((pclk + (baud_rate << 3))
 					/ baud_rate) >> 4;
 
+		divisor-=2;
+
 		/* set the DLAB to access the baud rate divisor registers */
 		lcr_cache = ns16550_inbyte(dev_cfg, LCR(dev));
 		ns16550_outbyte(dev_cfg, LCR(dev), LCR_DLAB | lcr_cache);
@@ -556,7 +558,7 @@ static int uart_ns16550_configure(const struct device *dev,
 	 * Clear TX and RX FIFO
 	 */
 	ns16550_outbyte(dev_cfg, FCR(dev),
-			FCR_FIFO | FCR_MODE0 | FCR_FIFO_8 | FCR_RCVRCLR | FCR_XMITCLR
+			FCR_FIFO | FCR_MODE0 | FCR_FIFO_1 | FCR_RCVRCLR | FCR_XMITCLR
 #ifdef CONFIG_UART_NS16550_VARIANT_NS16750
 			| FCR_FIFO_64
 #endif
