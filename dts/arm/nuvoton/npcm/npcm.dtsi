@@ -11,6 +11,7 @@
 #include <zephyr/dt-bindings/pinctrl/npcm-pinctrl.h>
 #include <zephyr/dt-bindings/gpio/gpio.h>
 #include <zephyr/dt-bindings/gpio/nuvoton-npcm-gpio.h>
+#include <zephyr/dt-bindings/adc/npcm_adc.h>
 #include <freq.h>
 
 / {
@@ -258,6 +259,15 @@
 			compatible = "nuvoton,npcm-watchdog";
 			reg = <0x400d8000 0x100>;
 			nuvoton,timer0-wui = <NPCM_MIWU1_GROUPE_T0OUT>;
+		};
+
+		dsadc: adc@400d1100 {
+			compatible = "nuvoton,npcm-adc";
+			#io-channel-cells = <1>;
+			reg = <0x400d1100 0xf00>;
+			interrupts = <21 3>;
+			clocks = <&pcc NPCM_CLOCK_ADC>;
+			status = "disabled";
 		};
 	};
 };

@@ -1,0 +1,31 @@
+# Copyright (c) 2024 Nuvoton Technology Corporation.
+# SPDX-License-Identifier: Apache-2.0
+
+description: Nuvoton, NPCM-ADC node
+
+compatible: "nuvoton,npcm-adc"
+
+include: [adc-controller.yaml, pinctrl-device.yaml]
+
+properties:
+  reg:
+    required: true
+  clocks:
+    required: true
+  pinctrl-0:
+    required: true
+  pinctrl-names:
+    required: true
+  nuvoton,channel-count:
+    type: int
+    required: true
+    description: The number of ADC channels.
+  nuvoton,channel-cfg:
+    type: array
+    required: true
+    description: |
+      The configuration of each ADC channel. The array length should be equal to
+      the number of channels.
+
+io-channel-cells:
+  - input
