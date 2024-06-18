@@ -36,6 +36,10 @@
 			fiu-prescaler = <1>; /* FIU_CLK runs at 96MHz */
 			i3c-prescaler = <1>; /* I3C_CLK runs at 96MHz */
 		};
+
+		dsadc: adc@400d1100 {
+			nuvoton,channel-count = <24>;
+		};
 	};
 
 	soc-if {
