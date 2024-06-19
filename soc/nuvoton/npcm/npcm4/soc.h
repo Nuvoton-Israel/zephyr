@@ -15,4 +15,7 @@
 #include <zephyr/devicetree.h>
 #include <cmsis_core_m_defaults.h>
 
+/* NPCM4 definitions */
+#include "gdma.h"
+
 #endif /* _NUVOTON_NPCM_SOC_H_ */
