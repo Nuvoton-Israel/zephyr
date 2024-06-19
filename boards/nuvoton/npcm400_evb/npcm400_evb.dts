@@ -73,3 +73,27 @@
 			&adc_vin3_gpio95>;      /* VIN3 - D6 */
 	pinctrl-names = "default";
 };
+
+&i2c1a {
+	status = "okay";
+	pinctrl-0 = <&i2c1a_scl_sda_gpio60_61>;
+	pinctrl-names = "default";
+	clock-frequency = <200000>;
+	eeprom0: eeprom@54 {
+		compatible = "zephyr,i2c-target-eeprom";
+		reg = <0x54>;
+		size = <1024>;
+	};
+};
+
+&i2c3a {
+	status = "okay";
+	pinctrl-0 = <&i2c3a_scl_sda_gpioa7_a2>;
+	pinctrl-names = "default";
+	clock-frequency = <200000>;
+	eeprom1: eeprom@56 {
+		compatible = "zephyr,i2c-target-eeprom";
+		reg = <0x56>;
+		size = <1024>;
+	};
+};
