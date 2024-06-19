@@ -1,0 +1,65 @@
+# NPCM I2C driver configuration options
+
+# Copyright (c) 2024 Nuvoton Technology Corporation.
+# SPDX-License-Identifier: Apache-2.0
+
+config I2C_NPCM
+	bool "Nuvoton NPCM I2C driver"
+	default y
+	depends on DT_HAS_NUVOTON_NPCM_I2C_ENABLED
+	select PINCTRL
+	help
+	  This option enables the I2C driver for NPCM family of
+	  processors.
+	  Say y to use I2C modules on NPCM MCU.
+
+config I2C_NPCM_CONTROLLER_HW_TIMEOUT_EN
+	bool "Enable hardware timeout for NPCM I2C controller"
+	default n
+	depends on I2C_NPCM
+	help
+	  This option enables hardware timeout feature for NPCM I2C
+	  controller. When enabled, the controller will stop the
+	  transaction when the timeout expires.
+
+config I2C_NPCM_CONTROLLER_HW_TIMEOUT_CLK_CYCLE_TIME
+	depends on I2C_NPCM_CONTROLLER_HW_TIMEOUT_EN
+	int "NPCM I2C controller timeout clock cycle time [ms]"
+	default 50
+	help
+	  This option sets the clock cycle time for the hardware timeout
+	  feature for NPCM I2C controller. The unit is in milliseconds.
+
+config I2C_NPCM_CONTROLLER_HW_TIMEOUT_CLK_LOW_TIME
+	depends on I2C_NPCM_CONTROLLER_HW_TIMEOUT_EN
+	int "NPCM I2C controller timeout clock low extend time [ms]"
+	default 25
+	help
+	  This option sets the clock low extend time for the hardware timeout
+	  feature for NPCM I2C controller. The unit is in milliseconds.
+
+config I2C_NPCM_TARGET_HW_TIMEOUT_EN
+	bool "Enable hardware timeout for NPCM I2C target"
+	default n
+	depends on I2C_NPCM
+	help
+	  This option enables hardware timeout feature for NPCM I2C
+	  target. When enabled, the target will stop the transaction
+	  when the timeout expires. When using Quick command (SMBUS),
+	  do not enable target timeout.
+
+config I2C_NPCM_TARGET_HW_TIMEOUT_CLK_CYCLE_TIME
+	depends on I2C_NPCM_TARGET_HW_TIMEOUT_EN
+	int "NPCM I2C target timeout clock cycle time [ms]"
+	default 50
+	help
+	  This option sets the clock cycle time for the hardware timeout
+	  feature for NPCM I2C target. The unit is in milliseconds.
+
+config I2C_NPCM_TARGET_HW_TIMEOUT_CLK_LOW_TIME
+	depends on I2C_NPCM_TARGET_HW_TIMEOUT_EN
+	int "NPCM I2C target timeout clock low extend time [ms]"
+	default 25
+	help
+	  This option sets the clock low extend time for the hardware timeout
+	  feature for NPCM I2C target. The unit is in milliseconds.

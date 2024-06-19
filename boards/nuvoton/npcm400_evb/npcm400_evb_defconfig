@@ -24,3 +24,6 @@ CONFIG_WATCHDOG=y
 
 # ADC Driver
 CONFIG_ADC=y
+
+# I2C Driver
+CONFIG_I2C=y
