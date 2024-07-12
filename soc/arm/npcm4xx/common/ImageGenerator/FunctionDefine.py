@@ -279,9 +279,9 @@ def ClearTmpFiles():
     DeleteFile('RAMCodeBBCombine')
 
     # os.chdir(Util.Path_Key)
-    # DeleteFile(Util.sAESPubKeyName)
-    # DeleteFile('FileTemp2')
-    # DeleteFile('FileTemp3')
+    DeleteFile(Util.sAESPubKeyName)
+    DeleteFile('FileTemp2')
+    DeleteFile('FileTemp3')
     # DeleteFile('oOtpRegion0Digest')
     # DeleteFile('_SS')
     # os._exit(0)
