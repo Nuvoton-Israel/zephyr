@@ -2,8 +2,18 @@
 
 <Description>
 	<Config>
+		<GenOTP>@gen_otp</GenOTP>
+		<CryptoSelect>0</CryptoSelect>
 		<ToolPath></ToolPath>
 	</Config>
+
+	<Crypto>
+		<OpenSSL>
+			<EcFwSigKey>RSA3072key_pri.pem</EcFwSigKey>
+			<EcFwSigKey_Idx>0</EcFwSigKey_Idx>
+			<EcFwPubKey0>RSA3072key_pub.der</EcFwPubKey0>
+		</OpenSSL>
+	</Crypto>
 
 	<FileName>
 		<FirmwareImage>@inputfile.bin</FirmwareImage>
@@ -12,14 +22,49 @@
 
 	<FWImageHeader>
 		<hImageTag>%FiMg94@</hImageTag>
-		<hActiveECFwOffset>0x00</hActiveECFwOffset>			    <!-- Unit: MCP size / 256 -->
-		<hSystemECFWOffset>0x00</hSystemECFWOffset>		    	<!-- Unit: byte, align 4K -->
-		<hEcFwRegionSize>0x20</hEcFwRegionSize>					<!-- Unit: MCP size / 256 , 0: Full -->
-		<hMajorVer>0x00</hMajorVer>								<!-- ranging from 0 ~ 56 -->
+		<hActiveECFwOffset>0x00</hActiveECFwOffset>				<!-- Unit: MCP size / 256 -->
+		<hRecoveryEcFwOffset>@recover_image_offset</hRecoveryEcFwOffset>	<!-- Unit: MCP size / 256 -->
+		<hSystemECFWOffset>0x00</hSystemECFWOffset>				<!-- Unit: byte, align 4K -->
+		<hEcFwRegionSize>@recover_image_offset</hEcFwRegionSize>		<!-- Unit: MCP size / 256 , 0: Full -->
+
+		<hSecureBoot>@secure_boot</hSecureBoot>					<!-- Effective when secure mode is not enabled -->
+		<hSecurityLvl>@secure_level</hSecurityLvl>				<!-- Effective when secure mode is not enabled -->
+		<hOTPRefToTable>1</hOTPRefToTable>					<!-- Effective when secure mode is not enabled -->
+		<hHwTrimRefOTPTable>0</hHwTrimRefOTPTable>				<!-- Effective when secure mode is not enabled -->
+		<hNotUpdateOTPRegister>1</hNotUpdateOTPRegister>			<!-- Effective when secure mode is not enabled -->
+		<hNotEraseOTPTable>1</hNotEraseOTPTable>
+		<hOTPRefToSrcTable>1</hOTPRefToSrcTable>
+		<hNotDoBackup>@not_do_backup</hNotDoBackup>
+
+		<hMajorVer>0x00</hMajorVer>						<!-- ranging from 0 ~ 56 -->
 		<hMinorVer>0x0000</hMinorVer>
 		<hOEMversion>00000000</hOEMversion>
 		<hReleaseDate>0x000000</hReleaseDate>
 		<hProjectID>0x0000</hProjectID>
 	</FWImageHeader>
 
+	<OTPImageHeader>
+		<hOtpImgTag>%OtPmAp@</hOtpImgTag>
+	</OTPImageHeader>
+
+	<OTPbitmap>
+		<oFlashConnection>0</oFlashConnection>			<!-- 0: MCP/MCP, 1:MCP/FIU, 2:FIU/FIU, 3: FIU/MCP-->
+		<oStrapMode1>0</oStrapMode1>
+		<oStrapMode2>0</oStrapMode2>
+		<oNotTrySysIfFIUShd>0</oNotTrySysIfFIUShd>
+		<oNotTrySysIfFIUPvt>0</oNotTrySysIfFIUPvt>
+		<oNotTrySysIfFIUBkp>0</oNotTrySysIfFIUBkp>
+		<oNotTryMafAndAMD>0</oNotTryMafAndAMD>
+		<oNotTrySysIfSPI1>0</oNotTrySysIfSPI1>
+		<oSecureBoot>@secure_boot</oSecureBoot>
+		<oSecurityLvl>@secure_level</oSecurityLvl>
+		<oRSAPubKeySts>0x01</oRSAPubKeySts> 	   		<!-- bit n: RSA key index n exist, n < 5 -->
+		<oSHA512Used>0</oSHA512Used>				<!-- 0: Use SHA256, 		1: Use SHA512 -->
+		<oLongKeyUsed>@longkey_used</oLongKeyUsed>		<!-- 0: Use RSA2048/EC256,      1: Use RSA3072/RSA4096/EC384/EC521 -->
+		<oLongKeySel>@longkey_sel</oLongKeySel>			<!-- 0: Use RSA4096,            1: Use RSA3072 -->
+		<oHaltIfMafRollbk>0</oHaltIfMafRollbk>
+		<oHaltIfActiveRollbk>0</oHaltIfActiveRollbk>
+		<oHaltIfOnlyMafValid>0</oHaltIfOnlyMafValid>
+		<oTryBootIfAllCrashed>0</oTryBootIfAllCrashed>
+	</OTPbitmap>
 </Description>
