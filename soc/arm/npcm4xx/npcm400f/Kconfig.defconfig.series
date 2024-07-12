@@ -38,6 +38,28 @@ config GPIO_NPCM4XX_RESET_SL_POWER_UP
 	GPIO port 0-9, A-F is reset by VSB Power-Up reset.
 endchoice
 
+config SECURE_BOOT_ENABLE_NPCM4XX
+	bool "Enable secure boot"
+	default n
+
+config BACKUP_IMAGE_OFFSET_NPCM4XX
+	hex "Backup/Recovery Image offset in the internal flash"
+	depends on SECURE_BOOT_ENABLE_NPCM4XX
+	default 0x40
+	help
+	  This option specifies the internal flash offset that use for backup/recovery image.
+	  If the backup data is empty or broken, ROM backup the active image to the offset.
+	  If the active image is broken or verify failed, ROM recovery the active image from
+	  the offset.
+	  The value should multiple 8kB, for example, 0x40 * 8kB = 512kB
+
+config DONT_UPDATE_BACKUP_IMAGE_NPCM4XX
+	int "Don't update suppose active image newer than backup image"
+	depends on SECURE_BOOT_ENABLE_NPCM4XX
+	default 1
+	help
+	  Don't update suppose active image newer than backup image.
+
 DT_CHOSEN_Z_FLASH := zephyr,flash
 
 config FLASH_SIZE

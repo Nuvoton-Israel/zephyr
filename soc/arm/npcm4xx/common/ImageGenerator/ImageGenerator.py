@@ -112,15 +112,15 @@ def GenFWHeader():
             (int(Dict_FW_H['hActiveECFwOffset'], 0).to_bytes(2, byteorder='little')))
 
         # hRecoveryEcFwOffset
-        ListFWHeaderCol_Sign.append(bytearray([0]*2))
-            # (int(Dict_FW_H['hRecoveryEcFwOffset'], 0).to_bytes(2, byteorder='little')))
+        ListFWHeaderCol_Sign.append(
+            (int(Dict_FW_H['hRecoveryEcFwOffset'], 0).to_bytes(2, byteorder='little')))
 
         # hSystemECFWOffset
         ListFWHeaderCol_Sign.append(
             (int(Dict_FW_H['hSystemECFWOffset'], 0).to_bytes(4, byteorder='little')))
 
         # hDevMode
-        temp = [0, 0, 1, 1, 0, 0, 0, 0]
+        temp = [int(Dict_FW_H['hNotDoBackup'], 0), int(Dict_FW_H['hOTPRefToSrcTable'], 0), int(Dict_FW_H['hNotEraseOTPTable'], 0), int(Dict_FW_H['hNotUpdateOTPRegister'], 0), int(Dict_FW_H['hHwTrimRefOTPTable'], 0), int(Dict_FW_H['hOTPRefToTable'], 0), int(Dict_FW_H['hSecurityLvl'], 0), int(Dict_FW_H['hSecureBoot'], 0)]
         ListFWHeaderCol_Sign.append(Fn.ConvertBitArray2Byte(temp))
 
         # hFlashLockReg0
@@ -160,15 +160,12 @@ def GenFWHeader():
             (FWLength).to_bytes(4, byteorder='big'))
 
         # hSigPubKeyHashIdx
-        # if(Util.CryptoSelect == 0 or Util.CryptoSelect == 2):
-        #     _idx = Dict_OpenSSL['EcFwSigKey_Idx']
-        # elif(Util.CryptoSelect == 1):
-        #     _idx = Dict_CNG['SignCert_Idx']
+        _idx = Dict_OpenSSL['EcFwSigKey_Idx']
 
         if(HashTypeforECKey == 256):
-            temp = [0, 0, 0, 0, 0, 0, 0, 0]
+            temp = [0, 0, 0, 0, 0, 0, 0, int(_idx, 0)]
         else:
-            temp = [0, 1, 0, 0, 0, 0, 0, 0]
+            temp = [0, 1, 0, 0, 0, 0, 0, int(_idx, 0)]
 
         ListFWHeaderCol_Sign.append(Fn.ConvertBitArray2Byte(temp))
 
@@ -224,21 +221,14 @@ def GenFWHeader():
         #         (int(Dict_FW_H['hBBWorkRAM'], 0).to_bytes(4, byteorder='little')))
 
         # hSigPubKey
-        # if(Util.CryptoSelect == 0 or Util.CryptoSelect == 2):
-        #     if((int)(Dict_OpenSSL['EcFwSigKey_Idx']) == 0):
-        #         data = OpenSSL_GetPubKey(Dict_OpenSSL['EcFwPubKey0'], totallen=512) if (
-        #             bPubKey) else Fn.ReservedData(512 * 8)
-        #     elif((int)(Dict_OpenSSL['EcFwSigKey_Idx']) == 1):
-        #         data = OpenSSL_GetPubKey(Dict_OpenSSL['EcFwPubKey1'], totallen=512) if (
-        #             bPubKey) else Fn.ReservedData(512 * 8)
-        # elif(Util.CryptoSelect == 1):
-        #     if((int)(Dict_CNG['SignCert_Idx']) == 0):
-        #         data = CNG_ExportPubKey(Dict_CNG['EcFwCert0_Subject'], totallen=512) if (
-        #             bPubKey) else Fn.ReservedData(512 * 8)
-        #     elif((int)(Dict_CNG['SignCert_Idx']) == 1):
-        #         data = CNG_ExportPubKey(Dict_CNG['EcFwCert1_Subject'], totallen=512) if (
-        #             bPubKey) else Fn.ReservedData(512 * 8)
-        data = Fn.ReservedData(512 * 8)
+
+        secure_boot = int(Dict_FW_H['hSecureBoot'], 0)
+
+        if secure_boot > 0:
+            data = OpenSSL_GetPubKey(Dict_OpenSSL['EcFwPubKey0'], totallen=512)
+        else:
+            data = Fn.ReservedData(512 * 8)
+
         ListFWHeaderCol_Sign.append(data)
 
         # hRamCodeHash
@@ -429,42 +419,23 @@ def GenFWHeader():
         # hImageTag
         ListFWHeaderCol.append(Dict_FW_H['hImageTag'].encode('ascii'))
 
-        # gen sign
-        # print('Signature', '{:x}'.format(Signature))
-        # print('oRSAPKCPAD', '{:x}'.format((int)(Dict_OTP['oRSAPKCPAD'])))
-        # print('HashTypeforECKey', '{:d}'.format(HashTypeforECKey))
-        # if(Signature):
-        #     if(int(Dict_Config["CryptoSelect"]) == 0):
-        #         if(bPriKey != 1):
-        #             Fn.OutputString(1, 'There is no private key.')
-        #             raise Util.SettingError("<EcFwSigKey> setting error")
-        #         ListFWHeaderCol.append(OpenSSL_SignFile(HashTypeforECKey, 0, Fn.GenBinFilefromList(
-        #             hHashTotal, 'SignField'), Dict_OpenSSL['EcFwSigKey']))
-        #     elif(int(Dict_Config["CryptoSelect"]) == 1):
-        #         if((int)(Dict_CNG['SignCert_Idx']) == 0):
-        #             ListFWHeaderCol.append(CNG_SignFile(
-        #                 Dict_CNG["EcFwCert0_Subject"], 0, HashTypeforECKey, 0, Fn.GenBinFilefromList(hHashTotal, 'SignField')))
-        #         elif((int)(Dict_CNG['SignCert_Idx']) == 1):
-        #             ListFWHeaderCol.append(CNG_SignFile(
-        #                 Dict_CNG["EcFwCert1_Subject"], 0, HashTypeforECKey, 0, Fn.GenBinFilefromList(hHashTotal, 'SignField')))
-        #     else:
-        #         ListFWHeaderCol.append(PKCS11_SignFile(HashTypeforECKey, Fn.GenBinFilefromList(
-        #             hHashTotal, 'SignField'), Dict_PKCS11['KeyID']))
-        # else:
-            # ListFWHeaderCol.append(CryptoDigest(Util.Path_Input, Fn.GenBinFilefromList(
-            #     hHashTotal, 'SignField'), HashTypeforECKey))
-        ListFWHeaderCol.append(bytearray([0]*512))
+        if secure_boot > 0:
+            ListFWHeaderCol.append(OpenSSL_SignFile(HashTypeforECKey, 0, Fn.GenBinFilefromList(
+                     hHashTotal, 'SignField'), Dict_OpenSSL['EcFwSigKey']))
+        else:
+            ListFWHeaderCol.append(bytearray([0]*512))
 
         # hOtpImgHdrOffset
-        # if(GenOTP == 1):
-        #     if(AESencrypt):
-        #         ListFWHeaderCol.append(
-        #             (FWLength + OtpAlign).to_bytes(4, byteorder='big'))
-        #     else:
-        #         ListFWHeaderCol.append(
-        #             (FWLength + OtpAlign).to_bytes(4, byteorder='big'))
-        # else:
-        ListFWHeaderCol.append(Fn.ReservedData(32))
+        if(GenOTP == 1):
+            if(AESencrypt):
+                ListFWHeaderCol.append(
+                     (FWLength + OtpAlign).to_bytes(4, byteorder='big'))
+            else:
+                ListFWHeaderCol.append(
+                     (FWLength + OtpAlign).to_bytes(4, byteorder='big'))
+        else:
+            ListFWHeaderCol.append(Fn.ReservedData(32))
+
         ListFWHeaderCol.append(Fn.ReservedData(Util.hReservedField0))
 
         # Gen Header list
@@ -516,23 +487,7 @@ def GenOTPHeader():
 
 
 def GenOTPImage():
-    # os.chdir(Util.Path_Key)
-    # if(Util.CryptoSelect == 0 or Util.CryptoSelect == 2):
-    #     FileList = [Dict_OpenSSL['EcFwPubKey0']]
-    #     if(bPubHash1):
-    #         Fn.CheckFile(FileList)
-    #     FileList = [Dict_OpenSSL['EcFwPubKey1']]
-    #     if(bPubHash2):
-    #         Fn.CheckFile(FileList)
-    #     FileList = [Dict_OpenSSL['SySFwPubKey0']]
-    #     if(bFWPubHash1):
-    #         Fn.CheckFile(FileList)
-    #     FileList = [Dict_OpenSSL['SySFwPubKey1']]
-    #     if(bFWPubHash2):
-    #         Fn.CheckFile(FileList)
-    #     FileList = [Dict_OpenSSL['SessPrivKey']]
-    #     if(bSessPrivKey):
-    #         Fn.CheckFile(FileList)
+    os.chdir(Util.Path_Key)
 
     try:
         print("Generate OTP Image...")
@@ -543,90 +498,108 @@ def GenOTPImage():
         ListOTPImageCol.append(Fn.ConvertBitArray2Byte(temp))
 
         # 1
-        temp = [Fn.ConvertInt2Bin(Dict_OTP['oMCPFlashSize'], 2), 0, Fn.ConvertInt2Bin(Dict_OTP['oECPTRCheckCRC'], 1),
-                Fn.ConvertInt2Bin(Dict_OTP['oSpiQuadPEn'], 1), Fn.ConvertInt2Bin(
-            Dict_OTP['oSPIP4BMode'], 1),
-            Fn.ConvertInt2Bin(Dict_OTP['oFIUShr4BMode'], 1), int(Dict_OTP['oNotTrySysIfFIUBkp'], 0)]
-        ListOTPImageCol.append(Fn.ConvertBitArray2Byte(temp))
+        # temp = [Fn.ConvertInt2Bin(Dict_OTP['oMCPFlashSize'], 2), 0, Fn.ConvertInt2Bin(Dict_OTP['oECPTRCheckCRC'], 1),
+        #         Fn.ConvertInt2Bin(Dict_OTP['oSpiQuadPEn'], 1), Fn.ConvertInt2Bin(
+        #     Dict_OTP['oSPIP4BMode'], 1),
+        #     Fn.ConvertInt2Bin(Dict_OTP['oFIUShr4BMode'], 1), int(Dict_OTP['oNotTrySysIfFIUBkp'], 0)]
+        # ListOTPImageCol.append(Fn.ConvertBitArray2Byte(temp))
 
         # 2
-        temp = [0, 0, Fn.ConvertInt2Bin(Dict_OTP['oSPIPFLMode'], 2), Fn.ConvertInt2Bin(
-            Dict_OTP['oFIUShrFLMode'], 2), Fn.ConvertInt2Bin(Dict_OTP['oMCPFLMode'], 2)]
-        ListOTPImageCol.append(Fn.ConvertBitArray2Byte(temp))
+        #temp = [0, 0, Fn.ConvertInt2Bin(Dict_OTP['oSPIPFLMode'], 2), Fn.ConvertInt2Bin(
+        #    Dict_OTP['oFIUShrFLMode'], 2), Fn.ConvertInt2Bin(Dict_OTP['oMCPFLMode'], 2)]
+        #ListOTPImageCol.append(Fn.ConvertBitArray2Byte(temp))
 
         # 3
-        temp = [Fn.ConvertInt2Bin(Dict_OTP['oFwNotUse2NStep'], 1), Fn.ConvertInt2Bin(Dict_OTP['oFwNotUse4KStep'], 1), Fn.ConvertInt2Bin(
-            Dict_OTP['oSPIPClkDiv'], 2), Fn.ConvertInt2Bin(Dict_OTP['oSPIMClkDiv'], 2), Fn.ConvertInt2Bin(Dict_OTP['oFIUClkDiv'], 2)]
-        ListOTPImageCol.append(Fn.ConvertBitArray2Byte(temp))
+        # temp = [Fn.ConvertInt2Bin(Dict_OTP['oFwNotUse2NStep'], 1), Fn.ConvertInt2Bin(Dict_OTP['oFwNotUse4KStep'], 1), Fn.ConvertInt2Bin(
+        #     Dict_OTP['oSPIPClkDiv'], 2), Fn.ConvertInt2Bin(Dict_OTP['oSPIMClkDiv'], 2), Fn.ConvertInt2Bin(Dict_OTP['oFIUClkDiv'], 2)]
+        # ListOTPImageCol.append(Fn.ConvertBitArray2Byte(temp))
+
+        ListOTPImageCol.append(Fn.ReservedData(3 * 8))
 
         # 4
-        temp = [int(Dict_OTP['oUnmapRomBfXferCtl'], 0), 0, int(Dict_OTP['oTryBootIfAllCrashed'], 0), int(Dict_OTP['oHaltIfOnlyMafValid'], 0), int(
-            Dict_OTP['oHaltIfActiveRollbk'], 0), int(Dict_OTP['oHaltIfMafRollbk'], 0), int(Dict_OTP['oSecurityLvl'], 0), int(Dict_OTP['oSecureBoot'], 0)]
+        # temp = [int(Dict_OTP['oUnmapRomBfXferCtl'], 0), 0, int(Dict_OTP['oTryBootIfAllCrashed'], 0), int(Dict_OTP['oHaltIfOnlyMafValid'], 0), int(
+        #     Dict_OTP['oHaltIfActiveRollbk'], 0), int(Dict_OTP['oHaltIfMafRollbk'], 0), int(Dict_OTP['oSecurityLvl'], 0), int(Dict_OTP['oSecureBoot'], 0)]
+        # ListOTPImageCol.append(Fn.ConvertBitArray2Byte(temp))
+
+        temp = [0, 0, int(Dict_OTP['oTryBootIfAllCrashed'], 0), int(Dict_OTP['oHaltIfOnlyMafValid'], 0), int(Dict_OTP['oHaltIfActiveRollbk'], 0),
+                int(Dict_OTP['oHaltIfMafRollbk'], 0), int(Dict_OTP['oSecurityLvl'], 0), int(Dict_OTP['oSecureBoot'], 0)]
         ListOTPImageCol.append(Fn.ConvertBitArray2Byte(temp))
 
         # 5
-        temp = [int(Dict_OTP['oOtpRgn6Lock'], 0), int(Dict_OTP['oOtpRgn5Lock'], 0), int(Dict_OTP['oOtpRgn4Lock'], 0), int(Dict_OTP['oOtpRgn3Lock'], 0), int(Dict_OTP['oOtpRgn2Lock'], 0), int(
-            Dict_OTP['oHWCfgFieldLock'], 0), int(Dict_OTP['oAESKeyLock'], 0), int(Dict_OTP['oDisableDBGAtRst'], 0)]
-        ListOTPImageCol.append(Fn.ConvertBitArray2Byte(temp))
+        # temp = [int(Dict_OTP['oOtpRgn6Lock'], 0), int(Dict_OTP['oOtpRgn5Lock'], 0), int(Dict_OTP['oOtpRgn4Lock'], 0), int(Dict_OTP['oOtpRgn3Lock'], 0), int(Dict_OTP['oOtpRgn2Lock'], 0), int(
+        #     Dict_OTP['oHWCfgFieldLock'], 0), int(Dict_OTP['oAESKeyLock'], 0), int(Dict_OTP['oDisableDBGAtRst'], 0)]
+        # ListOTPImageCol.append(Fn.ConvertBitArray2Byte(temp))
 
         # 6-7
-        ListOTPImageCol.append(
-            int(Dict_OTP['oSecEvnLogLoc'], 0).to_bytes(2, byteorder='little'))
+        # ListOTPImageCol.append(
+        #     int(Dict_OTP['oSecEvnLogLoc'], 0).to_bytes(2, byteorder='little'))
+
+        ListOTPImageCol.append(Fn.ReservedData(3 * 8))
 
         # 8
-        temp = [int(Dict_OTP['oSHA512Used'], 0), int(Dict_OTP['oLongKeyUsed'], 0),
-                Fn.ConvertInt2Bin(Dict_OTP['oRevokeKeySts'], 2), Fn.ConvertInt2Bin(Dict_OTP['oECPubKeySts'], 2), Fn.ConvertInt2Bin(Dict_OTP['oRSAPubKeySts'], 2)]
+        # temp = [int(Dict_OTP['oSHA512Used'], 0), int(Dict_OTP['oLongKeyUsed'], 0),
+        #         Fn.ConvertInt2Bin(Dict_OTP['oRevokeKeySts'], 2), Fn.ConvertInt2Bin(Dict_OTP['oECPubKeySts'], 2), Fn.ConvertInt2Bin(Dict_OTP['oRSAPubKeySts'], 2)]
+        # ListOTPImageCol.append(Fn.ConvertBitArray2Byte(temp))
+
+        temp = [int(Dict_OTP['oSHA512Used'], 0), int(Dict_OTP['oLongKeyUsed'], 0), 0, 0, 0, 0, Fn.ConvertInt2Bin(Dict_OTP['oRSAPubKeySts'], 2)]
+
         ListOTPImageCol.append(Fn.ConvertBitArray2Byte(temp))
 
         # 9-15
         ListOTPImageCol.append(Fn.ReservedData(7 * 8))
 
         # 16
-        temp = [0, 0, Fn.ConvertInt2Bin(Dict_OTP['oAESDecryptEn'], 2), 0, 0, int(
-            Dict_OTP['oRSAPKCPAD'], 0), int(Dict_OTP['oLongKeySel'], 0)]
+        # temp = [0, 0, Fn.ConvertInt2Bin(Dict_OTP['oAESDecryptEn'], 2), 0, 0, int(
+        #     Dict_OTP['oRSAPKCPAD'], 0), int(Dict_OTP['oLongKeySel'], 0)]
+        # ListOTPImageCol.append(Fn.ConvertBitArray2Byte(temp))
+
+        temp = [0, 0, 0, 0, 0, 0, 0, int(Dict_OTP['oLongKeySel'], 0)]
+
         ListOTPImageCol.append(Fn.ConvertBitArray2Byte(temp))
 
         # 17
-        temp = [int(Dict_OTP['oClrRamExitRom'], 0), int(Dict_OTP['oOTPRegionRdLock'], 0), 0, int(
-            Dict_OTP['oOlnyLogCriticalEvent'], 0), int(Dict_OTP['oSkipCtyptoSelfTest'], 0), int(Dict_OTP['oRetryLimitEn'], 0), 0, 0]
-        ListOTPImageCol.append(Fn.ConvertBitArray2Byte(temp))
+        # temp = [int(Dict_OTP['oClrRamExitRom'], 0), int(Dict_OTP['oOTPRegionRdLock'], 0), 0, int(
+        #     Dict_OTP['oOlnyLogCriticalEvent'], 0), int(Dict_OTP['oSkipCtyptoSelfTest'], 0), int(Dict_OTP['oRetryLimitEn'], 0), 0, 0]
+        # ListOTPImageCol.append(Fn.ConvertBitArray2Byte(temp))
 
         # 18
-        temp = [0, 0, 0, 0,  int(Dict_OTP['oNotUpdateToPrvFw'], 0), int(Dict_OTP['oTryBootNotCtrlFWRdy'], 0), int(
-            Dict_OTP['oNoWaitVSpiExist'], 0), int(Dict_OTP['oVSpiExistNoTimeOut'], 0)]
-        ListOTPImageCol.append(Fn.ConvertBitArray2Byte(temp))
+        # temp = [0, 0, 0, 0,  int(Dict_OTP['oNotUpdateToPrvFw'], 0), int(Dict_OTP['oTryBootNotCtrlFWRdy'], 0), int(
+        #     Dict_OTP['oNoWaitVSpiExist'], 0), int(Dict_OTP['oVSpiExistNoTimeOut'], 0)]
+        # ListOTPImageCol.append(Fn.ConvertBitArray2Byte(temp))
 
         # 19
-        temp = [0, 0, 0, 0, 0,  0, int(Dict_OTP['oSysPfrWP1En'], 0), int(
-            Dict_OTP['oSysPfrWP0En'], 0)]
-        ListOTPImageCol.append(Fn.ConvertBitArray2Byte(temp))
+        # temp = [0, 0, 0, 0, 0,  0, int(Dict_OTP['oSysPfrWP1En'], 0), int(
+        #     Dict_OTP['oSysPfrWP0En'], 0)]
+        # ListOTPImageCol.append(Fn.ConvertBitArray2Byte(temp))
 
         # 20 - 22
-        ListOTPImageCol.append(Fn.ReservedData(1 * 8))
-        ListOTPImageCol.append(
-            int(Dict_OTP['oOTPDatValid0'], 0).to_bytes(1, byteorder='big'))
-        ListOTPImageCol.append(
-            int(Dict_OTP['oOTPDatValid1'], 0).to_bytes(1, byteorder='big'))
+        # ListOTPImageCol.append(Fn.ReservedData(1 * 8))
+        # ListOTPImageCol.append(
+        #     int(Dict_OTP['oOTPDatValid0'], 0).to_bytes(1, byteorder='big'))
+        # ListOTPImageCol.append(
+        #     int(Dict_OTP['oOTPDatValid1'], 0).to_bytes(1, byteorder='big'))
 
         # 23 - 27
-        temp = [0, 0, 0, Fn.ConvertInt2Bin(
-            Dict_OTP['oLed1Pole'], 1), Fn.ConvertInt2Bin(Dict_OTP['oLed1Sel'], 4)]
-        ListOTPImageCol.append(Fn.ConvertBitArray2Byte(temp))
-        temp = [0, 0, 0, Fn.ConvertInt2Bin(
-            Dict_OTP['oLed2Pole'], 1), Fn.ConvertInt2Bin(Dict_OTP['oLed2Sel'], 4)]
-        ListOTPImageCol.append(Fn.ConvertBitArray2Byte(temp))
-        temp = [Fn.ConvertInt2Bin(Dict_OTP['oLedSysRbkBlkDef'], 4), Fn.ConvertInt2Bin(
-            Dict_OTP['oLedActRbkBlkDef'], 4)]
-        ListOTPImageCol.append(Fn.ConvertBitArray2Byte(temp))
-        temp = [Fn.ConvertInt2Bin(Dict_OTP['oLedSysOnlyBlkDef'], 4), Fn.ConvertInt2Bin(
-            Dict_OTP['oLedFwCpyBlkDef'], 4)]
-        ListOTPImageCol.append(Fn.ConvertBitArray2Byte(temp))
-        temp = [Fn.ConvertInt2Bin(Dict_OTP['oLedCryptoTestFailBlkDef'], 4), Fn.ConvertInt2Bin(
-            Dict_OTP['oLedAllCrashBlkDef'], 4)]
-        ListOTPImageCol.append(Fn.ConvertBitArray2Byte(temp))
+        # temp = [0, 0, 0, Fn.ConvertInt2Bin(
+        #     Dict_OTP['oLed1Pole'], 1), Fn.ConvertInt2Bin(Dict_OTP['oLed1Sel'], 4)]
+        # ListOTPImageCol.append(Fn.ConvertBitArray2Byte(temp))
+        # temp = [0, 0, 0, Fn.ConvertInt2Bin(
+        #     Dict_OTP['oLed2Pole'], 1), Fn.ConvertInt2Bin(Dict_OTP['oLed2Sel'], 4)]
+        # ListOTPImageCol.append(Fn.ConvertBitArray2Byte(temp))
+        # temp = [Fn.ConvertInt2Bin(Dict_OTP['oLedSysRbkBlkDef'], 4), Fn.ConvertInt2Bin(
+        #     Dict_OTP['oLedActRbkBlkDef'], 4)]
+        # ListOTPImageCol.append(Fn.ConvertBitArray2Byte(temp))
+        # temp = [Fn.ConvertInt2Bin(Dict_OTP['oLedSysOnlyBlkDef'], 4), Fn.ConvertInt2Bin(
+        #     Dict_OTP['oLedFwCpyBlkDef'], 4)]
+        # ListOTPImageCol.append(Fn.ConvertBitArray2Byte(temp))
+        # temp = [Fn.ConvertInt2Bin(Dict_OTP['oLedCryptoTestFailBlkDef'], 4), Fn.ConvertInt2Bin(
+        #     Dict_OTP['oLedAllCrashBlkDef'], 4)]
+        # ListOTPImageCol.append(Fn.ConvertBitArray2Byte(temp))
 
         # 28 - 31
-        ListOTPImageCol.append(Fn.ReservedData(4 * 8))
+        # ListOTPImageCol.append(Fn.ReservedData(4 * 8))
+
+        ListOTPImageCol.append(Fn.ReservedData(15 * 8))
 
         # 32 - 95
         if(Util.CryptoSelect == 0 or Util.CryptoSelect == 2):
@@ -640,150 +613,199 @@ def GenOTPImage():
             32 * 8)) if ((bPubHash1) and (HashTypeforECKey == 256)) else 0
 
         # 96 - 159
-        if(Util.CryptoSelect == 0 or Util.CryptoSelect == 2):
-            data = CryptoDigest(Util.Path_Key, OpenSSL_GetPubKey(
-                Dict_OpenSSL['EcFwPubKey1'], reFile=1), HashTypeforECKey) if (bPubHash2) else Fn.ReservedData(64 * 8)
-        elif(Util.CryptoSelect == 1):
-            data = CryptoDigest(Util.Path_Key, CNG_ExportPubKey(
-                Dict_CNG['EcFwCert1_Subject'], reFile=1), HashTypeforECKey) if (bPubHash2) else Fn.ReservedData(64 * 8)
-        ListOTPImageCol.append(data)
-        ListOTPImageCol.append(Fn.ReservedData(
-            32 * 8)) if ((bPubHash2) and (HashTypeforECKey == 256)) else 0
+        # if(Util.CryptoSelect == 0 or Util.CryptoSelect == 2):
+        #     data = CryptoDigest(Util.Path_Key, OpenSSL_GetPubKey(
+        #         Dict_OpenSSL['EcFwPubKey1'], reFile=1), HashTypeforECKey) if (bPubHash2) else Fn.ReservedData(64 * 8)
+        # elif(Util.CryptoSelect == 1):
+        #     data = CryptoDigest(Util.Path_Key, CNG_ExportPubKey(
+        #         Dict_CNG['EcFwCert1_Subject'], reFile=1), HashTypeforECKey) if (bPubHash2) else Fn.ReservedData(64 * 8)
+        # ListOTPImageCol.append(data)
+        # ListOTPImageCol.append(Fn.ReservedData(
+        #     32 * 8)) if ((bPubHash2) and (HashTypeforECKey == 256)) else 0
+
+        ListOTPImageCol.append(Fn.ReservedData(64 * 8))
 
         # 160 - 191
         ListOTPImageCol.append(Fn.ReservedData(32 * 8))
 
         # 192 - 223
-        if(Util.CryptoSelect == 0 or Util.CryptoSelect == 2):
-            data = OpenSSL_GetPrivKey(Dict_OpenSSL['SessPrivKey']) if (
-                bSessPrivKey) else Fn.ReservedData(32 * 8)
-        elif(Util.CryptoSelect == 1):
-            data = CNG_ExportPrivKey(Dict_CNG['AESCert_Subject']) if (
-                bSessPrivKey) else Fn.ReservedData(32 * 8)
-        ListOTPImageCol.append(data)
+        # if(Util.CryptoSelect == 0 or Util.CryptoSelect == 2):
+        #     data = OpenSSL_GetPrivKey(Dict_OpenSSL['SessPrivKey']) if (
+        #         bSessPrivKey) else Fn.ReservedData(32 * 8)
+        # elif(Util.CryptoSelect == 1):
+        #     data = CNG_ExportPrivKey(Dict_CNG['AESCert_Subject']) if (
+        #         bSessPrivKey) else Fn.ReservedData(32 * 8)
+        # ListOTPImageCol.append(data)
+
+        ListOTPImageCol.append(Fn.ReservedData(32 * 8))
 
         # 224 - 287
         ListOTPImageCol.append(Fn.ReservedData(64 * 8))
 
         # 288 - 319
-        if Dict_OTP['oAESKey'] is None:
-            ListOTPImageCol.append(Fn.ReservedData(32 * 8))
-        else:
-            ListOTPImageCol.append(OpenSSL_GetAESKey(Dict_OTP['oAESKey']))
+        # if Dict_OTP['oAESKey'] is None:
+        #     ListOTPImageCol.append(Fn.ReservedData(32 * 8))
+        # else:
+        #    ListOTPImageCol.append(OpenSSL_GetAESKey(Dict_OTP['oAESKey']))
+
+        ListOTPImageCol.append(Fn.ReservedData(32 * 8))
 
         # 320 - 351
-        temp = [int(Dict_OTP['oMCPSel'], 0), int(Dict_OTP['oMCPRdEdge'], 0), Fn.ConvertInt2Bin(Dict_OTP['oMCPRdDly'], 3), int(Dict_OTP['oMCUClkNNotDiv2'], 0), int(
-            Dict_OTP['oAESNotSupport'], 0), int(Dict_OTP['oPartID'], 0)]
-        ListOTPImageCol.append(Fn.ConvertBitArray2Byte(temp))
-        ListOTPImageCol.append(
-            int(Dict_OTP['oANAD2Low'], 0).to_bytes(1, byteorder='big'))
+        # temp = [int(Dict_OTP['oMCPSel'], 0), int(Dict_OTP['oMCPRdEdge'], 0), Fn.ConvertInt2Bin(Dict_OTP['oMCPRdDly'], 3), int(Dict_OTP['oMCUClkNNotDiv2'], 0), int(
+        #     Dict_OTP['oAESNotSupport'], 0), int(Dict_OTP['oPartID'], 0)]
+        # ListOTPImageCol.append(Fn.ConvertBitArray2Byte(temp))
+        # ListOTPImageCol.append(
+        #     int(Dict_OTP['oANAD2Low'], 0).to_bytes(1, byteorder='big'))
 
-        temp = [int(Dict_OTP['oValANAD'], 0), 0, 0, 0, 0,
-                0, 0, int(Dict_OTP['oANAD2High'], 0)]
-        ListOTPImageCol.append(Fn.ConvertBitArray2Byte(temp))
+        # temp = [int(Dict_OTP['oValANAD'], 0), 0, 0, 0, 0,
+        #         0, 0, int(Dict_OTP['oANAD2High'], 0)]
+        # ListOTPImageCol.append(Fn.ConvertBitArray2Byte(temp))
 
-        temp = [int(Dict_OTP['oValDevId'], 0), 0, 0,
-                Fn.ConvertInt2Bin(Dict_OTP['oDevId'], 5)]
-        ListOTPImageCol.append(Fn.ConvertBitArray2Byte(temp))
-        ListOTPImageCol.append(
-            int(Dict_OTP['oRSMRST_L'], 0).to_bytes(1, byteorder='big'))
+        # temp = [int(Dict_OTP['oValDevId'], 0), 0, 0,
+        #         Fn.ConvertInt2Bin(Dict_OTP['oDevId'], 5)]
+        # ListOTPImageCol.append(Fn.ConvertBitArray2Byte(temp))
+        # ListOTPImageCol.append(
+        #     int(Dict_OTP['oRSMRST_L'], 0).to_bytes(1, byteorder='big'))
 
-        temp = [int(Dict_OTP['oValRSMRST_L'], 0), 0, 0, 0, 0, 0, 0, 0]
-        ListOTPImageCol.append(Fn.ConvertBitArray2Byte(temp))
-        ListOTPImageCol.append(
-            int(Dict_OTP['oRSMRST_Sys'], 0).to_bytes(1, byteorder='big'))
+        # temp = [int(Dict_OTP['oValRSMRST_L'], 0), 0, 0, 0, 0, 0, 0, 0]
+        # ListOTPImageCol.append(Fn.ConvertBitArray2Byte(temp))
+        # ListOTPImageCol.append(
+        #     int(Dict_OTP['oRSMRST_Sys'], 0).to_bytes(1, byteorder='big'))
 
-        temp = [int(Dict_OTP['oValRSMRST_Sys'], 0), 0, 0, 0, 0, 0, 0, 0]
-        ListOTPImageCol.append(Fn.ConvertBitArray2Byte(temp))
-        ListOTPImageCol.append(
-            int(Dict_OTP['oDivMinLow'], 0).to_bytes(1, byteorder='big'))
+        # temp = [int(Dict_OTP['oValRSMRST_Sys'], 0), 0, 0, 0, 0, 0, 0, 0]
+        # ListOTPImageCol.append(Fn.ConvertBitArray2Byte(temp))
+        # ListOTPImageCol.append(
+        #     int(Dict_OTP['oDivMinLow'], 0).to_bytes(1, byteorder='big'))
 
-        temp = [int(Dict_OTP['oValDivMin'], 0), 0, 0, 0, 0,
-                0, 0, int(Dict_OTP['oDivMinHigh'], 0)]
-        ListOTPImageCol.append(Fn.ConvertBitArray2Byte(temp))
-        ListOTPImageCol.append(
-            int(Dict_OTP['oDivMaxLow'], 0).to_bytes(1, byteorder='big'))
+        # temp = [int(Dict_OTP['oValDivMin'], 0), 0, 0, 0, 0,
+        #         0, 0, int(Dict_OTP['oDivMinHigh'], 0)]
+        # ListOTPImageCol.append(Fn.ConvertBitArray2Byte(temp))
+        # ListOTPImageCol.append(
+        #     int(Dict_OTP['oDivMaxLow'], 0).to_bytes(1, byteorder='big'))
 
-        temp = [int(Dict_OTP['oValDivMax'], 0), 0, 0, 0, 0,
-                0, 0, int(Dict_OTP['oDivMaxHigh'], 0)]
-        ListOTPImageCol.append(Fn.ConvertBitArray2Byte(temp))
-        ListOTPImageCol.append(
-            int(Dict_OTP['oFrcDivLow'], 0).to_bytes(1, byteorder='big'))
+        # temp = [int(Dict_OTP['oValDivMax'], 0), 0, 0, 0, 0,
+        #         0, 0, int(Dict_OTP['oDivMaxHigh'], 0)]
+        # ListOTPImageCol.append(Fn.ConvertBitArray2Byte(temp))
+        # ListOTPImageCol.append(
+        #     int(Dict_OTP['oFrcDivLow'], 0).to_bytes(1, byteorder='big'))
 
-        temp = [int(Dict_OTP['oValFrcDiv'], 0), 0, 0, 0, 0,
-                0, 0, int(Dict_OTP['oFrcDivHigh'], 0)]
-        ListOTPImageCol.append(Fn.ConvertBitArray2Byte(temp))
+        # temp = [int(Dict_OTP['oValFrcDiv'], 0), 0, 0, 0, 0,
+        #         0, 0, int(Dict_OTP['oFrcDivHigh'], 0)]
+        # ListOTPImageCol.append(Fn.ConvertBitArray2Byte(temp))
 
-        temp = [int(Dict_OTP['oValFR_CLK'], 0), 0, 0, 0,
-                Fn.ConvertInt2Bin(Dict_OTP['oFR_CLK'], 4)]
-        ListOTPImageCol.append(Fn.ConvertBitArray2Byte(temp))
-        ListOTPImageCol.append(
-            int(Dict_OTP['oOTPWriteTime'], 0).to_bytes(1, byteorder='big'))
-        ListOTPImageCol.append(
-            int(Dict_OTP['oDnxRsmrstWidth'], 0).to_bytes(1, byteorder='big'))
-        ListOTPImageCol.append(
-            int(Dict_OTP['oDnxDPOkWidth'], 0).to_bytes(1, byteorder='big'))
-        ListOTPImageCol.append(
-            int(Dict_OTP['oECTestMode0'], 0).to_bytes(2, byteorder='big'))
-        ListOTPImageCol.append(
-            int(Dict_OTP['oChipTesterID'], 0).to_bytes(4, byteorder='big'))
-        ListOTPImageCol.append(
-            int(Dict_OTP['oVSpiExistWaitCnter'], 0).to_bytes(1, byteorder='big'))
-        ListOTPImageCol.append(
-            int(Dict_OTP['oPwmLedAdj'], 0).to_bytes(1, byteorder='big'))
+        # temp = [int(Dict_OTP['oValFR_CLK'], 0), 0, 0, 0,
+        #         Fn.ConvertInt2Bin(Dict_OTP['oFR_CLK'], 4)]
+        # ListOTPImageCol.append(Fn.ConvertBitArray2Byte(temp))
+        # ListOTPImageCol.append(
+        #     int(Dict_OTP['oOTPWriteTime'], 0).to_bytes(1, byteorder='big'))
+        # ListOTPImageCol.append(
+        #     int(Dict_OTP['oDnxRsmrstWidth'], 0).to_bytes(1, byteorder='big'))
+        # ListOTPImageCol.append(
+        #     int(Dict_OTP['oDnxDPOkWidth'], 0).to_bytes(1, byteorder='big'))
+        # ListOTPImageCol.append(
+        #     int(Dict_OTP['oECTestMode0'], 0).to_bytes(2, byteorder='big'))
+        # ListOTPImageCol.append(
+        #     int(Dict_OTP['oChipTesterID'], 0).to_bytes(4, byteorder='big'))
+        # ListOTPImageCol.append(
+        #     int(Dict_OTP['oVSpiExistWaitCnter'], 0).to_bytes(1, byteorder='big'))
+        # ListOTPImageCol.append(
+        #     int(Dict_OTP['oPwmLedAdj'], 0).to_bytes(1, byteorder='big'))
 
-        temp = [Fn.ConvertInt2Bin(Dict_OTP['oFPRED'], 4),
-                0, 0, Fn.ConvertInt2Bin(Dict_OTP['oAHB6DIV'], 2)]
-        ListOTPImageCol.append(Fn.ConvertBitArray2Byte(temp))
+        # temp = [Fn.ConvertInt2Bin(Dict_OTP['oFPRED'], 4),
+        #         0, 0, Fn.ConvertInt2Bin(Dict_OTP['oAHB6DIV'], 2)]
+        # ListOTPImageCol.append(Fn.ConvertBitArray2Byte(temp))
 
-        temp = [Fn.ConvertInt2Bin(Dict_OTP['oAPB2DIV'], 4), Fn.ConvertInt2Bin(
-            Dict_OTP['oAPB1DIV'], 4)]
-        ListOTPImageCol.append(Fn.ConvertBitArray2Byte(temp))
+        # temp = [Fn.ConvertInt2Bin(Dict_OTP['oAPB2DIV'], 4), Fn.ConvertInt2Bin(
+        #     Dict_OTP['oAPB1DIV'], 4)]
+        # ListOTPImageCol.append(Fn.ConvertBitArray2Byte(temp))
 
-        temp = [int(Dict_OTP['oRefOTPClk']), 0, 0, int(
-            Dict_OTP['oXFRANGE'], 0), Fn.ConvertInt2Bin(Dict_OTP['oAPB3DIV'], 4)]
-        ListOTPImageCol.append(Fn.ConvertBitArray2Byte(temp))
+        # temp = [int(Dict_OTP['oRefOTPClk']), 0, 0, int(
+        #     Dict_OTP['oXFRANGE'], 0), Fn.ConvertInt2Bin(Dict_OTP['oAPB3DIV'], 4)]
+        # ListOTPImageCol.append(Fn.ConvertBitArray2Byte(temp))
 
-        ListOTPImageCol.append(Fn.ReservedData(3 * 8))
+        # ListOTPImageCol.append(Fn.ReservedData(3 * 8))
+
+        ListOTPImageCol.append(Fn.ReservedData(32 * 8))
 
         # 352 - 362
         ListOTPImageCol.append(Fn.ReservedData(11 * 8))
 
+        # 363 - 383
+        ListOTPImageCol.append(Fn.ReservedData(21 * 8))
+
+        # 384 - 447
+        # if(Util.CryptoSelect == 0 or Util.CryptoSelect == 2):
+        #     data = CryptoDigest(Util.Path_Key, OpenSSL_GetPubKey(
+        #         Dict_OpenSSL['EcFwPubKey2'], reFile=1), HashTypeforECKey) if (bPubHash3) else Fn.ReservedData(64 * 8)
+        # elif(Util.CryptoSelect == 1):
+        #     data = CryptoDigest(Util.Path_Key, CNG_ExportPubKey(
+        #         Dict_CNG['EcFwCert2_Subject'], reFile=1), HashTypeforECKey) if (bPubHash3) else Fn.ReservedData(64 * 8)
+        # ListOTPImageCol.append(data)
+        # ListOTPImageCol.append(Fn.ReservedData(
+        #     32 * 8)) if ((bPubHash3) and (HashTypeforECKey == 256)) else 0
+
+        # 448 - 511
+        # if(Util.CryptoSelect == 0 or Util.CryptoSelect == 2):
+        #     data = CryptoDigest(Util.Path_Key, OpenSSL_GetPubKey(
+        #         Dict_OpenSSL['EcFwPubKey3'], reFile=1), HashTypeforECKey) if (bPubHash4) else Fn.ReservedData(64 * 8)
+        # elif(Util.CryptoSelect == 1):
+        #     data = CryptoDigest(Util.Path_Key, CNG_ExportPubKey(
+        #         Dict_CNG['EcFwCert3_Subject'], reFile=1), HashTypeforECKey) if (bPubHash4) else Fn.ReservedData(64 * 8)
+        # ListOTPImageCol.append(data)
+        # ListOTPImageCol.append(Fn.ReservedData(
+        #     32 * 8)) if ((bPubHash4) and (HashTypeforECKey == 256)) else 0
+
+        # 512 - 575
+        # if(Util.CryptoSelect == 0 or Util.CryptoSelect == 2):
+        #     data = CryptoDigest(Util.Path_Key, OpenSSL_GetPubKey(
+        #         Dict_OpenSSL['EcFwPubKey4'], reFile=1), HashTypeforECKey) if (bPubHash5) else Fn.ReservedData(64 * 8)
+        # elif(Util.CryptoSelect == 1):
+        #     data = CryptoDigest(Util.Path_Key, CNG_ExportPubKey(
+        #         Dict_CNG['EcFwCert4_Subject'], reFile=1), HashTypeforECKey) if (bPubHash5) else Fn.ReservedData(64 * 8)
+        # ListOTPImageCol.append(data)
+        # ListOTPImageCol.append(Fn.ReservedData(
+        #     32 * 8)) if ((bPubHash5) and (HashTypeforECKey == 256)) else 0
+
+        ListOTPImageCol.append(Fn.ReservedData(192 * 8))
+
+        # 576 - 1023
+        ListOTPImageCol.append(Fn.ReservedData(448 * 8))
+
         # 363
-        ListOTPImageCol.append(
-            int(Dict_OTP['oSysFwSigPubKeySts'], 0).to_bytes(1, byteorder='big'))
-        if(Util.CryptoSelect == 0 or Util.CryptoSelect == 2):
-            data = CryptoDigest(Util.Path_Key, OpenSSL_GetPubKey(
-                Dict_OpenSSL['SySFwPubKey0'], reFile=1), HashTypeforSystemKey) if (bFWPubHash1) else Fn.ReservedData(64 * 8)
-        elif(Util.CryptoSelect == 1):
-            data = CryptoDigest(Util.Path_Key, CNG_ExportPubKey(
-                Dict_CNG['SySFwCert0_Subject'], reFile=1), HashTypeforSystemKey) if (bFWPubHash1) else Fn.ReservedData(64 * 8)
-        ListOTPImageCol.append(data)
-        ListOTPImageCol.append(Fn.ReservedData(
-            32 * 8)) if ((bFWPubHash1) and (HashTypeforSystemKey == 256)) else 0
-        if(Util.CryptoSelect == 0 or Util.CryptoSelect == 2):
-            data = CryptoDigest(Util.Path_Key, OpenSSL_GetPubKey(
-                Dict_OpenSSL['SySFwPubKey1'], reFile=1), HashTypeforSystemKey) if (bFWPubHash2) else Fn.ReservedData(64 * 8)
-        elif(Util.CryptoSelect == 1):
-            data = CryptoDigest(Util.Path_Key, CNG_ExportPubKey(
-                Dict_CNG['SySFwCert1_Subject'], reFile=1), HashTypeforSystemKey) if (bFWPubHash2) else Fn.ReservedData(64 * 8)
-        ListOTPImageCol.append(data)
-        ListOTPImageCol.append(Fn.ReservedData(
-            32 * 8)) if ((bFWPubHash2) and (HashTypeforSystemKey == 256)) else 0
+        # ListOTPImageCol.append(
+        #     int(Dict_OTP['oSysFwSigPubKeySts'], 0).to_bytes(1, byteorder='big'))
+        # if(Util.CryptoSelect == 0 or Util.CryptoSelect == 2):
+        #     data = CryptoDigest(Util.Path_Key, OpenSSL_GetPubKey(
+        #         Dict_OpenSSL['SySFwPubKey0'], reFile=1), HashTypeforSystemKey) if (bFWPubHash1) else Fn.ReservedData(64 * 8)
+        # elif(Util.CryptoSelect == 1):
+        #     data = CryptoDigest(Util.Path_Key, CNG_ExportPubKey(
+        #         Dict_CNG['SySFwCert0_Subject'], reFile=1), HashTypeforSystemKey) if (bFWPubHash1) else Fn.ReservedData(64 * 8)
+        # ListOTPImageCol.append(data)
+        # ListOTPImageCol.append(Fn.ReservedData(
+        #     32 * 8)) if ((bFWPubHash1) and (HashTypeforSystemKey == 256)) else 0
+        # if(Util.CryptoSelect == 0 or Util.CryptoSelect == 2):
+        #     data = CryptoDigest(Util.Path_Key, OpenSSL_GetPubKey(
+        #         Dict_OpenSSL['SySFwPubKey1'], reFile=1), HashTypeforSystemKey) if (bFWPubHash2) else Fn.ReservedData(64 * 8)
+        # elif(Util.CryptoSelect == 1):
+        #     data = CryptoDigest(Util.Path_Key, CNG_ExportPubKey(
+        #         Dict_CNG['SySFwCert1_Subject'], reFile=1), HashTypeforSystemKey) if (bFWPubHash2) else Fn.ReservedData(64 * 8)
+        # ListOTPImageCol.append(data)
+        # ListOTPImageCol.append(Fn.ReservedData(
+        #     32 * 8)) if ((bFWPubHash2) and (HashTypeforSystemKey == 256)) else 0
 
         # 364 - 511
-        ListOTPImageCol.append(
-            int(Dict_OTP['oUserDataField'], 0).to_bytes(20, byteorder='big'))
+        # ListOTPImageCol.append(
+        #     int(Dict_OTP['oUserDataField'], 0).to_bytes(20, byteorder='big'))
 
         # 512 - 1023
-        ListOTPImageCol.append(
-            int(Dict_OTP['oUserDataField1'], 0).to_bytes(128, byteorder='big'))
-        ListOTPImageCol.append(
-            int(Dict_OTP['oUserDataField2'], 0).to_bytes(128, byteorder='big'))
-        ListOTPImageCol.append(
-            int(Dict_OTP['oUserDataField3'], 0).to_bytes(128, byteorder='big'))
-        ListOTPImageCol.append(
-            int(Dict_OTP['oUserDataField4'], 0).to_bytes(128, byteorder='big'))
+        # ListOTPImageCol.append(
+        #     int(Dict_OTP['oUserDataField1'], 0).to_bytes(128, byteorder='big'))
+        # ListOTPImageCol.append(
+        #     int(Dict_OTP['oUserDataField2'], 0).to_bytes(128, byteorder='big'))
+        # ListOTPImageCol.append(
+        #     int(Dict_OTP['oUserDataField3'], 0).to_bytes(128, byteorder='big'))
+        # ListOTPImageCol.append(
+        #     int(Dict_OTP['oUserDataField4'], 0).to_bytes(128, byteorder='big'))
 
         total = 0
         for i in range(0, len(ListOTPImageCol)):
@@ -1058,8 +1080,8 @@ def GenHeader():
     # print('FWLength', '{:x}'.format(FWLength))
     # print('OtpAlign', '{:x}'.format(OtpAlign))
 
-    # if(GenOTP):
-    #     List_OTPHeader = GenOTPHeader()
+    if(GenOTP):
+        List_OTPHeader = GenOTPHeader()
     List_FWHeader = GenFWHeader()
     List_Header = [List_FWHeader, List_OTPHeader]
     logging.info('GenHeader OK')
@@ -1651,7 +1673,7 @@ def DumpOTP(File):
 
 def ParseXml(XmlTree):
     global Dict_Config, Dict_OpenSSL, Dict_CNG, Dict_PKCS11, Dict_File, Dict_FW_H, Dict_OTP_H, Dict_OTP, GenOTP, AESencrypt,\
-        bPriKey, bPubKey, bPubHash1, bPubHash2, bFWPubHash1, bFWPubHash2, bSessPrivKey,\
+        bPriKey, bPubKey, bPubHash1, bPubHash2, bPubHash3, bPubHash4, bPubHash5, bFWPubHash1, bFWPubHash2, bSessPrivKey,\
         HashTypeforECKey, HashTypeforSystemKey
 
     # Config Field
@@ -1729,9 +1751,9 @@ def ParseXml(XmlTree):
     #     os.chdir(Util.Path_Current)
 
     # OpenSSL Field
-    # Node = XmlTree.find('Crypto')
-    # Node = Node.find('OpenSSL')
-    # Dict_OpenSSL = ParseXmlwithTarget(Node, Util.Target.OpenSSL)
+    Node = XmlTree.find('Crypto')
+    Node = Node.find('OpenSSL')
+    Dict_OpenSSL = ParseXmlwithTarget(Node, Util.Target.OpenSSL)
 
     # # CNG Field
     # Node = XmlTree.find('Crypto')
@@ -1755,43 +1777,72 @@ def ParseXml(XmlTree):
         Dict_FW_H = ParseXmlwithTarget(Node, Util.Target.FWImageHeader)
 
     # # OTP Header Field
-    # Node = XmlTree.find('OTPImageHeader')
-    # if(Node is not None):
-    #     Dict_OTP_H = ParseXmlwithTarget(Node, Util.Target.OTPImageHeader)
+    Node = XmlTree.find('OTPImageHeader')
+    if(Node is not None):
+        Dict_OTP_H = ParseXmlwithTarget(Node, Util.Target.OTPImageHeader)
 
     # Setting Global variable
     if 'AESencrypt' in Dict_Config:
-        AESencrypt = 0 #(int)(Dict_Config['AESencrypt'])
-    Util.CryptoSelect = 0 #(int)(Dict_Config['CryptoSelect'])
+        AESencrypt = (int)(Dict_Config['AESencrypt'])
+    Util.CryptoSelect = (int)(Dict_Config['CryptoSelect'])
 
-    # if(Util.CryptoSelect == 0 or Util.CryptoSelect == 2):
-    #     KeyType = [0, 0]
-    #     KeyLonger = [False, False]
-    #     Key3072_384 = [False, False]
-    #     if Dict_OpenSSL['EcFwSigKey'] is not None:
-    #         bPriKey = 1
-    #         if Dict_OpenSSL['EcFwPubKey0'] is not None:
-    #             bPubHash1 = 1
-    #             KeyType[0], KeyLonger[0], Key3072_384[0] = IdentifyPubKey_2(
-    #                 Dict_OpenSSL['EcFwPubKey0'])
-    #         if Dict_OpenSSL['EcFwPubKey1'] is not None:
-    #             bPubHash2 = 1
-    #             KeyType[1], KeyLonger[1], Key3072_384[1] = IdentifyPubKey_2(
-    #                 Dict_OpenSSL['EcFwPubKey1'])
-    #         if(((int)(Dict_OpenSSL['EcFwSigKey_Idx']) == 0) and bPubHash1) or \
-    #                 (((int)(Dict_OpenSSL['EcFwSigKey_Idx']) == 1) and bPubHash2):
-    #             bPubKey = 1
-    #         if(bPriKey and bPubKey):
-    #             if((int)(Dict_OpenSSL['EcFwSigKey_Idx']) == 0):
-    #                 CheckKeyPair(
-    #                     Dict_OpenSSL['EcFwSigKey'], Dict_OpenSSL['EcFwPubKey0'])
-    #             else:
-    #                 CheckKeyPair(
-    #                     Dict_OpenSSL['EcFwSigKey'], Dict_OpenSSL['EcFwPubKey1'])
+    if(Util.CryptoSelect == 0 or Util.CryptoSelect == 2):
+        KeyType = [0, 0, 0, 0, 0]
+        KeyLonger = [False, False, False, False, False]
+        Key3072_384 = [False, False, False, False, False]
+        if(Util.CryptoSelect == 0):
+            if Dict_OpenSSL['EcFwSigKey'] is not None:
+                bPriKey = 1
+                if Dict_OpenSSL['EcFwPubKey0'] is not None:
+                    bPubHash1 = 1
+                    KeyType[0], KeyLonger[0], Key3072_384[0] = IdentifyPubKey_2(
+                        Dict_OpenSSL['EcFwPubKey0'])
+                # if Dict_OpenSSL['EcFwPubKey1'] is not None:
+                #     bPubHash2 = 1
+                #     KeyType[1], KeyLonger[1], Key3072_384[1] = IdentifyPubKey_2(
+                #         Dict_OpenSSL['EcFwPubKey1'])
+                # if Dict_OpenSSL['EcFwPubKey2'] is not None:
+                #     bPubHash3 = 1
+                #     KeyType[2], KeyLonger[2], Key3072_384[2] = IdentifyPubKey_2(
+                #         Dict_OpenSSL['EcFwPubKey2'])
+                # if Dict_OpenSSL['EcFwPubKey3'] is not None:
+                #     bPubHash4 = 1
+                #     KeyType[3], KeyLonger[3], Key3072_384[3] = IdentifyPubKey_2(
+                #        Dict_OpenSSL['EcFwPubKey3'])
+                # if Dict_OpenSSL['EcFwPubKey4'] is not None:
+                #     bPubHash5 = 1
+                #     KeyType[4], KeyLonger[4], Key3072_384[4] = IdentifyPubKey_2(
+                #         Dict_OpenSSL['EcFwPubKey4'])
 
-    #     if Util.internal:
-    #         if Dict_OpenSSL['SessPrivKey'] is not None:
-    #             bSessPrivKey = 1
+                # if(((int)(Dict_OpenSSL['EcFwSigKey_Idx']) == 0) and bPubHash1) or \
+                #         (((int)(Dict_OpenSSL['EcFwSigKey_Idx']) == 1) and bPubHash2) or \
+                #         (((int)(Dict_OpenSSL['EcFwSigKey_Idx']) == 2) and bPubHash3) or \
+                #         (((int)(Dict_OpenSSL['EcFwSigKey_Idx']) == 3) and bPubHash4) or \
+                #         (((int)(Dict_OpenSSL['EcFwSigKey_Idx']) == 4) and bPubHash5):
+                #     bPubKey = 1
+
+                if(((int)(Dict_OpenSSL['EcFwSigKey_Idx']) == 0)):
+                     bPubKey = 1
+
+                if(bPriKey and bPubKey):
+                    if((int)(Dict_OpenSSL['EcFwSigKey_Idx']) == 0):
+                        CheckKeyPair(
+                            Dict_OpenSSL['EcFwSigKey'], Dict_OpenSSL['EcFwPubKey0'])
+                    # elif((int)(Dict_OpenSSL['EcFwSigKey_Idx']) == 1):
+                    #     CheckKeyPair(
+                    #         Dict_OpenSSL['EcFwSigKey'], Dict_OpenSSL['EcFwPubKey1'])
+                    # elif((int)(Dict_OpenSSL['EcFwSigKey_Idx']) == 2):
+                    #     CheckKeyPair(
+                    #         Dict_OpenSSL['EcFwSigKey'], Dict_OpenSSL['EcFwPubKey2'])
+                    # elif((int)(Dict_OpenSSL['EcFwSigKey_Idx']) == 3):
+                    #     CheckKeyPair(
+                    #         Dict_OpenSSL['EcFwSigKey'], Dict_OpenSSL['EcFwPubKey3'])
+                    # elif((int)(Dict_OpenSSL['EcFwSigKey_Idx']) == 4):
+                    #     CheckKeyPair(
+                    #         Dict_OpenSSL['EcFwSigKey'], Dict_OpenSSL['EcFwPubKey4'])
+        # if Util.internal:
+        #     if Dict_OpenSSL['SessPrivKey'] is not None:
+        #         bSessPrivKey = 1
 
     #     elif not Util.internal:
     #         # oSigPubKeySts
@@ -1891,10 +1942,10 @@ def ParseXml(XmlTree):
     #         # if (('AESCert_Subject' in Dict_CNG) and (Dict_CNG['AESCert_Subject'] is not None)):
     #         #     bSessPrivKey = 1
 
-    # if(bPubKey == 0):
-    #     Fn.OutputString(
-    #         1, "Need an EcFwPubKey or EcFwCert. Please check Crypto section.")
-    #     Fn.ClearTmpFiles()
+    if(bPubKey == 0):
+        Fn.OutputString(
+            1, "Need an EcFwPubKey or EcFwCert. Please check Crypto section.")
+        Fn.ClearTmpFiles()
 
     # YH
     # if(Util.CryptoSelect == 0):
@@ -1903,7 +1954,7 @@ def ParseXml(XmlTree):
     #     Dict_Config['hSigPubKeyHashIdx'] = Dict_CNG['SignCert_Idx']
 
     if(Util.internal):
-        GenOTP = 0 #(int)(Dict_Config['GenOTP'])
+        GenOTP = (int)(Dict_Config['GenOTP'])
     # elif(not Util.internal):  # Custom XML setting
         # if(Util.CryptoSelect == 0):
         #     Dict_Config['hSigPubKeyHashIdx'] = Dict_OpenSSL['EcFwSigKey_Idx']
@@ -1931,10 +1982,10 @@ def ParseXml(XmlTree):
     # print('FanTableCnt = ', '{:x}'.format(Util.FanTableCnt))
 
     # OTP Field
-    # if(GenOTP):
-    #     Node = XmlTree.find('OTPbitmap')
-    #     if((Node is not None) and Util.internal):
-    #         Dict_OTP = ParseXmlwithTarget(Node, Util.Target.OTPbitmap)
+    if(GenOTP):
+        Node = XmlTree.find('OTPbitmap')
+        if((Node is not None) and Util.internal):
+            Dict_OTP = ParseXmlwithTarget(Node, Util.Target.OTPbitmap)
     #         # if 'oSigPubKeySts' in Dict_OTP:
     #         #     ECPubKeySts = Fn.ConvertInt2Bin(Dict_OTP['oSigPubKeySts'], 8)
     #         #     HashTypeforECKey = 512 if(
@@ -1959,11 +2010,10 @@ def ParseXml(XmlTree):
     #         Dict_OTP['oLongKeySel'] = str(Util.oLongKeySel)
     #         Dict_OTP['oRSAPKCPAD'] = str(Util.RSAPKCPAD)
 
-    #     if Util.internal:
-    #         HashTypeforECKey = 512 if(int(Dict_OTP['oSHA512Used'], 0) == 1) else 256
+        if Util.internal:
+            HashTypeforECKey = 512 if(int(Dict_OTP['oSHA512Used'], 0) == 1) else 256
 
-    Util.SetCryptoFunc(0)
-
+    Util.SetCryptoFunc((int)(Dict_Config['CryptoSelect']))
 
 def GenImage():
     try:
@@ -2065,8 +2115,8 @@ elif((XmlFile.find('_NTC_') < 0) and (Util.internal)):
 
 if Util.internal:
     ParseXml(ReadXml(XmlFile))
-    # if(GenOTP):
-    #     GenImage()
+    if(GenOTP):
+        GenImage()
     GenPacket(GenHeader())
 
 # elif not Util.internal:
