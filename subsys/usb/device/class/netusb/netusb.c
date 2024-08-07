@@ -137,10 +137,32 @@ static void netusb_init(struct net_if *iface)
 	LOG_INF("netusb initialized");
 }
 
+static enum ethernet_hw_caps netusb_get_capabilities(const struct device *dev)
+{
+	ARG_UNUSED(dev);
+
+	return ETHERNET_PROMISC_MODE;
+}
+
+static int netusb_set_config(const struct device *dev,
+				    enum ethernet_config_type type,
+				    const struct ethernet_config *config)
+{
+	switch (type) {
+	case ETHERNET_CONFIG_TYPE_PROMISC_MODE:
+		return 0;
+	default:
+		break;
+	}
+
+	return -ENOTSUP;
+}
+
 static const struct ethernet_api netusb_api_funcs = {
 	.iface_api.init = netusb_init,
 
-	.get_capabilities = NULL,
+	.get_capabilities = netusb_get_capabilities,
+	.set_config = netusb_set_config,
 	.send = netusb_send,
 };
 
