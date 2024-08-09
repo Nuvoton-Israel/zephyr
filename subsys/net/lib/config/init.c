@@ -28,6 +28,8 @@ LOG_MODULE_REGISTER(net_config, CONFIG_NET_CONFIG_LOG_LEVEL);
 
 #include <zephyr/net/net_config.h>
 
+#include <zephyr/usb/usb_device.h>
+
 #include "ieee802154_settings.h"
 
 extern int net_init_clock_via_sntp(void);
@@ -503,6 +505,9 @@ int net_config_init_app(const struct device *dev, const char *app_info)
 	uint32_t flags = 0U;
 	int ret;
 
+#if defined(CONFIG_USB_DEVICE_STACK)
+	usb_enable(NULL);
+#endif
 	if (dev) {
 		iface = net_if_lookup_by_dev(dev);
 		if (iface == NULL) {
