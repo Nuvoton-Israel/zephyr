@@ -132,6 +132,7 @@ static int cmd_bridge_allow_tx(const struct shell *sh, size_t argc, char *argv[]
 	}
 
 	if (!strcmp(argv[2], "1") ||
+	    !strcmp(argv[2], "2") ||
 	    !strcmp(argv[2], "yes") ||
 	    !strcmp(argv[2], "on") ||
 	    !strcmp(argv[2], "true")) {
