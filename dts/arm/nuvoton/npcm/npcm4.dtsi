@@ -65,6 +65,10 @@
 					<NPCM_ADC_CFG(NPCM_ADC_CH23_TD4P, 1, 0, 0x04, 0, 0)>;
 		};
 
+		qspi_spim0: quad-spim@40017000 {
+			clocks = <&pcc NPCM_CLOCK_BUS_APB3 NPCM_PWDWN_CTL1 0>;
+		};
+
 		qspi_fiu0: quad-fiu@40020000 {
 			clocks = <&pcc NPCM_CLOCK_FIU>;
 		};

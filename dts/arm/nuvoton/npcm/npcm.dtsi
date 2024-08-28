@@ -277,6 +277,20 @@
 			status = "disabled";
 		};
 
+		qspi_spim0: quad-spim@40017000 {
+			compatible = "nuvoton,npcm-spim-qspi";
+			#address-cells = <1>;
+			#size-cells = <0>;
+			reg = <0x40017000 0x100>;
+		};
+
+		qspi_fiu0: quad-fiu@40020000 {
+			compatible = "nuvoton,npcm-fiu-qspi";
+			#address-cells = <1>;
+			#size-cells = <0>;
+			reg = <0x40020000 0x2000>;
+		};
+
 		i2c1a: i2c_a@40006000 {
 			compatible = "nuvoton,npcm-i2c";
 			#address-cells = <1>;
