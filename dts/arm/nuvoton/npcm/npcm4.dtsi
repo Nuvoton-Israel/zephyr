@@ -64,6 +64,10 @@
 					<NPCM_ADC_CFG(NPCM_ADC_CH22_TD3P, 1, 0, 0x03, 0, 0)>,
 					<NPCM_ADC_CFG(NPCM_ADC_CH23_TD4P, 1, 0, 0x04, 0, 0)>;
 		};
+
+		qspi_fiu0: quad-fiu@40020000 {
+			clocks = <&pcc NPCM_CLOCK_FIU>;
+		};
 	};
 
 	soc-if {
