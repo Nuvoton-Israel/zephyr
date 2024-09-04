@@ -291,6 +291,13 @@
 			reg = <0x40020000 0x2000>;
 		};
 
+		spip0: spi@40016000 {
+			compatible = "nuvoton,npcm-spip";
+			reg = <0x40016000 0x100>;
+			#address-cells = <1>;
+			#size-cells = <0>;
+		};
+
 		i2c1a: i2c_a@40006000 {
 			compatible = "nuvoton,npcm-i2c";
 			#address-cells = <1>;

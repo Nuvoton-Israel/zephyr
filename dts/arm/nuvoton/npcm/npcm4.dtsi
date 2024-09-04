@@ -72,6 +72,10 @@
 		qspi_fiu0: quad-fiu@40020000 {
 			clocks = <&pcc NPCM_CLOCK_FIU>;
 		};
+
+		spip0: spi@40016000 {
+			clocks = <&pcc NPCM_CLOCK_SPIP1>;
+		};
 	};
 
 	soc-if {
