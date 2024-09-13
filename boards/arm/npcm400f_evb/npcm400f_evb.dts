@@ -610,7 +610,7 @@
 };
 
 &emac {
-	status = "okay";
+	status = "disabled";
 };
 
 &snoop {
