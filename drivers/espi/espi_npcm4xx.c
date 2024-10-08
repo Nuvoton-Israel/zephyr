@@ -254,7 +254,7 @@ out:
 		evt.evt_details = VM_MSGPIO_START + event_idx;
 		evt.evt_data = event->state;
 
-		LOG_INF("GPIO NUM %d value %d", evt.evt_details, evt.evt_data);
+		LOG_INF("VWGPMS GPIO NUM %d value %d", evt.evt_details, evt.evt_data);
 
 		espi_send_callbacks(&vwgpio->callbacks, dev, evt);
 	}
@@ -273,7 +273,7 @@ static void espi_npcm_vwgpio_init(const struct device *dev)
 
 static void espi_bus_vw_update_isr(const struct device *dev)
 {
-	LOG_INF("ESPI VW Updated!");
+	LOG_DBG("ESPI VW Updated!");
 
 	for (int i = 0; i < VW_MSGPIO_NUM; i++) {
 		espi_npcm_vwgpio_check_event(dev, i);
