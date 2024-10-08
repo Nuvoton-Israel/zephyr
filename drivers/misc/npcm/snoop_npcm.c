@@ -83,12 +83,12 @@ static void snoop_npcm_isr(const struct device *dev)
 	sts = sys_read8(cfg->base + DP80STS);
 
     if (sts & DP80STS_FOR) {
-        printk("P80 FIFO was overrun\r\n");
+        LOG_WRN("P80 FIFO was overrun\r\n");
         sys_write8(DP80STS_FOR, cfg->base + DP80STS);
     }
 
     if (sts & DP80STS_FWR) {
-        printk("P80 FIFO was written\r\n");
+        LOG_DBG("P80 FIFO was written\r\n");
         sys_write8(DP80STS_FWR, cfg->base + DP80STS);
     }
 
