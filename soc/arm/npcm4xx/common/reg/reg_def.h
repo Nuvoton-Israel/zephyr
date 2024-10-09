@@ -979,10 +979,7 @@ struct espi_reg {
 	volatile uint8_t reserved2[16];
 	/* 0x0050 Status Image Register(Host-side) */
 	volatile uint16_t STATUS_IMG;
-	volatile uint8_t  reserved3_1[46];
-	/* 0x0080ESPI Host Independence Register */
-	volatile uint32_t ESPIHINDP;
-	volatile uint8_t  reserved3[124];
+	volatile uint8_t  reserved3[174];
 	/* 0x0100 Virtual Wire Event Slave-to-Master 0-9 */
 	volatile uint32_t VWEVSM[10];
 	volatile uint8_t reserved4[24];
@@ -1119,7 +1116,6 @@ struct espi_reg {
 #define NPCM4XX_VWGPMS_WIRE                 FIELD(0, 4)
 #define NPCM4XX_VWGPMS_VALID                FIELD(4, 4)
 #define NPCM4XX_VWGPMS_INDEX_EN             15
-#define NPCM4XX_VWGPMS_ENESPIRST 			19
 #define NPCM4XX_VWGPMS_IE                   18
 #define NPCM4XX_OOBCTL_OOB_FREE             0
 #define NPCM4XX_OOBCTL_OOB_AVAIL            1
