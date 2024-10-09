@@ -1116,6 +1116,7 @@ struct espi_reg {
 #define NPCM4XX_VWGPMS_WIRE                 FIELD(0, 4)
 #define NPCM4XX_VWGPMS_VALID                FIELD(4, 4)
 #define NPCM4XX_VWGPMS_INDEX_EN             15
+#define NPCM4XX_VWGPMS_ENESPIRST 			19
 #define NPCM4XX_VWGPMS_IE                   18
 #define NPCM4XX_OOBCTL_OOB_FREE             0
 #define NPCM4XX_OOBCTL_OOB_AVAIL            1

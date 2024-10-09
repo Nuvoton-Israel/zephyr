@@ -20,24 +20,6 @@
 #include <logging/log.h>
 LOG_MODULE_REGISTER(espi, CONFIG_ESPI_LOG_LEVEL);
 
-struct espi_npcm4xx_config {
-	uintptr_t base;
-	/* clock configuration */
-	struct npcm4xx_clk_cfg clk_cfg;
-	/* mapping table between eSPI reset signal and wake-up input */
-	struct npcm4xx_wui espi_rst_wui;
-};
-
-struct espi_npcm4xx_data {
-	sys_slist_t callbacks;
-	uint8_t plt_rst_asserted;
-	uint8_t espi_rst_asserted;
-	uint8_t sx_state;
-#if defined(CONFIG_ESPI_OOB_CHANNEL)
-	struct k_sem oob_rx_lock;
-#endif
-};
-
 /* Driver convenience defines */
 #define DRV_CONFIG(dev) ((const struct espi_npcm4xx_config *)(dev)->config)
 
@@ -75,6 +57,39 @@ struct espi_npcm4xx_data {
 #define ESPI_OOB_GET_CYCLE_TYPE      0x21
 #define ESPI_OOB_TAG                 0x00
 #define ESPI_OOB_MAX_TIMEOUT         500ul /* 500 ms */
+
+/* SM GPIO: 0~63, MS GPIO: 64~127 */
+#define VM_SMGPIO_START		0
+#define VW_SMGPIO_NUM		64
+#define VM_MSGPIO_START		64
+#define VW_MSGPIO_NUM		64
+#define VWGPMS_MODIFIED	BIT(16)
+
+struct espi_npcm4xx_config {
+	uintptr_t base;
+	/* clock configuration */
+	struct npcm4xx_clk_cfg clk_cfg;
+	/* mapping table between eSPI reset signal and wake-up input */
+	struct npcm4xx_wui espi_rst_wui;
+};
+
+struct vwgpio_event {
+	uint8_t enable : 1;
+	uint8_t state: 1;
+	uint8_t type: 3;
+	uint8_t flags: 3;
+};
+
+struct espi_npcm4xx_data {
+	sys_slist_t callbacks;
+	uint8_t plt_rst_asserted;
+	uint8_t espi_rst_asserted;
+	uint8_t sx_state;
+#if defined(CONFIG_ESPI_OOB_CHANNEL)
+	struct k_sem oob_rx_lock;
+#endif
+	struct vwgpio_event events[VW_MSGPIO_NUM];
+};
 
 /* eSPI bus interrupt configuration structure and macro function */
 struct espi_bus_isr {
@@ -247,6 +262,102 @@ static void espi_bus_cfg_update_isr(const struct device *dev)
 	}
 }
 
+static int espi_vwgpio_get_value(const struct device *dev, unsigned int offset)
+{
+	struct espi_reg *const inst = HAL_INSTANCE(dev);
+	uint32_t wire = offset % 4;
+	uint32_t index;
+	uint32_t val;
+
+	/* Accept SM/MS GPIO */
+	if (offset >= (VM_MSGPIO_START + VW_MSGPIO_NUM))
+		return -EINVAL;
+
+	if (offset >= VM_MSGPIO_START) {
+		index = (offset - VM_MSGPIO_START) / 4;
+		val = inst->VWGPMS[index];
+
+		/* Check wire valid bit, invalid return default value */
+		if (!(val & BIT(wire + 4)))
+			return !!(BIT(offset - VM_MSGPIO_START));
+	} else {
+		index = offset / 4;
+		val = inst->VWGPMS[index];
+		/* Check wire valid bit*/
+		if (!(val & BIT(wire + 4)))
+			return -EIO;
+	}
+
+	return !!(val & BIT(wire));
+}
+
+
+static void espi_npcm_vwgpio_check_event(const struct device *dev,
+				    unsigned int event_idx)
+{
+	struct espi_reg *const inst = HAL_INSTANCE(dev);
+	struct espi_npcm4xx_data *const vwgpio = DRV_DATA(dev);
+	struct vwgpio_event *event;
+	bool raise_irq = false;
+	uint32_t index = event_idx / 4;
+	uint32_t wire = event_idx % 4;
+	uint8_t new_state;
+	uint32_t val;
+
+	if (event_idx >= VW_MSGPIO_NUM)
+		return;
+
+	val = inst->VWGPMS[index];
+	inst->VWGPMS[index] |= VWGPMS_MODIFIED;
+
+	event = &vwgpio->events[event_idx];
+
+	/* Check event enable
+	if (!event->enable)
+		goto out;*/
+
+	/* Check wire valid bit */
+	if (!(val & BIT(wire + 4)))
+		goto out;
+
+	new_state = !!(val & BIT(wire));
+	if (event->state  != new_state) {
+		event->state = new_state;
+		raise_irq = true;
+	}
+
+out:
+	if (raise_irq) {
+		struct espi_event evt = { ESPI_BUS_EVENT_VWIRE_RECEIVED, 0, 0 };
+		evt.evt_details = VM_MSGPIO_START + event_idx;
+		evt.evt_data = event->state;
+
+		LOG_INF("VWGPMS GPIO NUM %d value %d", evt.evt_details, evt.evt_data);
+
+		espi_send_callbacks(&vwgpio->callbacks, dev, evt);
+	}
+}
+
+static void espi_npcm_vwgpio_init(const struct device *dev)
+{
+	struct espi_npcm4xx_data *const vwgpio = DRV_DATA(dev);
+
+	/* Get gpio initial state */
+	memset(&vwgpio->events, 0, sizeof(vwgpio->events));
+	for (int i = 0; i < VW_MSGPIO_NUM; i++)
+		vwgpio->events[i].state =
+			espi_vwgpio_get_value(dev, VM_MSGPIO_START + i);
+}
+
+static void espi_bus_vw_update_isr(const struct device *dev)
+{
+	LOG_DBG("ESPI VW Updated!");
+
+	for (int i = 0; i < VW_MSGPIO_NUM; i++) {
+		espi_npcm_vwgpio_check_event(dev, i);
+	}
+}
+
 #if defined(CONFIG_ESPI_OOB_CHANNEL)
 static void espi_bus_oob_rx_isr(const struct device *dev)
 {
@@ -265,6 +376,7 @@ const struct espi_bus_isr espi_bus_isr_tbl[] = {
 #if defined(CONFIG_ESPI_OOB_CHANNEL)
 	NPCM4XX_ESPI_BUS_INT_ITEM(OOBRX, espi_bus_oob_rx_isr),
 #endif
+	NPCM4XX_ESPI_BUS_INT_ITEM(VWUPD, espi_bus_vw_update_isr),
 };
 
 static void espi_bus_generic_isr(void *arg)
@@ -913,8 +1025,11 @@ static int espi_npcm4xx_init(const struct device *dev)
 	espi_init_wui_callback(dev, &espi_rst_callback,
 				&config->espi_rst_wui, espi_vw_espi_rst_isr);
 
+	espi_npcm_vwgpio_init(dev);
+
 	for (i = 0; i < ARRAY_SIZE(inst->VWGPMS); i++) {
 		inst->VWGPMS[i] |= (BIT(NPCM4XX_VWGPMS_INDEX_EN) | BIT(NPCM4XX_VWGPMS_IE));
+		inst->VWGPMS[i] &= ~BIT(NPCM4XX_VWGPMS_ENESPIRST);
 	}
 
 	for (i = 0; i < ARRAY_SIZE(inst->VWGPSM); i++) {
