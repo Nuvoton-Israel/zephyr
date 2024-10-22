@@ -7,6 +7,8 @@
 /dts-v1/;
 
 #include <nuvoton/npcm400.dtsi>
+#include <nuvoton/npcm/npcm4/npcm4-pinctrl.dtsi>
+#include <nuvoton/npcm/npcm4/npcm4-pinmux.dtsi>
 
 / {
 	model = "Nuvoton NPCM400 evaluation board";
