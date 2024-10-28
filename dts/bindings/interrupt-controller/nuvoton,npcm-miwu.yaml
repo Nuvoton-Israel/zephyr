@@ -1,0 +1,71 @@
+# Copyright (c) 2024 Nuvoton Technology Corporation.
+# SPDX-License-Identifier: Apache-2.0
+
+description: |
+  Nuvoton, NPCM Multi-Input Wake-Up Unit (MIWU) node is a singleton node responsible for
+  controlling the MIWU function. The MIWU is a peripheral that can wake up the system from a
+  low-power state when a specific event occurs.
+
+  The DTS files present the relationship between MIWU and the other devices in npcm target.
+
+  The relationship between the GPIO input and MIWU group.
+  For example, here is the mapping between miwu0's group b and gpio1:
+
+    &gpio1 {
+      nuvoton,gpio-wui-maps = <NPCM_MIWU0_GROUPB_GPIO10
+                  NPCM_MIWU0_GROUPB_GPIO11
+                  NPCM_MIWU0_GROUPB_GPIO12
+                  NPCM_MIWU0_GROUPB_GPIO13
+                  NPCM_MIWU0_GROUPB_GPIO14
+                  NPCM_MIWU0_GROUPB_GPIO15
+                  NPCM_MIWU0_GROUPB_GPIO16
+                  NPCM_MIWU0_GROUPB_GPIO17>;
+    };
+
+  The relationship between MIWU group and NVIC interrupt in npcm target.
+  It's a 1-to-1 mapping and there is a group which has 2 interrupts as an exception.
+  For example, here is the mapping between miwu0's group a0 and IRQ40:
+
+    &miwu0 {
+      group_a0: group-a0-map {
+        nuvoton,irq = <40>;
+        nuvoton,irq-priority = <2>;
+        nuvoton,group-mask = <0x01>;
+      };
+    };
+
+compatible: "nuvoton,npcm-miwu"
+
+include: [base.yaml]
+
+properties:
+  nuvoton,index:
+    type: int
+    required: true
+    description: |
+      The index of the MIWU device. It should be unique otherwise the behavior of MIWU is
+      undefined.
+
+child-binding:
+  description: |
+    The child node to present the mapping between the MIWU group and interrupt.
+
+  properties:
+    nuvoton,irq:
+      type: int
+      required: true
+      description: |
+        The irq for the MIWU group.
+        Each MIWU group has an unique irq number.
+    nuvoton,irq-priority:
+      type: int
+      required: true
+      description: |
+        The irq's priority for the MIWU group.
+        The valid number is from 0 to the lowest priority IRQ_PRIO_LOWEST.
+    nuvoton,group-mask:
+      type: int
+      required: true
+      description: |
+        The group bit-mask for the MIWU interrupts.
+        The bit width is 8 bits which follows the number of the MIWU group.
