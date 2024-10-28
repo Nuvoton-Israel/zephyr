@@ -73,6 +73,64 @@ static int gpio_npcm_set_pincfg(const struct device *dev, gpio_pin_t pin)
 	return 0;
 }
 
+void gpio_npcm_enable_io_pads(const struct device *dev, int pin)
+{
+	const struct gpio_npcm_config *const config = dev->config;
+	const struct npcm_wui *io_wui;
+	uint8_t ngpios = HAL_NGPIOS_INST(dev);
+
+	/* Check pin mapping is valid */
+	if (pin >= config->gpio_wui_map_size) {
+		LOG_ERR("Invalid GPIO(%x, %d) pin", config->port, pin);
+		return;
+	}
+
+	io_wui = &config->gpio_wui_maps[pin];
+
+	/* Check miwu table is valid */
+	if (NPCM_WUI_TABLE_OFFSET(io_wui->wk_src_idx) >= NPCM_MIWU_GROUP_MAX) {
+		LOG_ERR("Cannot enable GPIO(%x, %d) pad", config->port, pin);
+		return;
+	}
+
+	/*
+	 * If this pin is configured as a GPIO interrupt source, do not
+	 * implement bypass or the system cannot wake up via this event.
+	 */
+	if (pin < ngpios && !npcm_miwu_irq_get_state(io_wui)) {
+		npcm_miwu_io_enable(io_wui);
+	}
+}
+
+void gpio_npcm_disable_io_pads(const struct device *dev, int pin)
+{
+	const struct gpio_npcm_config *const config = dev->config;
+	const struct npcm_wui *io_wui;
+	uint8_t ngpios = HAL_NGPIOS_INST(dev);
+
+	/* Check pin mapping is valid */
+	if (pin >= config->gpio_wui_map_size) {
+		LOG_ERR("Invalid GPIO(%x, %d) pin", config->port, pin);
+		return;
+	}
+
+	io_wui = &config->gpio_wui_maps[pin];
+
+	/* Check miwu table is valid */
+	if (NPCM_WUI_TABLE_OFFSET(io_wui->wk_src_idx) >= NPCM_MIWU_GROUP_MAX) {
+		LOG_ERR("Cannot disable GPIO(%x, %d) pad", config->port, pin);
+		return;
+	}
+
+	/*
+	 * If this pin is configured as a GPIO interrupt source, do not
+	 * implement bypass or the system cannot wake up via this event.
+	 */
+	if (pin < ngpios && !npcm_miwu_irq_get_state(io_wui)) {
+		npcm_miwu_io_disable(io_wui);
+	}
+}
+
 /* GPIO API functions */
 static int gpio_npcm_pin_configure(const struct device *dev, gpio_pin_t pin, gpio_flags_t flags)
 {
@@ -235,6 +293,97 @@ static int gpio_npcm_port_toggle_bits(const struct device *dev, gpio_port_value_
 	return 0;
 }
 
+static int gpio_npcm_pin_interrupt_configure(const struct device *dev, gpio_pin_t pin,
+					     enum gpio_int_mode mode, enum gpio_int_trig trig)
+{
+	const struct gpio_npcm_config *const config = dev->config;
+	const struct npcm_wui *wui;
+	enum miwu_int_mode miwu_mode;
+	enum miwu_int_trig miwu_trig;
+	int ret = 0;
+
+	/* Check pin mapping is valid */
+	if (pin >= config->gpio_wui_map_size) {
+		LOG_ERR("Invalid GPIO(%x, %d) pin", config->port, pin);
+		return -EINVAL;
+	}
+	wui = &config->gpio_wui_maps[pin];
+
+	/* Check miwu table is valid */
+	if (NPCM_WUI_TABLE_OFFSET(wui->wk_src_idx) >= NPCM_MIWU_GROUP_MAX) {
+		LOG_ERR("Cannot configure GPIO(%x, %d)", config->port, pin);
+		return -EINVAL;
+	}
+
+	/* Disable irq of wake-up input io-pads before configuring them */
+	npcm_miwu_irq_disable(wui);
+
+	/* Configure and enable interrupt? */
+	if (mode != GPIO_INT_MODE_DISABLED) {
+		/* Determine interrupt is level or edge mode? */
+		if (mode == GPIO_INT_MODE_EDGE) {
+			miwu_mode = NPCM_MIWU_MODE_EDGE;
+		} else {
+			miwu_mode = NPCM_MIWU_MODE_LEVEL;
+		}
+
+		/* Determine trigger mode is low, high or both? */
+		if (trig == GPIO_INT_TRIG_LOW) {
+			miwu_trig = NPCM_MIWU_TRIG_LOW;
+		} else if (trig == GPIO_INT_TRIG_HIGH) {
+			miwu_trig = NPCM_MIWU_TRIG_HIGH;
+		} else if (trig == GPIO_INT_TRIG_BOTH) {
+			miwu_trig = NPCM_MIWU_TRIG_BOTH;
+		} else {
+			LOG_ERR("Invalid interrupt trigger type %d", trig);
+			return -EINVAL;
+		}
+
+		/* Call MIWU routine to setup interrupt configuration */
+		ret = npcm_miwu_interrupt_configure(wui, miwu_mode, miwu_trig);
+		if (ret < 0) {
+			LOG_ERR("Configure MIWU interrupt failed");
+			return ret;
+		}
+
+		/* Enable it after configuration is completed */
+		npcm_miwu_irq_enable(wui);
+	}
+
+	return 0;
+}
+
+static int gpio_npcm_manage_callback(const struct device *dev, struct gpio_callback *callback,
+				     bool set)
+{
+	const struct gpio_npcm_config *const config = dev->config;
+	struct miwu_callback *miwu_cb = (struct miwu_callback *)callback;
+	unsigned int pin = find_lsb_set(callback->pin_mask) - 1;
+
+	/* pin_mask should not be zero */
+	if (pin < 0) {
+		return -EINVAL;
+	}
+
+	/* Check pin mapping is valid */
+	if (pin >= config->gpio_wui_map_size) {
+		LOG_ERR("Invalid GPIO(%x, %d) pin", config->port, pin);
+		return -EINVAL;
+	}
+
+	/* Has the IO pin valid MIWU input source? */
+	if (NPCM_WUI_TABLE_OFFSET(config->gpio_wui_maps[pin].wk_src_idx) >= NPCM_MIWU_GROUP_MAX) {
+		LOG_ERR("Cannot manage GPIO(%x, %d) callback!", config->port, pin);
+		return -EINVAL;
+	}
+
+	/* Initialize WUI information in unused bits field */
+	npcm_miwu_callback_init_gpio(miwu_cb, &config->gpio_wui_maps[pin], config->port);
+
+	/* Insert or remove a IO callback which being called in MIWU ISRs */
+	return npcm_miwu_callback_manage(miwu_cb, set);
+}
+
 /* GPIO initialization function */
 int gpio_npcm_init(const struct device *dev)
 {
@@ -253,9 +402,12 @@ static DEVICE_API(gpio, gpio_npcm_driver) = {
 	.port_set_bits_raw = gpio_npcm_port_set_bits_raw,
 	.port_clear_bits_raw = gpio_npcm_port_clear_bits_raw,
 	.port_toggle_bits = gpio_npcm_port_toggle_bits,
+	.pin_interrupt_configure = gpio_npcm_pin_interrupt_configure,
+	.manage_callback = gpio_npcm_manage_callback,
 };
 
 /* GPIO driver registration */
+#define NPCM_DT_WUI(inst, prop, idx) {.wk_src_idx = DT_PROP_BY_IDX(inst, prop, idx)},
 #define NPCM_GPIO_DEVICE_INIT(inst)                                                                \
 	static const struct gpio_npcm_config gpio_npcm_cfg_##inst = {                              \
 		.common =                                                                          \
@@ -265,7 +417,13 @@ static DEVICE_API(gpio, gpio_npcm_driver) = {
 		.base = DT_INST_REG_ADDR(inst),                                                    \
 		.port = DT_INST_PROP(inst, nuvoton_index),                                         \
 		.ngpios = DT_INST_PROP(inst, ngpios),                                              \
+		.gpio_wui_map_size = DT_INST_PROP_LEN(inst, nuvoton_gpio_wui_maps),                \
+		.gpio_wui_maps = {DT_INST_FOREACH_PROP_ELEM(inst, nuvoton_gpio_wui_maps,           \
+							    NPCM_DT_WUI)},                         \
 	};                                                                                         \
+	BUILD_ASSERT(DT_INST_PROP_LEN(inst, nuvoton_gpio_wui_maps) <= DT_INST_PROP(inst, ngpios),  \
+		     "size of prop. nuvoton,gpio-wui-maps must not greater than the pin number!"); \
+                                                                                                   \
 	static struct gpio_npcm_data gpio_npcm_data_##inst;                                        \
 	BUILD_ASSERT(DT_INST_PROP(inst, nuvoton_index) < NPCM_GPIO_PORT_NUM,                       \
 		     "prop. port must be less than the max port number");                          \

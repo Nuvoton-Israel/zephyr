@@ -16,6 +16,22 @@ properties:
     type: int
     required: true
     description: The index of the gpio device.
+  nuvoton,gpio-wui-maps:
+    type: array
+    required: true
+    description: |
+        Mapping table between Wake-Up Input (WUI) and 8 IOs belong to this device.
+        Please notice not all IOs connect to WUIs.
+
+        For example the WUI mapping on NPCM4 GPIO8 would be:
+           nuvoton,gpio-wui-maps = <NPCM_MIWU1_GROUPA_GPIO80
+                    NPCM_MIWU1_GROUPA_GPIO81
+                    NPCM_MIWU1_GROUPA_GPIO82
+                    NPCM_MIWU1_GROUPA_GPIO83
+                    NPCM_MIWU1_GROUPA_GPIO84
+                    NPCM_MIWU1_GROUPA_GPIO85
+                    NPCM_MIWU1_GROUPA_GPIO86
+                    NPCM_MIWU1_GROUPA_GPIO87>;
   "#gpio-cells":
     const: 2
 
