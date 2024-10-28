@@ -9,6 +9,7 @@
 
 #include <zephyr/device.h>
 #include <zephyr/drivers/gpio.h>
+#include <zephyr/drivers/interrupt_controller/intc_npcm_miwu.h>
 
 #ifdef __cplusplus
 extern "C" {
@@ -99,6 +100,10 @@ struct gpio_npcm_config {
 	uint8_t port;
 	/* GPIO numbers */
 	uint8_t ngpios;
+	/* GPIO to MIWU map size */
+	uint8_t gpio_wui_map_size;
+	/* GPIO to MIWU map */
+	struct npcm_wui gpio_wui_maps[];
 };
 
 /* Driver data */
