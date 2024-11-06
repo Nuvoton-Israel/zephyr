@@ -1,0 +1,20 @@
+# Copyright (c) 2024 Nuvoton Technology Corporation.
+# SPDX-License-Identifier: Apache-2.0
+
+description: Nuvoton, NPCM-TWD node
+
+compatible: "nuvoton,npcm-watchdog"
+
+include: [base.yaml]
+
+properties:
+  reg:
+    required: true
+  nuvoton,timer0-wui:
+    type: array
+    required: true
+    description: |
+        Mapping table between Wake-Up Input (WUI) and timer0 expired signal.
+
+        For example the WUI mapping on NPCM4 t0-out timer would be:
+          nuvoton,timer0-wui = <NPCM_MIWU1_GROUPE_T0OUT>;

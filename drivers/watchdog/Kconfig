@@ -91,6 +91,8 @@ source "drivers/watchdog/Kconfig.siwx91x"
 
 source "drivers/watchdog/Kconfig.sifive"
 
+source "drivers/watchdog/Kconfig.npcm"
+
 source "drivers/watchdog/Kconfig.npcx"
 
 source "drivers/watchdog/Kconfig.cc32xx"
