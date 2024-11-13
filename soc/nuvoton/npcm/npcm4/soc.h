@@ -21,6 +21,6 @@
 #include <soc_clock.h>
 #include <soc_pins.h>
 
-#define NPCM_PUPD_EN_OFFSET(n)		(0x028 + n)
+#define NPCM_PUPD_EN_OFFSET(n)		(((n) == 2 ) ? 0x073 : ((n) == 3 ) ? 0x07b : (0x028 + n))
 
 #endif /* _NUVOTON_NPCM_SOC_H_ */
