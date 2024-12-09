@@ -1,0 +1,312 @@
+/*
+ * Copyright (c) 2024 Nuvoton Technology Corporation.
+ *
+ * SPDX-License-Identifier: Apache-2.0
+ */
+
+/* Mapping between GPIOs and MIWU groups */
+&gpio0 {
+	nuvoton,gpio-wui-maps = <NPCM_MIWU0_GROUPA_GPIO00
+			NPCM_MIWU0_GROUPA_GPIO01
+			NPCM_MIWU0_GROUPA_GPIO02
+			NPCM_MIWU0_GROUPA_GPIO03
+			NPCM_MIWU0_GROUPA_GPIO04
+			NPCM_MIWU0_GROUPA_GPIO05
+			NPCM_MIWU0_GROUPA_GPIO06
+			NPCM_MIWU0_GROUPA_GPIO07>;
+};
+
+&gpio1 {
+	nuvoton,gpio-wui-maps = <NPCM_MIWU0_GROUPB_GPIO10
+			NPCM_MIWU0_GROUPB_GPIO11
+			NPCM_MIWU0_GROUPB_GPIO12
+			NPCM_MIWU0_GROUPB_GPIO13
+			NPCM_MIWU0_GROUPB_GPIO14
+			NPCM_MIWU0_GROUPB_GPIO15
+			NPCM_MIWU0_GROUPB_GPIO16
+			NPCM_MIWU0_GROUPB_GPIO17>;
+};
+
+&gpio2 {
+	nuvoton,gpio-wui-maps = <NPCM_MIWU0_GROUPC_GPIO20
+			NPCM_MIWU0_GROUPC_GPIO21
+			NPCM_MIWU0_GROUPC_GPIO22
+			NPCM_MIWU0_GROUPC_GPIO23
+			NPCM_MIWU0_GROUPC_GPIO24
+			NPCM_MIWU0_GROUPC_GPIO25
+			NPCM_MIWU0_GROUPC_GPIO26
+			NPCM_MIWU0_GROUPC_GPIO27>;
+};
+
+&gpio3 {
+	nuvoton,gpio-wui-maps = <NPCM_MIWU0_GROUPD_GPIO30
+			NPCM_MIWU0_GROUPD_GPIO31
+			NPCM_MIWU0_GROUPD_GPIO32
+			NPCM_MIWU0_GROUPD_GPIO33
+			NPCM_MIWU0_GROUPD_GPIO34
+			NPCM_MIWU0_GROUPD_GPIO35
+			NPCM_MIWU0_GROUPD_GPIO36
+			NPCM_MIWU0_GROUPD_GPIO37>;
+};
+
+&gpio4 {
+	nuvoton,gpio-wui-maps = <NPCM_MIWU0_GROUPE_GPIO40
+			NPCM_MIWU0_GROUPE_GPIO41
+			NPCM_MIWU0_GROUPE_GPIO42
+			NPCM_MIWU0_GROUPE_GPIO43
+			NPCM_MIWU0_GROUPE_GPIO44
+			NPCM_MIWU0_GROUPE_GPIO45
+			NPCM_MIWU0_GROUPE_GPIO46
+			NPCM_MIWU0_GROUPE_GPIO47>;
+};
+
+&gpio5 {
+	nuvoton,gpio-wui-maps = <NPCM_MIWU0_GROUPF_GPIO50
+			NPCM_MIWU0_GROUPF_GPIO51
+			NPCM_MIWU0_GROUPF_GPIO52
+			NPCM_MIWU0_GROUPF_GPIO53
+			NPCM_MIWU0_GROUPF_GPIO54
+			NPCM_MIWU0_GROUPF_GPIO55
+			NPCM_MIWU0_GROUPF_GPIO56
+			NPCM_MIWU0_GROUPF_GPIO57>;
+};
+
+&gpio6 {
+	nuvoton,gpio-wui-maps = <NPCM_MIWU0_GROUPG_GPIO60
+			NPCM_MIWU0_GROUPG_GPIO61
+			NPCM_MIWU0_GROUPG_GPIO62
+			NPCM_MIWU0_GROUPG_GPIO63
+			NPCM_MIWU0_GROUPG_GPIO64
+			NPCM_MIWU0_GROUPG_GPIO65
+			NPCM_MIWU0_GROUPG_GPIO66
+			NPCM_MIWU0_GROUPG_GPIO67>;
+};
+
+&gpio7 {
+	nuvoton,gpio-wui-maps = <NPCM_MIWU0_GROUPH_GPIO70
+			NPCM_MIWU0_GROUPH_GPIO71
+			NPCM_MIWU0_GROUPH_GPIO72
+			NPCM_MIWU0_GROUPH_GPIO73
+			NPCM_MIWU0_GROUPH_GPIO74
+			NPCM_MIWU0_GROUPH_GPIO75
+			NPCM_MIWU0_GROUPH_GPIO76
+			NPCM_MIWU0_GROUPH_GPIO77>;
+};
+
+&gpio8 {
+	nuvoton,gpio-wui-maps = <NPCM_MIWU1_GROUPA_GPIO80
+			NPCM_MIWU1_GROUPA_GPIO81
+			NPCM_MIWU1_GROUPA_GPIO82
+			NPCM_MIWU1_GROUPA_GPIO83
+			NPCM_MIWU1_GROUPA_GPIO84
+			NPCM_MIWU1_GROUPA_GPIO85
+			NPCM_MIWU1_GROUPA_GPIO86
+			NPCM_MIWU1_GROUPA_GPIO87>;
+};
+
+&gpio9 {
+	nuvoton,gpio-wui-maps = <NPCM_MIWU1_GROUPB_GPIO90
+			NPCM_MIWU1_GROUPB_GPIO91
+			NPCM_MIWU1_GROUPB_GPIO92
+			NPCM_MIWU1_GROUPB_GPIO93
+			NPCM_MIWU1_GROUPB_GPIO94
+			NPCM_MIWU1_GROUPB_GPIO95
+			NPCM_MIWU1_GROUPB_GPIO96
+			NPCM_MIWU1_GROUPB_GPIO97>;
+};
+
+&gpioa {
+	nuvoton,gpio-wui-maps = <NPCM_MIWU1_GROUPC_GPIOA0
+			NPCM_MIWU1_GROUPC_GPIOA1
+			NPCM_MIWU1_GROUPC_GPIOA2
+			NPCM_MIWU1_GROUPC_GPIOA3
+			NPCM_MIWU1_GROUPC_GPIOA4
+			NPCM_MIWU1_GROUPC_GPIOA5
+			NPCM_MIWU1_GROUPC_GPIOA6
+			NPCM_MIWU1_GROUPC_GPIOA7>;
+};
+
+&gpiob {
+	nuvoton,gpio-wui-maps = <NPCM_MIWU1_GROUPF_GPIOB0
+			NPCM_MIWU1_GROUPF_GPIOB1
+			NPCM_MIWU1_GROUPF_GPIOB2
+			NPCM_MIWU1_GROUPF_GPIOB3
+			NPCM_MIWU1_GROUPF_GPIOB4
+			NPCM_MIWU1_GROUPF_GPIOB5
+			NPCM_MIWU1_GROUPF_GPIOB6
+			NPCM_MIWU1_GROUPF_GPIOB7>;
+};
+
+&gpioc {
+	nuvoton,gpio-wui-maps = <NPCM_MIWU2_GROUPE_GPIOC0
+			NPCM_MIWU2_GROUPE_GPIOC1
+			NPCM_MIWU2_GROUPE_GPIOC2
+			NPCM_MIWU2_GROUPE_GPIOC3
+			NPCM_MIWU2_GROUPE_GPIOC4
+			NPCM_MIWU2_GROUPE_GPIOC5
+			NPCM_MIWU2_GROUPE_GPIOC6
+			NPCM_MIWU2_GROUPE_GPIOC7>;
+};
+
+&gpiod {
+	nuvoton,gpio-wui-maps = <NPCM_MIWU2_GROUPF_GPIOD0
+			NPCM_MIWU2_GROUPF_GPIOD1
+			NPCM_MIWU2_GROUPF_GPIOD2
+			NPCM_MIWU2_GROUPF_GPIOD3
+			NPCM_MIWU2_GROUPF_GPIOD4
+			NPCM_MIWU2_GROUPF_GPIOD5
+			NPCM_MIWU2_GROUPF_GPIOD6
+			NPCM_MIWU2_GROUPF_GPIOD7>;
+};
+
+&gpioe {
+	nuvoton,gpio-wui-maps = <NPCM_MIWU2_GROUPG_GPIOE0
+			NPCM_MIWU2_GROUPG_GPIOE1
+			NPCM_MIWU2_GROUPG_GPIOE2
+			NPCM_MIWU2_GROUPG_GPIOE3
+			NPCM_MIWU2_GROUPG_GPIOE4
+			NPCM_MIWU2_GROUPG_GPIOE5
+			NPCM_MIWU2_GROUPG_GPIOE6>;
+};
+
+&gpiof {
+	nuvoton,gpio-wui-maps = <NPCM_MIWU2_GROUPH_GPIOF0
+			NPCM_MIWU2_GROUPH_GPIOF1
+			NPCM_MIWU2_GROUPH_GPIOF2
+			NPCM_MIWU2_GROUPH_GPIOF3>;
+};
+
+/* Mapping between MIWU groups and interrupts */
+&miwu0 {
+	group_a0: group-a0-map {
+		nuvoton,irq = <40>;
+		nuvoton,irq-priority = <2>;
+		nuvoton,group-mask = <0x01>;
+	};
+	group_b0: group-b0-map {
+		nuvoton,irq          = <41>;
+		nuvoton,irq-priority = <2>;
+		nuvoton,group-mask   = <0x02>;
+	};
+	group_c0: group-c0-map {
+		nuvoton,irq = <42>;
+		nuvoton,irq-priority = <2>;
+		nuvoton,group-mask = <0x04>;
+	};
+	group_d0: group-d0-map {
+		nuvoton,irq = <43>;
+		nuvoton,irq-priority = <2>;
+		nuvoton,group-mask = <0x08>;
+	};
+	group_e0: group-e0-map {
+		nuvoton,irq = <44>;
+		nuvoton,irq-priority = <2>;
+		nuvoton,group-mask = <0x10>;
+	};
+	group_f0: group-f0-map {
+		nuvoton,irq = <45>;
+		nuvoton,irq-priority = <2>;
+		nuvoton,group-mask = <0x20>;
+	};
+	group_g0: group-g0-map {
+		nuvoton,irq = <46>;
+		nuvoton,irq-priority = <2>;
+		nuvoton,group-mask = <0x40>;
+	};
+	group_h0: group-h0-map {
+		nuvoton,irq = <47>;
+		nuvoton,irq-priority = <2>;
+		nuvoton,group-mask = <0x80>;
+	};
+};
+
+&miwu1 {
+	group_a1: group-a1-map {
+		nuvoton,irq = <48>;
+		nuvoton,irq-priority = <2>;
+		nuvoton,group-mask = <0x01>;
+	};
+	group_b1: group-b1-map {
+		nuvoton,irq = <49>;
+		nuvoton,irq-priority = <2>;
+		nuvoton,group-mask = <0x02>;
+	};
+	group_c1: group-c1-map {
+		nuvoton,irq = <50>;
+		nuvoton,irq-priority = <2>;
+		nuvoton,group-mask = <0x04>;
+	};
+	group_d1: group-d1-map {
+		nuvoton,irq = <51>;
+		nuvoton,irq-priority = <2>;
+		nuvoton,group-mask = <0x08>;
+	};
+	group_e1a: group-e1a-map {
+		nuvoton,irq = <36>;
+		nuvoton,irq-priority = <2>;
+		nuvoton,group-mask = <0x10>;
+	};
+	group_e1b: group-e1b-map {
+		nuvoton,irq = <12>;
+		nuvoton,irq-priority = <2>;
+		nuvoton,group-mask = <0x10>;
+	};
+	group_f1: group-f1-map {
+		nuvoton,irq = <53>;
+		nuvoton,irq-priority = <2>;
+		nuvoton,group-mask = <0x20>;
+	};
+	group_g1: group-g1-map {
+		nuvoton,irq = <54>;
+		nuvoton,irq-priority = <2>;
+		nuvoton,group-mask = <0x40>;
+	};
+	group_h1: group-h1-map {
+		nuvoton,irq = <55>;
+		nuvoton,irq-priority = <2>;
+		nuvoton,group-mask = <0x80>;
+	};
+};
+
+&miwu2 {
+	group_a2: group-a2-map {
+		nuvoton,irq = <60>;
+		nuvoton,irq-priority = <2>;
+		nuvoton,group-mask = <0x01>;
+	};
+	group_b2: group-b2-map {
+		nuvoton,irq = <61>;
+		nuvoton,irq-priority = <2>;
+		nuvoton,group-mask = <0x02>;
+	};
+	group_c2: group-c2-map {
+		nuvoton,irq = <62>;
+		nuvoton,irq-priority = <2>;
+		nuvoton,group-mask = <0x04>;
+	};
+	group_d2: group-d2-map {
+		nuvoton,irq = <63>;
+		nuvoton,irq-priority = <2>;
+		nuvoton,group-mask = <0x08>;
+	};
+	group_e2: group-e2-map {
+		nuvoton,irq = <56>;
+		nuvoton,irq-priority = <2>;
+		nuvoton,group-mask = <0x10>;
+	};
+	group_f2: group-f2-map {
+		nuvoton,irq = <57>;
+		nuvoton,irq-priority = <2>;
+		nuvoton,group-mask = <0x20>;
+	};
+	group_g2: group-g2-map {
+		nuvoton,irq = <58>;
+		nuvoton,irq-priority = <2>;
+		nuvoton,group-mask = <0x40>;
+	};
+	group_h2: group-h2-map {
+		nuvoton,irq = <59>;
+		nuvoton,irq-priority = <2>;
+		nuvoton,group-mask = <0x80>;
+	};
+};
