@@ -10,6 +10,7 @@
 #include <zephyr/dt-bindings/clock/npcm_clock.h>
 #include <zephyr/dt-bindings/pinctrl/npcm-pinctrl.h>
 #include <zephyr/dt-bindings/gpio/gpio.h>
+#include <zephyr/dt-bindings/gpio/nuvoton-npcm-gpio.h>
 #include <freq.h>
 
 / {
@@ -64,6 +65,7 @@
 				gpio-controller;
 				ngpios = <8>;
 				nuvoton,index = <0x0>;
+				nuvoton,gpio-wui-maps = <0>;
 				#gpio-cells=<2>;
 			};
 
@@ -73,6 +75,7 @@
 				gpio-controller;
 				ngpios = <8>;
 				nuvoton,index = <0x1>;
+				nuvoton,gpio-wui-maps = <0>;
 				#gpio-cells=<2>;
 			};
 
@@ -82,6 +85,7 @@
 				gpio-controller;
 				ngpios = <8>;
 				nuvoton,index = <0x2>;
+				nuvoton,gpio-wui-maps = <0>;
 				#gpio-cells=<2>;
 			};
 
@@ -91,6 +95,7 @@
 				gpio-controller;
 				ngpios = <8>;
 				nuvoton,index = <0x3>;
+				nuvoton,gpio-wui-maps = <0>;
 				#gpio-cells=<2>;
 			};
 
@@ -100,6 +105,7 @@
 				gpio-controller;
 				ngpios = <8>;
 				nuvoton,index = <0x4>;
+				nuvoton,gpio-wui-maps = <0>;
 				#gpio-cells=<2>;
 			};
 
@@ -109,6 +115,7 @@
 				gpio-controller;
 				ngpios = <8>;
 				nuvoton,index = <0x5>;
+				nuvoton,gpio-wui-maps = <0>;
 				#gpio-cells=<2>;
 			};
 
@@ -118,6 +125,7 @@
 				gpio-controller;
 				ngpios = <8>;
 				nuvoton,index = <0x6>;
+				nuvoton,gpio-wui-maps = <0>;
 				#gpio-cells=<2>;
 			};
 
@@ -127,6 +135,7 @@
 				gpio-controller;
 				ngpios = <8>;
 				nuvoton,index = <0x7>;
+				nuvoton,gpio-wui-maps = <0>;
 				#gpio-cells=<2>;
 			};
 
@@ -136,6 +145,7 @@
 				gpio-controller;
 				ngpios = <8>;
 				nuvoton,index = <0x8>;
+				nuvoton,gpio-wui-maps = <0>;
 				#gpio-cells=<2>;
 			};
 
@@ -145,6 +155,7 @@
 				gpio-controller;
 				ngpios = <8>;
 				nuvoton,index = <0x9>;
+				nuvoton,gpio-wui-maps = <0>;
 				#gpio-cells=<2>;
 			};
 
@@ -154,6 +165,7 @@
 				gpio-controller;
 				ngpios = <8>;
 				nuvoton,index = <0xA>;
+				nuvoton,gpio-wui-maps = <0>;
 				#gpio-cells=<2>;
 			};
 
@@ -163,6 +175,7 @@
 				gpio-controller;
 				ngpios = <8>;
 				nuvoton,index = <0xB>;
+				nuvoton,gpio-wui-maps = <0>;
 				#gpio-cells=<2>;
 			};
 
@@ -172,6 +185,7 @@
 				gpio-controller;
 				ngpios = <8>;
 				nuvoton,index = <0xC>;
+				nuvoton,gpio-wui-maps = <0>;
 				#gpio-cells=<2>;
 			};
 
@@ -181,6 +195,7 @@
 				gpio-controller;
 				ngpios = <8>;
 				nuvoton,index = <0xD>;
+				nuvoton,gpio-wui-maps = <0>;
 				#gpio-cells=<2>;
 			};
 
@@ -190,6 +205,7 @@
 				gpio-controller;
 				ngpios = <7>;
 				nuvoton,index = <0xE>;
+				nuvoton,gpio-wui-maps = <0>;
 				#gpio-cells=<2>;
 			};
 
@@ -199,7 +215,26 @@
 				gpio-controller;
 				ngpios = <4>;
 				nuvoton,index = <0xF>;
+				nuvoton,gpio-wui-maps = <0>;
 				#gpio-cells=<2>;
+			};
+
+			miwu0: miwu@400bb000 {
+				compatible = "nuvoton,npcm-miwu";
+				reg = <0x400bb000 0x2000>;
+				nuvoton,index = <0>;
+			};
+
+			miwu1: miwu@400bd000 {
+				compatible = "nuvoton,npcm-miwu";
+				reg = <0x400bd000 0x2000>;
+				nuvoton,index = <1>;
+			};
+
+			miwu2: miwu@400bf000 {
+				compatible = "nuvoton,npcm-miwu";
+				reg = <0x400bf000 0x2000>;
+				nuvoton,index = <2>;
 			};
 		};
 

@@ -8,6 +8,7 @@
 #include "npcm.dtsi"
 #include "npcm4/npcm4-pincfg-default.dtsi"
 #include "npcm4/npcm4-pinctrl.dtsi"
+#include "npcm4/npcm4-miwus-int-map.dtsi"
 #include <freq.h>
 
 / {
