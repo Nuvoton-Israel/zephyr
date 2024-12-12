@@ -689,6 +689,7 @@ static int npcm_i3c_pdma_stop(const struct device *dev, bool is_read)
 	struct pdma_dsct_reg *dsct_inst = NULL;
 	struct pdma_reg *pdma_inst;
 	uint8_t dsct_idx;
+	uint32_t key;
 
 	dsct_idx = npcm_i3c_pdma_dsct(dev, is_read, &dsct_inst);
 	if (dsct_inst == NULL) {
@@ -703,12 +704,16 @@ static int npcm_i3c_pdma_stop(const struct device *dev, bool is_read)
 		return -EINVAL;
 	}
 
+	key = irq_lock();
+
 	/* Clear transfer done flag */
 	if (pdma_inst->PDMA_TDSTS & BIT(dsct_idx)) {
 		pdma_inst->PDMA_TDSTS |= BIT(dsct_idx);
 	}
 
 	pdma_inst->PDMA_CHCTL &= ~BIT(dsct_idx);
+
+	irq_unlock(key);
 
 	return 0;
 }
@@ -718,6 +723,7 @@ static int npcm_i3c_pdma_start(const struct device *dev, bool is_read)
 	struct pdma_dsct_reg *dsct_inst = NULL;
 	struct pdma_reg *pdma_inst;
 	uint8_t dsct_idx;
+	uint32_t key;
 
 	dsct_idx = npcm_i3c_pdma_dsct(dev, is_read, &dsct_inst);
 	if (dsct_inst == NULL) {
@@ -732,12 +738,16 @@ static int npcm_i3c_pdma_start(const struct device *dev, bool is_read)
 		return -EINVAL;
 	}
 
+	key = irq_lock();
+
 	/* Clear transfer done flag */
 	if (pdma_inst->PDMA_TDSTS & BIT(dsct_idx)) {
 		pdma_inst->PDMA_TDSTS |= BIT(dsct_idx);
 	}
 
 	pdma_inst->PDMA_CHCTL |= BIT(dsct_idx);
+
+	irq_unlock(key);
 
 	return 0;
 }
@@ -770,6 +780,7 @@ static int npcm_i3c_pdma_configure(const struct device *dev, enum i3c_config_typ
 	uint32_t src_addr;
 	uint32_t dst_addr;
 	uint32_t ctrl;
+	uint32_t key;
 
 	ARG_UNUSED(type);
 
@@ -792,6 +803,8 @@ static int npcm_i3c_pdma_configure(const struct device *dev, enum i3c_config_typ
 	}
 
 	i3c_mux_id = I3C_NPCM_PDMA_MUX_ID((uint32_t)i3c_inst, is_read);
+
+	key = irq_lock();
 
 	/* Setup channel request selection */
 	SET_FIELD(pdma_inst->PDMA_REQSEL[(dsct_idx / NPCM_PDMA_CHANNEL_PER_REQ)],
@@ -883,6 +896,8 @@ static int npcm_i3c_pdma_configure(const struct device *dev, enum i3c_config_typ
 			data->dsct_sg[1].NEXT = 0x0;
 		}
 	}
+
+	irq_unlock(key);
 
 	return 0;
 }
