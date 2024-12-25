@@ -420,6 +420,12 @@
 			clocks = <&pcc NPCM_CLOCK_SMB6>;
 			status = "disabled";
 		};
+
+		c2h: c2h@4000e000{
+			compatible = "nuvoton,npcm-c2h";
+			reg = <0x4000e000 0x2000>;
+			status = "disabled";
+		};
 	};
 };
 

@@ -27,3 +27,6 @@ CONFIG_ADC=y
 
 # I2C Driver
 CONFIG_I2C=y
+
+# C2H Driver
+CONFIG_C2H_NPCM=y
