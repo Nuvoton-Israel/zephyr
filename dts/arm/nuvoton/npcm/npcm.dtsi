@@ -253,6 +253,12 @@
 			clocks = <&pcc NPCM_CLOCK_UART2>;
 			status = "disabled";
 		};
+
+		twd: watchdog@400d8000 {
+			compatible = "nuvoton,npcm-watchdog";
+			reg = <0x400d8000 0x100>;
+			nuvoton,timer0-wui = <NPCM_MIWU1_GROUPE_T0OUT>;
+		};
 	};
 };
 
