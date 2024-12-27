@@ -19,6 +19,7 @@
 	};
 
 	aliases {
+		watchdog0 = &twd;
 	};
 };
 
