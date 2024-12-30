@@ -31,6 +31,7 @@ tests:
       - rpi_pico
       - sltb010a@0
       - mr_canhubk3
+      - npcm400_evb
     integration_platforms:
       - nucleo_f091rc
     extra_configs:
