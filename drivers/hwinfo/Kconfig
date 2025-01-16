@@ -281,4 +281,12 @@ config HWINFO_RENESAS_RA
 	help
 	  Enable RENESAS RA hwinfo driver
 
+config HWINFO_NPCM
+	bool "NPCM hwinfo"
+	default y
+	depends on SOC_FAMILY_NPCM
+	select HWINFO_HAS_DRIVER
+	help
+	  Enable Nuvoton NPCM hwinfo driver.
+
 endif
