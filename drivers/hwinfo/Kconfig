@@ -257,4 +257,12 @@ config HWINFO_NUMAKER_RMC
 	help
 	  Enable Nuvoton NuMaker hwinfo driver backed up by RMC
 
+config HWINFO_NPCM
+	bool "NPCM hwinfo"
+	default y
+	depends on SOC_FAMILY_NPCM
+	select HWINFO_HAS_DRIVER
+	help
+	  Enable Nuvoton NPCM hwinfo driver.
+
 endif
