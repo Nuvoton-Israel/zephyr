@@ -9,3 +9,4 @@ config SOC_SERIES_NPCM4
 	select CORTEX_M_SYSTICK
 	select CPU_HAS_ARM_MPU
 	select CLOCK_CONTROL
+	select SOC_LATE_INIT_HOOK
