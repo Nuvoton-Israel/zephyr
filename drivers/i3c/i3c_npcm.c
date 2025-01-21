@@ -75,6 +75,13 @@ static const struct npcm_i3c_timing_cfg npcm_def_speed_cfg[] = {
 	NPCM_I3C_CFG_SET(NPCM_I3C_CLK_FREQ_96MHZ, 3, 0, 1, 4, 3),
 };
 
+struct pdma_dsct_reg {
+	volatile uint32_t CTL;
+	volatile uint32_t SA;
+	volatile uint32_t DA;
+	volatile uint32_t NEXT;
+};
+
 struct npcm_i3c_config {
 	/* Common I3C Driver Config */
 	struct i3c_driver_config common;
@@ -82,11 +89,8 @@ struct npcm_i3c_config {
 	/* Pointer to controller registers. */
 	struct i3c_reg *base;
 
-	/* Pointer to the clock device. */
-	const struct device *clock_dev;
-
 	/* Clock control subsys related struct. */
-	struct npcm_clk_cfg clock_subsys;
+	uint32_t clk_cfg;
 
 	/* Pointer to pin control device. */
 	const struct pinctrl_dev_config *pincfg;
@@ -136,6 +140,564 @@ struct npcm_i3c_data {
 #endif
 };
 
+struct i3c_reg {
+	/* 0x000: Controller Configuration */
+	volatile uint32_t MCONFIG;
+	/* 0x004: Target Configuration */
+	volatile uint32_t CONFIG;
+	/* 0x008: Target Status */
+	volatile uint32_t STATUS;
+	/* 0x00C: Target I3C Control */
+	volatile uint32_t CTRL;
+	/* 0x010: Target Interrupt Enable Set */
+	volatile uint32_t INTSET;
+	/* 0x014: Target Interrupt Enable Clear */
+	volatile uint32_t INTCLR;
+	/* 0x018: Target Interrupt Masked */
+	volatile uint32_t INTMASKED;
+	/* 0x01C: Target Error and Warning */
+	volatile uint32_t ERRWARN;
+	/* 0x020: Target DMA Control */
+	volatile uint32_t DMACTRL;
+	volatile uint32_t reserved1[2];
+	/* 0x02C: Target Data Control */
+	volatile uint32_t DATACTRL;
+	/* 0x030: Target Write Byte Data */
+	volatile uint32_t WDATAB;
+	/* 0x034: Target Write Byte Data as End */
+	volatile uint32_t WDATABE;
+	/* 0x038: Target Write Half-Word Data */
+	volatile uint32_t WDATAH;
+	/* 0x03C: Target Write Half-Word Data as End */
+	volatile uint32_t WDATAHE;
+	/* 0x040: Target Read Byte Data */
+	volatile uint32_t RDATAB;
+	volatile uint32_t reserved2;
+	/* 0x048: Target Read Half-Word Data */
+	volatile uint32_t RDATAH;
+	volatile uint32_t reserved3[2];
+	/* 0x054: Target Byte-Only Write Byte Data */
+	volatile uint8_t WDATAB1;
+	volatile uint8_t reserved4[11];
+	/* 0x060: Target Capabilities */
+	volatile uint32_t CAPABILITIES;
+	/* 0x064: Target Dynamic Address */
+	volatile uint32_t DYNADDR;
+	/* 0x068: Target Maximum Limits */
+	volatile uint32_t MAXLIMITS;
+	/* 0x06C: Target Part Number */
+	volatile uint32_t PARTNO;
+	/* 0x070: Target ID Extension */
+	volatile uint32_t IDEXT;
+	/* 0x074: Target Vendor ID */
+	volatile uint32_t VENDORID;
+	/* 0x078: Target Timing Control Clock */
+	volatile uint32_t TCCLOCK;
+	volatile uint32_t reserved5[2];
+	/* 0x084: Controller Control */
+	volatile uint32_t MCTRL;
+	/* 0x088: Controller Status */
+	volatile uint32_t MSTATUS;
+	/* 0x08C: Controller IBI Registry and Rules */
+	volatile uint32_t IBIRULES;
+	/* 0x090: Controller Interrupt Enable Set */
+	volatile uint32_t MINTSET;
+	/* 0x094: Controller Interrupt Enable Clear */
+	volatile uint32_t MINTCLR;
+	/* 0x098: Controller Interrupt Masked */
+	volatile uint32_t MINTMASKED;
+	/* 0x09C: Controller Error and Warning */
+	volatile uint32_t MERRWARN;
+	/* 0x0A0: Controller DMA Control */
+	volatile uint32_t MDMACTRL;
+	volatile uint32_t reserved6[2];
+	/* 0x0AC: Controller Data Control */
+	volatile uint32_t MDATACTRL;
+	/* 0x0B0: Controller Write Byte Data */
+	volatile uint32_t MWDATAB;
+	/* 0x0B4: Controller Write Byte Data as End */
+	volatile uint32_t MWDATABE;
+	/* 0x0B8: Controller Write Half-Word Data */
+	volatile uint32_t MWDATAH;
+	/* 0x0BC: Controller Write Half-Word Data as End */
+	volatile uint32_t MWDATAHE;
+	/* 0x0C0: Controller Read Byte Data */
+	volatile uint32_t MRDATAB;
+	volatile uint32_t reserved7;
+	/* 0x0C8: Controller Read Half-Word Data */
+	volatile uint32_t MRDATAH;
+	/* 0x0CC: Controller Byte-Only Write Byte Data */
+	volatile uint8_t MWDATAB1;
+	volatile uint8_t reserved8[3];
+	/* 0x0D0: Controller Start or Continue SDR Message */
+	volatile uint32_t MWMSG_SDR;
+	/* 0x0D4: Controller Read SDR Message Data */
+	volatile uint32_t MRMSG_SDR;
+	/* 0x0D8: Controller Start or Continue DDR Message */
+	volatile uint32_t MWMSG_DDR;
+	/* 0x0DC: Controller Read DDR Message Data */
+	volatile uint32_t MRMSG_DDR;
+	volatile uint32_t reserved9;
+	/* 0x0E4: Controller Dynamic Address */
+	volatile uint32_t MDYNADDR;
+	volatile uint32_t reserved10[8];
+	/* 0x108: Target HDR Command Register */
+	volatile uint32_t HDRCMD;
+	volatile uint32_t reserved11[13];
+	/* 0x140: Target Extended IBI Data Register 1 */
+	volatile uint32_t IBIEXT1;
+	/* 0x144: Target Extended IBI Data Register 2 */
+	volatile uint32_t IBIEXT2;
+	volatile uint32_t reserved12[45];
+	/* 0x1FC: Target Block ID */
+	volatile uint32_t ID;
+};
+
+/* I3C Controller register fields */
+#define NPCM_I3C_MCONFIG_I2CBAUD        FIELD(28, 4)
+#define NPCM_I3C_MCONFIG_ODHPP          24
+#define NPCM_I3C_MCONFIG_ODBAUD         FIELD(16, 8)
+#define NPCM_I3C_MCONFIG_PPLOW          FIELD(12, 4)
+#define NPCM_I3C_MCONFIG_PPBAUD         FIELD(8, 4)
+#define NPCM_I3C_MCONFIG_ODSTOP         6
+#define NPCM_I3C_MCONFIG_DISTO          3
+#define NPCM_I3C_MCONFIG_CTRENA         FIELD(0, 2)
+#define NPCM_I3C_MCTRL_RDTERM           FIELD(16, 8)
+#define NPCM_I3C_MCTRL_ADDR             FIELD(9, 7)
+#define NPCM_I3C_MCTRL_DIR              8
+#define NPCM_I3C_MCTRL_IBIRESP          FIELD(6, 2)
+#define NPCM_I3C_MCTRL_TYPE             FIELD(4, 2)
+#define NPCM_I3C_MCTRL_REQUEST          FIELD(0, 3)
+#define NPCM_I3C_MSTATUS_IBIADDR        FIELD(24, 7)
+#define NPCM_I3C_MSTATUS_NOWCNTLR       19
+#define NPCM_I3C_MSTATUS_ERRWARN        15
+#define NPCM_I3C_MSTATUS_IBIWON         13
+#define NPCM_I3C_MSTATUS_TXNOTFULL      12
+#define NPCM_I3C_MSTATUS_RXPEND         11
+#define NPCM_I3C_MSTATUS_COMPLETE       10
+#define NPCM_I3C_MSTATUS_MCTRLDONE      9
+#define NPCM_I3C_MSTATUS_TGTSTART       8
+#define NPCM_I3C_MSTATUS_IBITYPE        FIELD(6, 2)
+#define NPCM_I3C_MSTATUS_NACKED         5
+#define NPCM_I3C_MSTATUS_BETWEEN        4
+#define NPCM_I3C_MSTATUS_STATE          FIELD(0, 3)
+#define NPCM_I3C_IBIRULES_NOBYTE        31
+#define NPCM_I3C_IBIRULES_MSB0          30
+#define NPCM_I3C_IBIRULES_ADDR4         FIELD(24, 6)
+#define NPCM_I3C_IBIRULES_ADDR3         FIELD(18, 6)
+#define NPCM_I3C_IBIRULES_ADDR2         FIELD(12, 6)
+#define NPCM_I3C_IBIRULES_ADDR1         FIELD(6, 6)
+#define NPCM_I3C_IBIRULES_ADDR0         FIELD(0, 6)
+#define NPCM_I3C_MINTSET_NOWMASTER      19
+#define NPCM_I3C_MINTSET_ERRWARN        15
+#define NPCM_I3C_MINTSET_IBIWON         13
+#define NPCM_I3C_MINTSET_TXNOTFULL      12
+#define NPCM_I3C_MINTSET_RXPEND         11
+#define NPCM_I3C_MINTSET_COMPLETE       10
+#define NPCM_I3C_MINTSET_MCTRLDONE      9
+#define NPCM_I3C_MINTSET_TGTSTART       8
+#define NPCM_I3C_MINTCLR_NOWMASTER      19
+#define NPCM_I3C_MINTCLR_ERRWARN        15
+#define NPCM_I3C_MINTCLR_IBIWON         13
+#define NPCM_I3C_MINTCLR_TXNOTFULL      12
+#define NPCM_I3C_MINTCLR_RXPEND         11
+#define NPCM_I3C_MINTCLR_COMPLETE       10
+#define NPCM_I3C_MINTCLR_MCTRLDONE      9
+#define NPCM_I3C_MINTCLR_TGTSTART       8
+#define NPCM_I3C_MINTMASKED_NOWMASTER   19
+#define NPCM_I3C_MINTMASKED_ERRWARN     15
+#define NPCM_I3C_MINTMASKED_IBIWON      13
+#define NPCM_I3C_MINTMASKED_TXNOTFULL   12
+#define NPCM_I3C_MINTMASKED_RXPEND      11
+#define NPCM_I3C_MINTMASKED_COMPLETE    10
+#define NPCM_I3C_MINTMASKED_MCTRLDONE   9
+#define NPCM_I3C_MINTMASKED_TGTSTART    8
+#define NPCM_I3C_MERRWARN_TIMEOUT       20
+#define NPCM_I3C_MERRWARN_INVREQ        19
+#define NPCM_I3C_MERRWARN_MSGERR        18
+#define NPCM_I3C_MERRWARN_OWRITE        17
+#define NPCM_I3C_MERRWARN_OREAD         16
+#define NPCM_I3C_MERRWARN_HCRC          10
+#define NPCM_I3C_MERRWARN_HPAR          9
+#define NPCM_I3C_MERRWARN_TERM          4
+#define NPCM_I3C_MERRWARN_WRABT         3
+#define NPCM_I3C_MERRWARN_NACK          2
+#define NPCM_I3C_MDMACTRL_DMAWIDTH      FIELD(4, 2)
+#define NPCM_I3C_MDMACTRL_DMATB         FIELD(2, 2)
+#define NPCM_I3C_MDMACTRL_DMAFB         FIELD(0, 2)
+#define NPCM_I3C_MDATACTRL_RXEMPTY      31
+#define NPCM_I3C_MDATACTRL_TXFULL       30
+#define NPCM_I3C_MDATACTRL_RXCOUNT      FIELD(24, 5)
+#define NPCM_I3C_MDATACTRL_TXCOUNT      FIELD(16, 5)
+#define NPCM_I3C_MDATACTRL_RXTRIG       FIELD(6, 2)
+#define NPCM_I3C_MDATACTRL_TXTRIG       FIELD(4, 2)
+#define NPCM_I3C_MDATACTRL_UNLOCK       3
+#define NPCM_I3C_MDATACTRL_FLUSHFB      1
+#define NPCM_I3C_MDATACTRL_FLUSHTB      0
+#define NPCM_I3C_MWDATAB_END_A          16
+#define NPCM_I3C_MWDATAB_END_B          8
+#define NPCM_I3C_MWDATAB_DATA           FIELD(0, 8)
+#define NPCM_I3C_MWDATABE_DATA          FIELD(0, 8)
+#define NPCM_I3C_MWDATAH_END            16
+#define NPCM_I3C_MWDATAH_DATA1          FIELD(8, 8)
+#define NPCM_I3C_MWDATAH_DATA0          FIELD(0, 8)
+#define NPCM_I3C_MWDATAHE_DATA1         FIELD(8, 8)
+#define NPCM_I3C_MWDATAHE_DATA0         FIELD(0, 8)
+#define NPCM_I3C_MRDATAB_DATA           FIELD(0, 8)
+#define NPCM_I3C_MRDATAH_DATA1          FIELD(8, 8)
+#define NPCM_I3C_MRDATAH_DATA0          FIELD(0, 8)
+#define NPCM_I3C_MWDATAB1_DATA          FIELD(0, 8)
+#define NPCM_I3C_MWMSG_SDR_CONTROL_LEN  FIELD(11, 5)
+#define NPCM_I3C_MWMSG_SDR_CONTROL_I2C  10
+#define NPCM_I3C_MWMSG_SDR_CONTROL_END  8
+#define NPCM_I3C_MWMSG_SDR_CONTROL_ADDR FIELD(1, 7)
+#define NPCM_I3C_MWMSG_SDR_CONTROL_DIR  0
+#define NPCM_I3C_MWMSG_SDR_DATA         FIELD(0, 16)
+#define NPCM_I3C_MRMSG_SDR_DATA         FIELD(0, 16)
+#define NPCM_I3C_MWMSG_DDR_CONTROL_END  14
+#define NPCM_I3C_MWMSG_DDR_CONTROL_LEN  FIELD(0, 10)
+#define NPCM_I3C_MWMSG_DDR_CONTROL_ADDR FIELD(9, 7)
+#define NPCM_I3C_MWMSG_DDR_CONTROL_DIR  7
+#define NPCM_I3C_MWMSG_DDR_CONTROL_CMD  FIELD(0, 7)
+#define NPCM_I3C_MWMSG_DDR_DATA         FIELD(0, 16)
+#define NPCM_I3C_MRMSG_DDR_DATA         FIELD(0, 16)
+#define NPCM_I3C_MDYNADDR_DADDR         FIELD(1, 7)
+#define NPCM_I3C_MDYNADDR_DAVALID       0
+
+/* MCONFIG options */
+#define MCONFIG_CTRENA_OFF        0x0
+#define MCONFIG_CTRENA_ON         0x1
+#define MCONFIG_CTRENA_CAPABLE    0x2
+#define MCONFIG_HKEEP_EXT_SDA_SCL 0x3
+
+/* MCTRL options */
+#define MCTRL_REQUEST_NONE          0 /* None */
+#define MCTRL_REQUEST_EMITSTARTADDR 1 /* Emit a START */
+#define MCTRL_REQUEST_EMITSTOP      2 /* Emit a STOP */
+#define MCTRL_REQUEST_IBIACKNACK    3 /* Manually ACK or NACK an IBI */
+#define MCTRL_REQUEST_PROCESSDAA    4 /* Starts the DAA process */
+#define MCTRL_REQUEST_FORCEEXIT     6 /* Emit HDR Exit Pattern  */
+/* Emits a START with address 7Eh when a slave pulls I3C_SDA low to request an IBI */
+#define MCTRL_REQUEST_AUTOIBI       7
+
+/* ACK with mandatory byte determined by IBIRULES or ACK with no mandatory byte */
+#define MCTRL_IBIRESP_ACK           0
+#define MCTRL_IBIRESP_NACK          1 /* NACK */
+#define MCTRL_IBIRESP_ACK_MANDATORY 2 /* ACK with mandatory byte  */
+#define MCTRL_IBIRESP_MANUAL        3
+
+enum npcm_i3c_mctrl_type {
+	NPCM_I3C_MCTRL_TYPE_I3C,
+	NPCM_I3C_MCTRL_TYPE_I2C,
+	NPCM_I3C_MCTRL_TYPE_I3C_HDR_DDR,
+};
+
+/* MSTATUS options */
+#define MSTATUS_STATE_IDLE    0x0
+#define MSTATUS_STATE_TGTREQ  0x1
+#define MSTATUS_STATE_NORMACT 0x3 /* SDR message mode */
+#define MSTATUS_STATE_MSGDDR  0x4
+#define MSTATUS_STATE_DAA     0x5
+#define MSTATUS_STATE_IBIACK  0x6
+#define MSTATUS_STATE_IBIRCV  0x7
+#define MSTATUS_IBITYPE_NONE  0x0
+#define MSTATUS_IBITYPE_IBI   0x1
+#define MSTATUS_IBITYPE_CR    0x2
+#define MSTATUS_IBITYPE_HJ    0x3
+
+/* IBIRULES */
+#define IBIRULES_ADDR_MSK   0x3F
+#define IBIRULES_ADDR_SHIFT 0x6
+
+/* MDMACTRL options */
+#define MDMA_DMAFB_DISABLE      0x0
+#define MDMA_DMAFB_EN_ONE_FRAME 0x1
+#define MDMA_DMAFB_EN_MANUAL    0x2
+#define MDMA_DMATB_DISABLE      0x0
+#define MDMA_DMATB_EN_ONE_FRAME 0x1
+#define MDMA_DMATB_EN_MANUAL    0x2
+
+/* I3C Target register fields */
+#define NPCM_I3C_CONFIG_SADDR           FIELD(25, 7)
+#define NPCM_I3C_CONFIG_BAMATCH         FIELD(16, 7)
+#define NPCM_I3C_CONFIG_HDRCMD          10
+#define NPCM_I3C_CONFIG_OFFLINE         9
+#define NPCM_I3C_CONFIG_IDRAND          8
+#define NPCM_I3C_CONFIG_DDROK           4
+#define NPCM_I3C_CONFIG_S0IGNORE        3
+#define NPCM_I3C_CONFIG_MATCHSS         2
+#define NPCM_I3C_CONFIG_NACK            1
+#define NPCM_I3C_CONFIG_TGTENA          0
+#define NPCM_I3C_STATUS_TIMECTRL        FIELD(30, 2)
+#define NPCM_I3C_STATUS_ACTSTATE        FIELD(28, 2)
+#define NPCM_I3C_STATUS_HJDIS           27
+#define NPCM_I3C_STATUS_MRDIS           25
+#define NPCM_I3C_STATUS_IBIDIS          24
+#define NPCM_I3C_STATUS_EVDET           FIELD(20, 2)
+#define NPCM_I3C_STATUS_EVENT           18
+#define NPCM_I3C_STATUS_CHANDLED        17
+#define NPCM_I3C_STATUS_DDRMATCH        16
+#define NPCM_I3C_STATUS_ERRWARN         15
+#define NPCM_I3C_STATUS_CCC             14
+#define NPCM_I3C_STATUS_DACHG           13
+#define NPCM_I3C_STATUS_TXNOTFULL       12
+#define NPCM_I3C_STATUS_RXPEND          11
+#define NPCM_I3C_STATUS_STOP            10
+#define NPCM_I3C_STATUS_MATCHED         9
+#define NPCM_I3C_STATUS_START           8
+#define NPCM_I3C_STATUS_STHDR           6
+#define NPCM_I3C_STATUS_STDAA           5
+#define NPCM_I3C_STATUS_STREQWR         4
+#define NPCM_I3C_STATUS_STREQRD         3
+#define NPCM_I3C_STATUS_STCCCH          2
+#define NPCM_I3C_STATUS_STMSG           1
+#define NPCM_I3C_STATUS_STNOTSTOP       0
+#define NPCM_I3C_CTRL_VENDINFO          FIELD(24, 8)
+#define NPCM_I3C_CTRL_ACTSTATE          FIELD(20, 2)
+#define NPCM_I3C_CTRL_PENDINT           FIELD(16, 4)
+#define NPCM_I3C_CTRL_IBIDATA           FIELD(8, 8)
+#define NPCM_I3C_CTRL_EXTDATA           3
+#define NPCM_I3C_CTRL_EVENT             FIELD(0, 2)
+#define NPCM_I3C_INTSET_EVENT           18
+#define NPCM_I3C_INTSET_CHANDLED        17
+#define NPCM_I3C_INTSET_DDRMATCHED      16
+#define NPCM_I3C_INTSET_ERRWARN         15
+#define NPCM_I3C_INTSET_CCC             14
+#define NPCM_I3C_INTSET_DACHG           13
+#define NPCM_I3C_INTSET_TXNOTFULL       12
+#define NPCM_I3C_INTSET_RXPEND          11
+#define NPCM_I3C_INTSET_STOP            10
+#define NPCM_I3C_INTSET_MATCHED         9
+#define NPCM_I3C_INTSET_START           8
+#define NPCM_I3C_INTCLR_EVENT           18
+#define NPCM_I3C_INTCLR_CHANDLED        17
+#define NPCM_I3C_INTCLR_DDRMATCHED      16
+#define NPCM_I3C_INTCLR_ERRWARN         15
+#define NPCM_I3C_INTCLR_CCC             14
+#define NPCM_I3C_INTCLR_DACHG           13
+#define NPCM_I3C_INTCLR_TXNOTFULL       12
+#define NPCM_I3C_INTCLR_RXPEND          11
+#define NPCM_I3C_INTCLR_STOP            10
+#define NPCM_I3C_INTCLR_MATCHED         9
+#define NPCM_I3C_INTCLR_START           8
+#define NPCM_I3C_INTMASKED_EVENT        18
+#define NPCM_I3C_INTMASKED_CHANDLED     17
+#define NPCM_I3C_INTMASKED_DDRMATCHED   16
+#define NPCM_I3C_INTMASKED_ERRWARN      15
+#define NPCM_I3C_INTMASKED_CCC          14
+#define NPCM_I3C_INTMASKED_DACHG        13
+#define NPCM_I3C_INTMASKED_TXNOTFULL    12
+#define NPCM_I3C_INTMASKED_RXPEND       11
+#define NPCM_I3C_INTMASKED_STOP         10
+#define NPCM_I3C_INTMASKED_MATCHED      9
+#define NPCM_I3C_INTMASKED_START        8
+#define NPCM_I3C_ERRWARN_OWRITE         17
+#define NPCM_I3C_ERRWARN_OREAD          16
+#define NPCM_I3C_ERRWARN_S0S1           11
+#define NPCM_I3C_ERRWARN_HCRC           10
+#define NPCM_I3C_ERRWARN_HPAR           9
+#define NPCM_I3C_ERRWARN_SPAR           8
+#define NPCM_I3C_ERRWARN_INVSTART       4
+#define NPCM_I3C_ERRWARN_TERM           3
+#define NPCM_I3C_ERRWARN_URUNNACK       2
+#define NPCM_I3C_ERRWARN_URUN           1
+#define NPCM_I3C_ERRWARN_ORUN           0
+#define NPCM_I3C_DMACTRL_DMAWIDTH       FIELD(4, 2)
+#define NPCM_I3C_DMACTRL_DMATB          FIELD(2, 2)
+#define NPCM_I3C_DMACTRL_DMAFB          FIELD(0, 2)
+#define NPCM_I3C_DATACTRL_RXEMPTY       31
+#define NPCM_I3C_DATACTRL_TXFULL        30
+#define NPCM_I3C_DATACTRL_RXCOUNT       FIELD(24, 5)
+#define NPCM_I3C_DATACTRL_TXCOUNT       FIELD(16, 5)
+#define NPCM_I3C_DATACTRL_RXTRIG        FIELD(6, 2)
+#define NPCM_I3C_DATACTRL_TXTRIG        FIELD(4, 2)
+#define NPCM_I3C_DATACTRL_UNLOCK        3
+#define NPCM_I3C_DATACTRL_FLUSHFB       1
+#define NPCM_I3C_DATACTRL_FLUSHTB       0
+#define NPCM_I3C_WDATAB_END_A           16
+#define NPCM_I3C_WDATAB_END_B           8
+#define NPCM_I3C_WDATAB_DATA            FIELD(0, 8)
+#define NPCM_I3C_WDATABE_DATA           FIELD(0, 8)
+#define NPCM_I3C_WDATAH_END             16
+#define NPCM_I3C_WDATAH_DATA1           FIELD(8, 8)
+#define NPCM_I3C_WDATAH_DATA0           FIELD(0, 8)
+#define NPCM_I3C_WDATAHE_DATA1          FIELD(8, 8)
+#define NPCM_I3C_WDATAHE_DATA0          FIELD(0, 8)
+#define NPCM_I3C_RDATAB_DATA0           FIELD(0, 8)
+#define NPCM_I3C_RDATAH_DATA1           FIELD(8, 8)
+#define NPCM_I3C_RDATAH_DATA0           FIELD(0, 8)
+#define NPCM_I3C_WDATAB1_DATA           FIELD(0, 8)
+#define NPCM_I3C_CAPABILITIES_DMA       31
+#define NPCM_I3C_CAPABILITIES_INT       30
+#define NPCM_I3C_CAPABILITIES_FIFORX    FIELD(28, 2)
+#define NPCM_I3C_CAPABILITIES_FIFOTX    FIELD(26, 2)
+#define NPCM_I3C_CAPABILITIES_TIMECTRL  21
+#define NPCM_I3C_CAPABILITIES_IBI_MR_HJ FIELD(16, 5)
+#define NPCM_I3C_CAPABILITIES_CCCHANDLE FIELD(12, 4)
+#define NPCM_I3C_CAPABILITIES_SADDR     FIELD(10, 2)
+#define NPCM_I3C_CAPABILITIES_HDRSUPP   6
+#define NPCM_I3C_CAPABILITIES_IDREG     FIELD(2, 4)
+#define NPCM_I3C_CAPABILITIES_IDENA     FIELD(0, 2)
+#define NPCM_I3C_DYNADDR_DADDR          FIELD(1, 7)
+#define NPCM_I3C_DYNADDR_DAVALID        0
+#define NPCM_I3C_MAXLIMITS_MAXWR        FIELD(16, 12)
+#define NPCM_I3C_MAXLIMITS_MAXRD        FIELD(0, 12)
+#define NPCM_I3C_PARTNO_PARTNO          FIELD(0, 32)
+#define NPCM_I3C_IDEXT_BCR              FIELD(16, 8)
+#define NPCM_I3C_IDEXT_DCR              FIELD(8, 8)
+#define NPCM_I3C_VENDORID_VID           FIELD(0, 15)
+#define NPCM_I3C_TCCLOCK_FREQ           FIELD(8, 8)
+#define NPCM_I3C_TCCLOCK_ACCURACY       FIELD(0, 8)
+#define NPCM_I3C_IBIEXT1_EXT3           FIELD(24, 8)
+#define NPCM_I3C_IBIEXT1_EXT2           FIELD(16, 8)
+#define NPCM_I3C_IBIEXT1_EXT1           FIELD(8, 8)
+#define NPCM_I3C_IBIEXT1_MAX            FIELD(4, 3)
+#define NPCM_I3C_IBIEXT1_CNT            FIELD(0, 3)
+#define NPCM_I3C_IBIEXT2_EXT7           FIELD(24, 8)
+#define NPCM_I3C_IBIEXT2_EXT6           FIELD(16, 8)
+#define NPCM_I3C_IBIEXT2_EXT5           FIELD(8, 8)
+#define NPCM_I3C_IBIEXT2_EXT4           FIELD(0, 8)
+#define NPCM_I3C_HDRCMD_NEWCMD          31
+#define NPCM_I3C_HDRCMD_OVFLW           30
+#define NPCM_I3C_HDRCMD_CMD0            FIELD(0, 8)
+#define NPCM_I3C_ID_ID                  FIELD(0, 32)
+
+struct pdma_reg {
+	/* 0x000 ~ 0x0DC: Descriptor Table Control Register 0 - 13 */
+	struct pdma_dsct_reg PDMA_DSCT[14];
+	volatile uint32_t reserved1[8];
+	/* 0x100 ~ 0x134: Current Scatter-Gather Descriptor Table Address 0 - 13 */
+	volatile uint32_t PDMA_CURSCAT[14];
+	volatile uint32_t reserved2[178];
+	/* 0x400: PDMA Channel Control Register */
+	volatile uint32_t PDMA_CHCTL;
+	/* 0x404: PDMA Stop Transfer Register */
+	volatile uint32_t PDMA_STOP;
+	/* 0x408: PDMA Software Request Register */
+	volatile uint32_t PDMA_SWREQ;
+	/* 0x40C: PDMA Request Active Flag Register */
+	volatile uint32_t PDMA_TRGSTS;
+	/* 0x410: PDMA Fixed Priority Setting Register */
+	volatile uint32_t PDMA_PRISET;
+	/* 0x414: PDMA Fixed Priority Clear Register */
+	volatile uint32_t PDMA_PRICLR;
+	/* 0x418: PDMA Interrupt Enable Control Register */
+	volatile uint32_t PDMA_INTEN;
+	/* 0x41C: PDMA PDMA Interrupt Status Register */
+	volatile uint32_t PDMA_INTSTS;
+	/* 0x420: PDMA Read/Write Target Abort Flag Register */
+	volatile uint32_t PDMA_ABTSTS;
+	/* 0x424: PDMA Transfer Done Flag Register */
+	volatile uint32_t PDMA_TDSTS;
+	/* 0x428: PDMA Scatter-Gather Transfer Done Flag Register */
+	volatile uint32_t PDMA_SCATSTS;
+	/* 0x42C: PDMA Transfer on Active Flag Register */
+	volatile uint32_t PDMA_TACTSTS;
+	volatile uint32_t reserved3[3];
+	/* 0x43C: PDMA Scatter-Gather Descriptor Table Base Address Register */
+	volatile uint32_t PDMA_SCATBA;
+	volatile uint32_t reserved4[16];
+	/* 0x480: PDMA Source Module Select Register 0 - 3 */
+	volatile uint32_t PDMA_REQSEL[4];
+};
+
+#define NPCM_PDMA_INTSTS_TEIF            2
+#define NPCM_PDMA_INTSTS_TDIF            1
+#define NPCM_PDMA_INTSTS_ABTIF           0
+#define NPCM_PDMA_SCATBA_16BITS          FIELD(16, 16)
+#define NPCM_PDMA_REQSEL_CHANNEL(ch)     FIELD((ch * 8), 7)
+#define NPCM_PDMA_DSCT_CTL_TXCNT         FIELD(16, 14)
+#define NPCM_PDMA_DSCT_CTL_TXWIDTH       FIELD(12, 2)
+#define NPCM_PDMA_DSCT_CTL_TX_WIDTH_8    0x0
+#define NPCM_PDMA_DSCT_CTL_TX_WIDTH_16   0x1
+#define NPCM_PDMA_DSCT_CTL_TX_WIDTH_32   0x2
+#define NPCM_PDMA_DSCT_CTL_DAINC         FIELD(10, 2)
+#define NPCM_PDMA_DSCT_CTL_DAINC_FIX     0x3
+#define NPCM_PDMA_DSCT_CTL_SAINC         FIELD(8, 2)
+#define NPCM_PDMA_DSCT_CTL_SAINC_FIX     0x3
+#define NPCM_PDMA_DSCT_CTL_TBINTDIS      7
+#define NPCM_PDMA_DSCT_CTL_BURSIZE       FIELD(4, 3)
+#define NPCM_PDMA_DSCT_CTL_TXTYPE_SINGLE 2
+#define NPCM_PDMA_DSCT_CTL_OPMODE        FIELD(0, 2)
+#define NPCM_PDMA_DSCT_CTL_OPMODE_STOP   0x0
+#define NPCM_PDMA_DSCT_CTL_OPMODE_BASIC  0x1
+#define NPCM_PDMA_DSCT_CTL_OPMODE_SGM    0x2
+#define NPCM_PDMA_DSCT_NEXT_DSCT_OFFSET  FIELD(2, 14)
+
+/* n == pdma descriptor table address */
+#define NPCM_PDMA_BASE(n)         (n & 0xFFFFFF00)
+#define NPCM_PDMA_DSCT_IDX(n)     ((n - (n & 0xFFFFFF00)) >> 4)
+#define NPCM_PDMA_CHANNEL_PER_REQ 0x4
+
+/*
+ * Power Management Controller (PMC) device registers
+ */
+struct pmc_reg {
+	/* 0x000: Power Management Controller */
+	volatile uint8_t PMCSR;
+	volatile uint8_t reserved1[2];
+	/* 0x003: Enable in Sleep Control */
+	volatile uint8_t ENIDL_CTL;
+	/* 0x004: Disable in Idle Control */
+	volatile uint8_t DISIDL_CTL;
+	/* 0x005: Disable in Idle Control 1 */
+	volatile uint8_t DISIDL_CTL1;
+	volatile uint8_t reserved2;
+	/* 0x007: Power-Down Control 0 */
+	volatile uint8_t PWDWN_CTL0;
+	/* 0x008: Power-Down Control 1 */
+	volatile uint8_t PWDWN_CTL1;
+	/* 0x009: Power-Down Control 2 */
+	volatile uint8_t PWDWN_CTL2;
+	/* 0x00A: Power-Down Control 3 */
+	volatile uint8_t PWDWN_CTL3;
+	/* 0x00B: Power-Down Control 4 */
+	volatile uint8_t PWDWN_CTL4;
+	/* 0x00C: Power-Down Control 5 */
+	volatile uint8_t PWDWN_CTL5;
+	/* 0x00D: Power-Down Control 6 */
+	volatile uint8_t PWDWN_CTL6;
+	volatile uint8_t reserved3[3];
+	/* 0x011: RAM Power-Down Control 1 */
+	volatile uint8_t RAM_PD1;
+	/* 0x012: RAM Power-Down Control 2 */
+	volatile uint8_t RAM_PD2;
+	/* 0x013: Software Reset 1 */
+	volatile uint8_t SW_RST1;
+	/* 0x014: RAM Power-Down Control 3  */
+	volatile uint8_t RAM_PD3;
+	/* 0x015: Power-Down Control 7 */
+	volatile uint8_t PWDWN_CTL7;
+	/* 0x016: Power-Down Control 8 */
+	volatile uint8_t PWDWN_CTL8;
+};
+
+/* PMC register fields */
+#define NPCM_PMCSR_DI_INSTW      0
+#define NPCM_PMCSR_DHF           1
+#define NPCM_PMCSR_IDLE          2
+#define NPCM_PMCSR_NWBI          3
+#define NPCM_PMCSR_OHFC          6
+#define NPCM_PMCSR_OLFC          7
+#define NPCM_DISIDL_CTL_RAM_DID  5
+#define NPCM_ENIDL_CTL_LP_WK_CTL 6
+#define NPCM_ENIDL_CTL_PECI_ENI  2
+
+#define GET_POS_FIELD(pos, size)  pos
+#define GET_SIZE_FIELD(pos, size) size
+#define FIELD_POS(field)          GET_POS_##field
+#define FIELD_SIZE(field)         GET_SIZE_##field
+
+#define GET_FIELD_SZ(field)   _GET_FIELD_SZ_(FIELD_SIZE(field))
+#define _GET_FIELD_SZ_(f_ops) f_ops
+
+#define GET_FIELD(reg, field)           _GET_FIELD_(reg, FIELD_POS(field), FIELD_SIZE(field))
+#define _GET_FIELD_(reg, f_pos, f_size) (((reg) >> (f_pos)) & ((1 << (f_size)) - 1))
+
+#define SET_FIELD(reg, field, value) _SET_FIELD_(reg, FIELD_POS(field), FIELD_SIZE(field), value)
+#define _SET_FIELD_(reg, f_pos, f_size, value)                                                     \
+	((reg) = ((reg) & (~(((1 << (f_size)) - 1) << (f_pos)))) | ((value) << (f_pos)))
+
 /* Driver convenience defines */
 #define HAL_INSTANCE(dev) ((struct i3c_reg *)((const struct npcm_i3c_config *)(dev)->config)->base)
 
@@ -156,7 +718,7 @@ static void npcm_i3c_mutex_unlock(const struct device *dev)
 static void npcm_i3c_reset_module(const struct device *dev)
 {
 	struct i3c_reg *i3c_inst = HAL_INSTANCE(dev);
-	struct pmc_reg *pmc = (struct pmc_reg *)NPCM_PMC_REG_ADDR;
+	struct pmc_reg *pmc = (struct pmc_reg *)DT_REG_ADDR_BY_NAME(DT_NODELABEL(pcc), pmc);
 	uint8_t index;
 
 	index = I3C_NPCM_HW_IDX((uint32_t)i3c_inst);
@@ -2144,8 +2706,9 @@ static int npcm_i3c_freq_init(const struct device *dev)
 	const struct npcm_i3c_config *config = dev->config;
 	struct npcm_i3c_data *data = dev->data;
 	struct i3c_reg *i3c_inst = HAL_INSTANCE(dev);
-	const struct device *const clk_dev = config->clock_dev;
+	const struct device *const clk_dev = DEVICE_DT_GET(DT_NODELABEL(pcc));
 	struct i3c_config_controller *ctrl_config = &data->common.ctrl_config;
+
 	uint32_t scl_pp = ctrl_config->scl.i3c;
 	uint32_t scl_od = config->clocks.i3c_od_scl_hz;
 	uint32_t scl_i2c = ctrl_config->scl.i2c;
@@ -2153,7 +2716,7 @@ static int npcm_i3c_freq_init(const struct device *dev)
 	uint32_t i3c_freq_rate;
 	int ret;
 
-	ret = clock_control_get_rate(clk_dev, (clock_control_subsys_t)&config->clock_subsys,
+	ret = clock_control_get_rate(clk_dev, (clock_control_subsys_t)&config->clk_cfg,
 				     &i3c_freq_rate);
 	if (ret != 0x0) {
 		LOG_ERR("Get I3C source clock fail %d", ret);
@@ -2207,7 +2770,7 @@ static int npcm_i3c_cntlr_init(const struct device *dev)
 {
 	const struct npcm_i3c_config *config = dev->config;
 	struct i3c_reg *i3c_inst = HAL_INSTANCE(dev);
-	const struct device *const clk_dev = config->clock_dev;
+	const struct device *const clk_dev = DEVICE_DT_GET(DT_NODELABEL(pcc));
 	uint32_t i3c_freq_rate;
 	uint8_t bamatch;
 	int ret;
@@ -2233,7 +2796,7 @@ static int npcm_i3c_cntlr_init(const struct device *dev)
 	npcm_i3c_fifo_flush(i3c_inst);
 
 	/* Set bus available match value in target register */
-	ret = clock_control_get_rate(clk_dev, (clock_control_subsys_t)&config->clock_subsys,
+	ret = clock_control_get_rate(clk_dev, (clock_control_subsys_t)&config->clk_cfg,
 				     &i3c_freq_rate);
 	LOG_DBG("I3C_CLK_FREQ: %d", i3c_freq_rate);
 
@@ -2293,7 +2856,7 @@ static int npcm_i3c_init(const struct device *dev)
 	const struct npcm_i3c_config *config = dev->config;
 	struct npcm_i3c_data *data = dev->data;
 	struct i3c_config_controller *ctrl_config = &data->common.ctrl_config;
-	const struct device *const clk_dev = config->clock_dev;
+	const struct device *const clk_dev = DEVICE_DT_GET(DT_NODELABEL(pcc));
 	int ret;
 
 	/* Check clock device ready */
@@ -2303,7 +2866,7 @@ static int npcm_i3c_init(const struct device *dev)
 	}
 
 	/* Set I3C_PD operational */
-	ret = clock_control_on(clk_dev, (clock_control_subsys_t)&config->clock_subsys);
+	ret = clock_control_on(clk_dev, (clock_control_subsys_t)&config->clk_cfg);
 	if (ret < 0) {
 		LOG_ERR("Turn on I3C clock fail %d", ret);
 		return ret;
@@ -2476,39 +3039,43 @@ static const struct i3c_driver_api npcm_i3c_driver_api = {
 #endif
 };
 
-#define I3C_NPCM_DEVICE(id)                                                                        \
-	PINCTRL_DT_INST_DEFINE(id);                                                                \
-	static void npcm_i3c_config_func_##id(const struct device *dev)                            \
+#define I3C_NPCM_DEVICE(inst)                                                                      \
+	PINCTRL_DT_INST_DEFINE(inst);                                                              \
+	static void npcm_i3c_config_func_##inst(const struct device *dev)                          \
 	{                                                                                          \
-		IRQ_CONNECT(DT_INST_IRQN(id), DT_INST_IRQ(id, priority), npcm_i3c_isr,             \
-			    DEVICE_DT_INST_GET(id), 0);                                            \
-		irq_enable(DT_INST_IRQN(id));                                                      \
+		IRQ_CONNECT(DT_INST_IRQN(inst), DT_INST_IRQ(inst, priority), npcm_i3c_isr,         \
+			    DEVICE_DT_INST_GET(inst), 0);                                          \
+		irq_enable(DT_INST_IRQN(inst));                                                    \
 	};                                                                                         \
-	static struct i3c_device_desc npcm_i3c_device_array_##id[] = I3C_DEVICE_ARRAY_DT_INST(id); \
-	static struct i3c_i2c_device_desc npcm_i3c_i2c_device_array_##id[] =                       \
-		I3C_I2C_DEVICE_ARRAY_DT_INST(id);                                                  \
-	static const struct npcm_i3c_config npcm_i3c_config_##id = {                               \
-		.base = (struct i3c_reg *)DT_INST_REG_ADDR(id),                                    \
-		.clock_dev = DEVICE_DT_GET(NPCM_CLK_CTRL_NODE),                                    \
-		.clock_subsys = NPCM_DT_CLK_CFG_ITEM(id),                                          \
-		.irq_config_func = npcm_i3c_config_func_##id,                                      \
-		.common.dev_list.i3c = npcm_i3c_device_array_##id,                                 \
-		.common.dev_list.num_i3c = ARRAY_SIZE(npcm_i3c_device_array_##id),                 \
-		.common.dev_list.i2c = npcm_i3c_i2c_device_array_##id,                             \
-		.common.dev_list.num_i2c = ARRAY_SIZE(npcm_i3c_i2c_device_array_##id),             \
-		.pincfg = PINCTRL_DT_INST_DEV_CONFIG_GET(id),                                      \
-		.clocks.i3c_pp_scl_hz = DT_INST_PROP_OR(id, i3c_scl_hz, 0),                        \
-		.clocks.i3c_od_scl_hz = DT_INST_PROP_OR(id, i3c_od_scl_hz, 0),                     \
-		.clocks.i2c_scl_hz = DT_INST_PROP_OR(id, i2c_scl_hz, 0),                           \
+                                                                                                   \
+	static struct i3c_device_desc npcm_i3c_device_array_##inst[] =                             \
+		I3C_DEVICE_ARRAY_DT_INST(inst);                                                    \
+                                                                                                   \
+	static struct i3c_i2c_device_desc npcm_i3c_i2c_device_array_##inst[] =                     \
+		I3C_I2C_DEVICE_ARRAY_DT_INST(inst);                                                \
+                                                                                                   \
+	static const struct npcm_i3c_config npcm_i3c_config_##inst = {                             \
+		.base = (struct i3c_reg *)DT_INST_REG_ADDR(inst),                                  \
+		.clk_cfg = DT_INST_PHA(inst, clocks, clk_cfg),                                     \
+		.irq_config_func = npcm_i3c_config_func_##inst,                                    \
+		.common.dev_list.i3c = npcm_i3c_device_array_##inst,                               \
+		.common.dev_list.num_i3c = ARRAY_SIZE(npcm_i3c_device_array_##inst),               \
+		.common.dev_list.i2c = npcm_i3c_i2c_device_array_##inst,                           \
+		.common.dev_list.num_i2c = ARRAY_SIZE(npcm_i3c_i2c_device_array_##inst),           \
+		.pincfg = PINCTRL_DT_INST_DEV_CONFIG_GET(inst),                                    \
+		.clocks.i3c_pp_scl_hz = DT_INST_PROP_OR(inst, i3c_scl_hz, 0),                      \
+		.clocks.i3c_od_scl_hz = DT_INST_PROP_OR(inst, i3c_od_scl_hz, 0),                   \
+		.clocks.i2c_scl_hz = DT_INST_PROP_OR(inst, i2c_scl_hz, 0),                         \
 		IF_ENABLED(CONFIG_I3C_NPCM_DMA, ( \
-			.pdma_rx = (struct pdma_dsct_reg *)DT_INST_REG_ADDR_BY_IDX(id, 1), \
-		))                                                \
+			.pdma_rx = (struct pdma_dsct_reg *)DT_INST_REG_ADDR_BY_IDX(inst, 1), \
+			))                                                \
 				    IF_ENABLED(CONFIG_I3C_NPCM_DMA, ( \
-			.pdma_tx = (struct pdma_dsct_reg *)DT_INST_REG_ADDR_BY_IDX(id, 2), \
-		)) };        \
-	static struct npcm_i3c_data npcm_i3c_data_##id;                                            \
-	DEVICE_DT_INST_DEFINE(id, npcm_i3c_init, NULL, &npcm_i3c_data_##id, &npcm_i3c_config_##id, \
-			      POST_KERNEL, CONFIG_I3C_CONTROLLER_INIT_PRIORITY,                    \
-			      &npcm_i3c_driver_api);
+			.pdma_tx = (struct pdma_dsct_reg *)DT_INST_REG_ADDR_BY_IDX(inst, 2), \
+			)) };      \
+                                                                                                   \
+	static struct npcm_i3c_data npcm_i3c_data_##inst;                                          \
+	DEVICE_DT_INST_DEFINE(inst, npcm_i3c_init, NULL, &npcm_i3c_data_##inst,                    \
+			      &npcm_i3c_config_##inst, POST_KERNEL,                                \
+			      CONFIG_I3C_CONTROLLER_INIT_PRIORITY, &npcm_i3c_driver_api);
 
 DT_INST_FOREACH_STATUS_OKAY(I3C_NPCM_DEVICE)
