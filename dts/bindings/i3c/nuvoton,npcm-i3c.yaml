@@ -35,6 +35,12 @@ properties:
   interrupts:
     required: true
 
+  pinctrl-0:
+    required: true
+
+  pinctrl-names:
+    required: true
+
   i3c-od-scl-hz:
     type: int
     description: |
