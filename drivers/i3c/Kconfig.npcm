@@ -16,6 +16,7 @@ config I3C_NPCM
 config I3C_NPCM_DMA
 	bool "Nuvoton NPCM enhance super I/O (eSIO) I3C driver DMA support"
 	depends on I3C_NPCM
+	select I3C_TARGET_BUFFER_MODE
 	default y
 	help
 	  Enable DMA support for npcm I3C.
