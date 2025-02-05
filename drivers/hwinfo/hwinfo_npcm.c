@@ -95,4 +95,4 @@ int z_impl_hwinfo_get_supported_reset_cause(uint32_t *supported)
 	return 0;
 }
 
-SYS_INIT(npcm_hwinfo_init, EARLY, CONFIG_KERNEL_INIT_PRIORITY_DEFAULT);
+SYS_INIT(npcm_hwinfo_init, PRE_KERNEL_1, CONFIG_KERNEL_INIT_PRIORITY_OBJECTS);
