@@ -144,6 +144,8 @@
 	i3c-od-scl-hz = <4170000>;
 	i2c-scl-hz = <1000000>;
 	pinctrl-0 = <&i3c5_scl_sda_gpio82_83>;
+	bcr = <0x26>;
+	secondary;
 	pinctrl-names = "default";
 	status = "okay";
 };
@@ -154,6 +156,9 @@
 	i2c-scl-hz = <1000000>;
 	pinctrl-0 = <&i3c6_scl_sda_gpio96_97>;
 	/* &tri_state_gp96 &tri_state_gp97 &i3c6_scl_sda_gp96_97 */
+	bcr = <0x26>;
+	secondary;
+	static-address = <0x50>;
 	pinctrl-names = "default";
 	status = "okay";
 };
