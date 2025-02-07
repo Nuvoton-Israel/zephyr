@@ -589,6 +589,8 @@ int i3c_ccc_do_getcaps(const struct i3c_device_desc *target,
 	if (fmt == GETCAPS_FORMAT_1) {
 		/* Could be 1-4 Data Bytes Returned */
 		ccc_tgt_payload.data_len = 4;
+
+		LOG_DBG("GETCAPS_FORMAT_1");
 	} else if (fmt == GETCAPS_FORMAT_2) {
 		switch (defbyte) {
 		case GETCAPS_FORMAT_2_CRCAPS:
@@ -612,6 +614,8 @@ int i3c_ccc_do_getcaps(const struct i3c_device_desc *target,
 		goto out;
 	}
 
+	LOG_DBG("ccc_payload ptr %p", &ccc_payload);
+
 	memset(&ccc_payload, 0, sizeof(ccc_payload));
 	ccc_payload.ccc.id = I3C_CCC_GETCAPS;
 	ccc_payload.targets.payloads = &ccc_tgt_payload;
@@ -630,10 +634,18 @@ int i3c_ccc_do_getcaps(const struct i3c_device_desc *target,
 		/* GETCAPS will return a variable length */
 		len = ccc_tgt_payload.num_xfer;
 
+		LOG_DBG("GETCAPS: len %d", len);
+
 		if (fmt == GETCAPS_FORMAT_1) {
 			memcpy(caps->fmt1.getcaps, data, len);
+
 			/* for values not received, assume default (1'b0) */
 			memset(&caps->fmt1.getcaps[len], 0, sizeof(caps->fmt1.getcaps) - len);
+
+			LOG_DBG("GETCAPS_FORMAT_1: %02x %02x %02x %02x",
+				caps->fmt1.getcaps[0], caps->fmt1.getcaps[1],
+				caps->fmt1.getcaps[2], caps->fmt1.getcaps[3]);
+
 		} else if (fmt == GETCAPS_FORMAT_2) {
 			switch (defbyte) {
 			case GETCAPS_FORMAT_2_CRCAPS:
@@ -808,6 +820,8 @@ int i3c_ccc_do_getmxds(const struct i3c_device_desc *target,
 	uint8_t data[5];
 	uint8_t len;
 	int ret;
+
+	LOG_DBG("getmxds");
 
 	__ASSERT_NO_MSG(target != NULL);
 	__ASSERT_NO_MSG(target->bus != NULL);

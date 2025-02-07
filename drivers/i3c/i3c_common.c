@@ -158,6 +158,8 @@ bool i3c_addr_slots_is_free(struct i3c_addr_slots *slots,
 
 	status = i3c_addr_slots_status(slots, dev_addr);
 
+	LOG_DBG("Address %d status %d", dev_addr, status);
+
 	return (status == I3C_ADDR_SLOT_STATUS_FREE);
 }
 
@@ -245,10 +247,14 @@ int i3c_attach_i3c_device(struct i3c_device_desc *target)
 	/* check to see if the device has already been attached */
 	I3C_BUS_FOR_EACH_I3CDEV(target->bus, i3c_desc) {
 		if (i3c_desc == target) {
+
+			LOG_DBG("Device already attached");
+
 			return -EINVAL;
 		}
 	}
 
+	LOG_DBG("dynamic_addr %d, static_addr %d", target->dynamic_addr, target->static_addr);
 	addr = target->dynamic_addr ? target->dynamic_addr : target->static_addr;
 
 	/*
@@ -256,6 +262,9 @@ int i3c_attach_i3c_device(struct i3c_device_desc *target)
 	 */
 	if (addr) {
 		if (!i3c_addr_slots_is_free(&data->attached_dev.addr_slots, addr)) {
+
+			LOG_DBG("Address slot is not free");
+
 			return -EINVAL;
 		}
 	}
@@ -395,8 +404,7 @@ int i3c_dev_list_daa_addr_helper(struct i3c_addr_slots *addr_slots,
 		 */
 		ret = -ENODEV;
 
-		LOG_DBG("PID 0x%04x%08x is not in registered device list",
-			vendor_id, part_no);
+		LOG_DBG("PID 0x%04x%08x is not in registered device list", vendor_id, part_no);
 
 		goto out;
 	}
@@ -482,6 +490,8 @@ int i3c_device_adv_info_get(struct i3c_device_desc *target)
 	union i3c_ccc_getmxds mxds = {0};
 	int ret;
 
+	LOG_DBG("func: %s [%p]", __func__, (void *)&i3c_device_adv_info_get);
+
 	/* GETMRL */
 	if (i3c_ccc_do_getmrl(target, &mrl) != 0) {
 		/* GETMRL may be optionally supported if no settable limit */
@@ -496,6 +506,7 @@ int i3c_device_adv_info_get(struct i3c_device_desc *target)
 
 	/* GETCAPS */
 	ret = i3c_ccc_do_getcaps_fmt1(target, &caps);
+	LOG_DBG("GETCAPS ret (%d)", ret);
 	/*
 	 * GETCAPS (GETHDRCAP) is required to be supported for I3C v1.0 targets that support HDR
 	 * modes and required if the Target's I3C version is v1.1 or later, but which the version it
@@ -516,6 +527,9 @@ int i3c_device_adv_info_get(struct i3c_device_desc *target)
 			return ret;
 		}
 	}
+
+	LOG_DBG("target->getcaps ptr %p size %d", (void *)&target->getcaps,
+		sizeof(target->getcaps));
 
 	/* Some values may not have been read, but set them back to 0 */
 	memcpy(&target->getcaps, &caps, sizeof(target->getcaps));
@@ -623,6 +637,8 @@ static int i3c_bus_setdasa(const struct device *dev,
 bool i3c_bus_has_sec_controller(const struct device *dev)
 {
 	struct i3c_device_desc *i3c_desc;
+
+	LOG_DBG("sec_controller check");
 
 	I3C_BUS_FOR_EACH_I3CDEV(dev, i3c_desc) {
 		if (i3c_device_is_controller_capable(i3c_desc)) {
@@ -766,6 +782,9 @@ int i3c_bus_init(const struct device *dev, const struct i3c_dev_list *dev_list)
 	 * Perform Set All Addresses to Static Address if possible.
 	 */
 	if (need_aasa) {
+
+		LOG_DBG("SETAASA for all devices");
+
 		ret = i3c_ccc_do_setaasa_all(dev);
 		if (ret != 0) {
 			for (i = 0; i < dev_list->num_i3c; i++) {
@@ -787,6 +806,9 @@ int i3c_bus_init(const struct device *dev, const struct i3c_dev_list *dev_list)
 	 * Perform Dynamic Address Assignment if needed.
 	 */
 	if (need_daa) {
+
+		LOG_DBG("DAA for all devices");
+
 		ret = i3c_do_daa(dev);
 		if (ret != 0) {
 			/*
@@ -813,9 +835,16 @@ int i3c_bus_init(const struct device *dev, const struct i3c_dev_list *dev_list)
 	for (i = 0; i < dev_list->num_i3c; i++) {
 		struct i3c_device_desc *desc = &dev_list->i3c[i];
 
+		LOG_DBG("i3c_device_desc ptr: %p", desc);
+
 		if (desc->dynamic_addr == 0U) {
+
+			LOG_DBG("i3c[%d] has no dynamic address", i);
+
 			continue;
 		}
+
+		LOG_DBG("=i3c_device_desc ptr: %p=", desc);
 
 		/*
 		 * If static address is 0, then it is assumed that BCR
@@ -823,6 +852,9 @@ int i3c_bus_init(const struct device *dev, const struct i3c_dev_list *dev_list)
 		 */
 		ret = (desc->static_addr == 0) ? i3c_device_adv_info_get(desc)
 					       : i3c_device_info_get(desc);
+
+		LOG_DBG("i3c_device_adv_info_get ret (%d)", ret);
+
 		if (ret != 0) {
 			LOG_ERR("Error getting device info for 0x%02x",
 				desc->static_addr);
@@ -835,6 +867,9 @@ int i3c_bus_init(const struct device *dev, const struct i3c_dev_list *dev_list)
 	}
 
 	if (i3c_bus_has_sec_controller(dev)) {
+
+		LOG_DBG("Secondary controller detected");
+
 		ret = i3c_bus_deftgts(dev);
 		if (ret != 0) {
 			LOG_ERR("Error sending DEFTGTS");
@@ -848,10 +883,15 @@ int i3c_bus_init(const struct device *dev, const struct i3c_dev_list *dev_list)
 	 * enable the event.
 	 */
 	i3c_events.events = I3C_CCC_EVT_HJ;
+
+	LOG_DBG("i3c_events ptr: %p", &i3c_events);
+
 	ret = i3c_ccc_do_events_all_set(dev, true, &i3c_events);
 	if (ret != 0) {
 		LOG_DBG("Broadcast ENEC was NACK.");
 	}
+
+	LOG_DBG("I3C bus initialization done");
 
 err_out:
 	return ret;
