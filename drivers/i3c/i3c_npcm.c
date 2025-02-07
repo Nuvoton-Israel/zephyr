@@ -1,10 +1,9 @@
 /*
- * Copyright (c) 2024 Nuvoton Technology Corporation.
+ * Copyright (c) 2025 Nuvoton Technology Corporation.
  *
  * SPDX-License-Identifier: Apache-2.0
  */
 
-#include <stdint.h>
 #define DT_DRV_COMPAT nuvoton_npcm_i3c
 
 #include <zephyr/drivers/clock_control.h>
@@ -16,19 +15,22 @@
 LOG_MODULE_REGISTER(npcm_i3c, CONFIG_I3C_LOG_LEVEL);
 
 /* I3C properties */
-#define NPCM_I3C_CHK_TIMEOUT_US 10000 /* Timeout for checking register status */
-#define I3C_CLK_FREQ_48_MHZ     MHZ(48)
-#define I3C_CLK_FREQ_96_MHZ     MHZ(96)
-#define I3C_SCL_PP_FREQ_MAX_MHZ 12500000
-#define I3C_SCL_OD_FREQ_MAX_MHZ 4170000
-#define I3C_BUS_TLOW_PP_MIN_NS  24  /* T_LOW period in push-pull mode */
-#define I3C_BUS_TLOW_OD_MIN_NS  200 /* T_LOW period in open-drain mode */
-#define PPBAUD_DIV_MAX          0xF
-#define I2CBAUD_DIV_MAX         0xF
-#define DAA_TGT_INFO_SZ         0x8         /* 8 bytes = PID(6) + BCR(1) + DCR(1) */
-#define I3C_TRANS_TIMEOUT_MS    K_MSEC(100) /*  Default maximum allow time for an I3C transfer */
+#define I3C_CHK_TIMEOUT_US       10000 /* Timeout for checking register status */
+#define I3C_CLK_FREQ_48_MHZ      MHZ(48)
+#define I3C_CLK_FREQ_96_MHZ      MHZ(96)
+#define I3C_SCL_PP_FREQ_MAX_MHZ  12500000
+#define I3C_SCL_OD_FREQ_MAX_MHZ  4170000
+#define I3C_BUS_TLOW_PP_MIN_NS   24  /* T_LOW period in push-pull mode */
+#define I3C_BUS_TLOW_OD_MIN_NS   200 /* T_LOW period in open-drain mode */
+#define I3C_TGT_WR_REQ_WAIT_US   10  /* I3C target write request PDMA completion after stop */
+#define I3C_FIFO_SIZE            16
+#define PPBAUD_DIV_MAX           0xF
+#define I2CBAUD_DIV_MAX          0xF
+#define DAA_TGT_INFO_SZ          0x8         /* 8 bytes = PID(6) + BCR(1) + DCR(1) */
+#define I3C_TRANS_TIMEOUT_MS     K_MSEC(100) /*  Default maximum allow time for an I3C transfer */
+#define I3C_IBI_MAX_PAYLOAD_SIZE 32
 #define I3C_STATUS_CLR_MASK                                                                        \
-	(NPCM_I3C_MSTATUS_TGTSTART | NPCM_I3C_MSTATUS_MCTRLDONE | NPCM_I3C_MSTATUS_COMPLETE |      \
+	(NPCM_I3C_MSTATUS_SLVSTART | NPCM_I3C_MSTATUS_MCTRLDONE | NPCM_I3C_MSTATUS_COMPLETE |      \
 	 NPCM_I3C_MSTATUS_IBIWON | NPCM_I3C_MSTATUS_NOWCNTLR)
 #define I3C_TGT_INTSET_MASK                                                                        \
 	(NPCM_I3C_INTSET_START | NPCM_I3C_INTSET_MATCHED | NPCM_I3C_INTSET_STOP |                  \
@@ -51,7 +53,6 @@ LOG_MODULE_REGISTER(npcm_i3c, CONFIG_I3C_LOG_LEVEL);
 #define GET_PID_ID_TYP(pid)    (((uint64_t)pid >> 32) & 0x1)    /* PID[32] */
 #define GET_PID_PARTNO(pid)    (pid & 0xffffffff)               /* PID[31:0] */
 #ifdef CONFIG_I3C_NPCM_DMA
-
 /* PDMA mux ID parsing */
 #define I3C_NPCM_PDMA_MUX_ID(n, rnw)                                                               \
 	(rnw ? ((((n & 0xFFF) >> 9) * 2) + 5) : ((((n & 0xFFF) >> 9) * 2) + 6))
@@ -68,16 +69,16 @@ enum npcm_i3c_clk_speed {
 	I3C_CLK_FREQ_96MHZ,
 };
 
-/* Recommended I3C timing values are based on I3C frequency 48 or 96 MHz */
 static const struct npcm_i3c_timing_cfg npcm_def_speed_cfg[] = {
-	/* PP = 12.5 mhz, OD = 4.17 Mhz, i2c = 1.0 Mhz */
+	/*
+	 * Recommended I3C timing values are based on I3C frequency 48 or 96 MHz
+	 * PP = 12.5 mhz, OD = 4.17 Mhz, i2c = 1.0 Mhz
+	 */
 	[I3C_CLK_FREQ_48MHZ] = {.ppbaud = 1, .pplow = 0, .odhpp = 1, .odbaud = 4, .i2c_baud = 3},
 	[I3C_CLK_FREQ_96MHZ] = {.ppbaud = 3, .pplow = 0, .odhpp = 1, .odbaud = 4, .i2c_baud = 3},
 };
 
-/* TODO: removed */
-__pinned_bss static uint32_t g_rx_cnt;
-
+/* I3C functions */
 static void npcm_i3c_mutex_lock(const struct device *dev)
 {
 	struct npcm_i3c_data *const data = dev->data;
@@ -117,7 +118,7 @@ static void npcm_i3c_reset_module(const struct device *dev)
  */
 static inline int npcm_i3c_status_wait_clear(struct i3c_reg *i3c_inst, uint32_t bit_val)
 {
-	if (WAIT_FOR(i3c_inst->MSTATUS & bit_val, NPCM_I3C_CHK_TIMEOUT_US, NULL) == false) {
+	if (WAIT_FOR(i3c_inst->MSTATUS & bit_val, I3C_CHK_TIMEOUT_US, NULL) == false) {
 		return -ETIMEDOUT;
 	}
 
@@ -145,24 +146,32 @@ static inline void npcm_i3c_interrupt_enable(struct i3c_reg *i3c_inst, uint32_t 
 
 static void npcm_i3c_enable_target_interrupt(const struct device *dev, bool enable)
 {
-	struct i3c_reg *inst = HAL_INSTANCE(dev);
+	struct i3c_reg *i3c_inst = HAL_INSTANCE(dev);
 
 	/* Disable the target interrupt events */
-	inst->INTCLR = inst->INTSET;
+	i3c_inst->INTCLR = i3c_inst->INTSET;
 
 	/* Clear the target interrupt status */
-	inst->STATUS = inst->STATUS;
+	i3c_inst->STATUS = i3c_inst->STATUS;
 
 	/* Enable the target interrupt events */
 	if (enable) {
-		inst->INTSET = I3C_TGT_INTSET_MASK;
-		inst->MINTSET |= NPCM_I3C_MINTSET_NOWMASTER; /* I3C target is now controller */
+		i3c_inst->INTSET = I3C_TGT_INTSET_MASK;
+		i3c_inst->MINTSET |= NPCM_I3C_MINTSET_NOWMASTER; /* I3C target is now controller */
 
-#ifndef CONFIG_I3C_NPCM_DMA
 		/* Receive buffer pending (FIFO mode) */
-		inst->INTSET |= NPCM_I3C_INTSET_RXPEND;
-#endif
+		i3c_inst->INTSET |= NPCM_I3C_INTSET_RXPEND;
 	}
+}
+
+static inline void npcm_i3c_target_rx_fifo_flush(struct i3c_reg *i3c_inst)
+{
+	i3c_inst->DATACTRL |= NPCM_I3C_DATACTRL_FLUSHFB;
+}
+
+static inline void npcm_i3c_target_tx_fifo_flush(struct i3c_reg *i3c_inst)
+{
+	i3c_inst->DATACTRL |= NPCM_I3C_DATACTRL_FLUSHTB;
 }
 
 static bool npcm_i3c_has_error(struct i3c_reg *i3c_inst)
@@ -189,7 +198,7 @@ static inline void npcm_i3c_errwarn_clear_all(struct i3c_reg *i3c_inst)
 	i3c_inst->MERRWARN = i3c_inst->MERRWARN;
 }
 
-static inline void npcm_i3c_fifo_flush(struct i3c_reg *i3c_inst)
+static inline void npcm_i3c_controller_fifo_flush(struct i3c_reg *i3c_inst)
 {
 	i3c_inst->MDATACTRL |= (NPCM_I3C_MDATACTRL_FLUSHTB | NPCM_I3C_MDATACTRL_FLUSHFB);
 }
@@ -265,15 +274,14 @@ static inline int npcm_i3c_request_auto_ibi(struct i3c_reg *i3c_inst)
  * param[in] i3c_inst     Pointer to I3C register.
  * param[in] addr     Dyamic address for xfer or 0x7E for CCC command.
  * param[in] op_type  Request type.
- * param[in] is_read  Read(true) or write(false) operation.
+ * param[in] is_rx    true=rx or false=tx operation.
  * param[in] read_sz  Read size.
  *
  * return  0, success
  *         else, error
  */
 static int npcm_i3c_request_emit_start(struct i3c_reg *i3c_inst, uint8_t addr,
-				       enum npcm_i3c_mctrl_type op_type, bool is_read,
-				       size_t read_sz)
+				       enum npcm_i3c_mctrl_type op_type, bool is_rx, size_t read_sz)
 {
 	uint32_t mctrl = 0;
 	int ret;
@@ -290,8 +298,8 @@ static int npcm_i3c_request_emit_start(struct i3c_reg *i3c_inst, uint8_t addr,
 	/* Set dynamic address */
 	NPCM_SET_REG_FIELD(mctrl, NPCM_I3C_MCTRL_ADDR, addr);
 
-	/* Set read(1) or write(0) */
-	if (is_read) {
+	/* Set rx or tx */
+	if (is_rx) {
 		mctrl |= NPCM_I3C_MCTRL_DIR;
 		NPCM_SET_REG_FIELD(mctrl, NPCM_I3C_MCTRL_RDTERM, read_sz); /* Set read length */
 	} else {
@@ -423,11 +431,11 @@ static int npcm_i3c_recover_bus(const struct device *dev)
 	};
 
 	/* Exhaust all target initiated IBI */
-	while (i3c_inst->MSTATUS & NPCM_I3C_MSTATUS_TGTSTART) {
+	while (i3c_inst->MSTATUS & NPCM_I3C_MSTATUS_SLVSTART) {
 		/* Tell the controller to perform auto IBI. */
 		npcm_i3c_request_auto_ibi(i3c_inst);
 
-		if (WAIT_FOR(i3c_inst->MSTATUS & NPCM_I3C_MSTATUS_COMPLETE, NPCM_I3C_CHK_TIMEOUT_US,
+		if (WAIT_FOR(i3c_inst->MSTATUS & NPCM_I3C_MSTATUS_COMPLETE, I3C_CHK_TIMEOUT_US,
 			     NULL) == false) {
 			break;
 		}
@@ -435,7 +443,7 @@ static int npcm_i3c_recover_bus(const struct device *dev)
 		/* Once auto IBI is done, discard bytes in FIFO. */
 		while (i3c_inst->MSTATUS & NPCM_I3C_MSTATUS_RXPEND) {
 			/* Flush FIFO as long as RXPEND is set. */
-			npcm_i3c_fifo_flush(i3c_inst);
+			npcm_i3c_controller_fifo_flush(i3c_inst);
 		}
 
 		/* Emit stop */
@@ -451,7 +459,7 @@ static int npcm_i3c_recover_bus(const struct device *dev)
 
 	/* Check IDLE state */
 	if (WAIT_FOR((npcm_i3c_state_get(i3c_inst) == NPCM_I3C_MSTATUS_STATE_IDLE),
-		     NPCM_I3C_CHK_TIMEOUT_US, NULL) == false) {
+		     I3C_CHK_TIMEOUT_US, NULL) == false) {
 		return -EBUSY;
 	}
 
@@ -462,7 +470,7 @@ static inline void npcm_i3c_xfer_reset(struct i3c_reg *i3c_inst)
 {
 	npcm_i3c_status_clear_all(i3c_inst);
 	npcm_i3c_errwarn_clear_all(i3c_inst);
-	npcm_i3c_fifo_flush(i3c_inst);
+	npcm_i3c_controller_fifo_flush(i3c_inst);
 }
 
 /*
@@ -487,8 +495,8 @@ static int npcm_i3c_xfer_write_fifo(struct i3c_reg *i3c_inst, uint8_t *buf, uint
 
 	while (remaining > 0) {
 		/* Check tx fifo not full */
-		if (WAIT_FOR(!(i3c_inst->MDATACTRL & NPCM_I3C_MDATACTRL_TXFULL),
-			     NPCM_I3C_CHK_TIMEOUT_US, NULL) == false) {
+		if (WAIT_FOR(!(i3c_inst->MDATACTRL & NPCM_I3C_MDATACTRL_TXFULL), I3C_CHK_TIMEOUT_US,
+			     NULL) == false) {
 			LOG_DBG("Check tx fifo not full timed out");
 			return -ETIMEDOUT;
 		}
@@ -563,13 +571,27 @@ static int npcm_i3c_xfer_read_fifo(struct i3c_reg *i3c_inst, uint8_t *buf, uint8
 	return offset;
 }
 
+static enum npcm_i3c_oper_state get_oper_state(const struct device *dev)
+{
+	struct npcm_i3c_data *const data = dev->data;
+
+	return data->oper_state;
+}
+
+static void set_oper_state(const struct device *dev, enum npcm_i3c_oper_state state)
+{
+	struct npcm_i3c_data *const data = dev->data;
+
+	data->oper_state = state;
+}
+
 #ifdef CONFIG_I3C_NPCM_DMA
-static int npcm_i3c_pdma_dsct(const struct device *dev, bool is_read,
+static int npcm_i3c_pdma_dsct(const struct device *dev, bool is_rx,
 			      struct pdma_dsct_reg **dsct_inst)
 {
 	const struct npcm_i3c_config *config = dev->config;
 
-	if (is_read) {
+	if (is_rx) {
 		*dsct_inst = (struct pdma_dsct_reg *)config->pdma_rx;
 	} else {
 		*dsct_inst = (struct pdma_dsct_reg *)config->pdma_tx;
@@ -592,29 +614,15 @@ static int npcm_i3c_ctrl_wait_completion(const struct device *dev)
 	return k_sem_take(&data->sync_sem, I3C_TRANS_TIMEOUT_MS);
 }
 
-static enum npcm_i3c_oper_state get_oper_state(const struct device *dev)
-{
-	struct npcm_i3c_data *const data = dev->data;
-
-	return data->oper_state;
-}
-
-static void set_oper_state(const struct device *dev, enum npcm_i3c_oper_state state)
-{
-	struct npcm_i3c_data *const data = dev->data;
-
-	data->oper_state = state;
-}
-
-static int npcm_i3c_pdma_wait_completion(const struct device *dev, bool is_read)
+static int npcm_i3c_pdma_wait_completion(const struct device *dev, bool is_rx)
 {
 	struct pdma_reg *pdma_inst;
 	struct pdma_dsct_reg *dsct_inst = NULL;
 	uint8_t dsct_idx;
 
-	dsct_idx = npcm_i3c_pdma_dsct(dev, is_read, &dsct_inst);
+	dsct_idx = npcm_i3c_pdma_dsct(dev, is_rx, &dsct_inst);
 	if (dsct_inst == NULL) {
-		LOG_ERR("dsct(%d) not exist", is_read);
+		LOG_ERR("dsct(%d) not exist", dsct_idx);
 		return -EINVAL;
 	}
 
@@ -625,7 +633,7 @@ static int npcm_i3c_pdma_wait_completion(const struct device *dev, bool is_read)
 	}
 
 	/* Check dma transfer done */
-	if (WAIT_FOR(IS_BIT_SET(pdma_inst->PDMA_TDSTS, dsct_idx), NPCM_I3C_CHK_TIMEOUT_US, NULL) ==
+	if (WAIT_FOR(IS_BIT_SET(pdma_inst->PDMA_TDSTS, dsct_idx), I3C_CHK_TIMEOUT_US, NULL) ==
 	    false) {
 		LOG_ERR("Check dma transfer done timed out");
 		return -ETIMEDOUT;
@@ -634,15 +642,15 @@ static int npcm_i3c_pdma_wait_completion(const struct device *dev, bool is_read)
 	return 0;
 }
 
-static int npcm_i3c_pdma_remain_count(const struct device *dev, bool is_read)
+static int npcm_i3c_pdma_remain_count(const struct device *dev, bool is_rx)
 {
 	struct pdma_reg *pdma_inst;
 	struct pdma_dsct_reg *dsct_inst = NULL;
 	uint8_t dsct_idx;
 
-	dsct_idx = npcm_i3c_pdma_dsct(dev, is_read, &dsct_inst);
+	dsct_idx = npcm_i3c_pdma_dsct(dev, is_rx, &dsct_inst);
 	if (dsct_inst == NULL) {
-		LOG_ERR("dsct(%d) not exist", is_read);
+		LOG_ERR("dsct(%d) not exist", is_rx);
 		return -EINVAL;
 	}
 
@@ -659,16 +667,17 @@ static int npcm_i3c_pdma_remain_count(const struct device *dev, bool is_read)
 	}
 }
 
-static int npcm_i3c_pdma_stop(const struct device *dev, bool is_read)
+static int npcm_i3c_pdma_stop(const struct device *dev, bool is_rx)
 {
+	struct npcm_i3c_data *const data = dev->data;
 	struct pdma_dsct_reg *dsct_inst = NULL;
 	struct pdma_reg *pdma_inst;
 	uint8_t dsct_idx;
 	uint32_t key;
 
-	dsct_idx = npcm_i3c_pdma_dsct(dev, is_read, &dsct_inst);
+	dsct_idx = npcm_i3c_pdma_dsct(dev, is_rx, &dsct_inst);
 	if (dsct_inst == NULL) {
-		LOG_ERR("dsct(%d) not exist", is_read);
+		LOG_ERR("dsct(%d) not exist", is_rx);
 		return -EINVAL;
 	}
 
@@ -688,21 +697,25 @@ static int npcm_i3c_pdma_stop(const struct device *dev, bool is_read)
 
 	pdma_inst->PDMA_CHCTL &= ~BIT(dsct_idx);
 
+	/* Clear DMA triggered flag */
+	data->dma_triggered &= ~BIT(dsct_idx);
+
 	irq_unlock(key);
 
 	return 0;
 }
 
-static int npcm_i3c_pdma_start(const struct device *dev, bool is_read)
+static int npcm_i3c_pdma_start(const struct device *dev, bool is_rx)
 {
+	struct npcm_i3c_data *const data = dev->data;
 	struct pdma_dsct_reg *dsct_inst = NULL;
 	struct pdma_reg *pdma_inst;
 	uint8_t dsct_idx;
 	uint32_t key;
 
-	dsct_idx = npcm_i3c_pdma_dsct(dev, is_read, &dsct_inst);
+	dsct_idx = npcm_i3c_pdma_dsct(dev, is_rx, &dsct_inst);
 	if (dsct_inst == NULL) {
-		LOG_ERR("dsct(%d) not exist", is_read);
+		LOG_ERR("dsct(%d) not exist", is_rx);
 		return -EINVAL;
 	}
 
@@ -720,7 +733,11 @@ static int npcm_i3c_pdma_start(const struct device *dev, bool is_read)
 		pdma_inst->PDMA_TDSTS |= BIT(dsct_idx);
 	}
 
+	/* Start PDMA */
 	pdma_inst->PDMA_CHCTL |= BIT(dsct_idx);
+
+	/* Set DMA triggered flag */
+	data->dma_triggered |= BIT(dsct_idx);
 
 	irq_unlock(key);
 
@@ -735,7 +752,7 @@ static int npcm_i3c_pdma_start(const struct device *dev, bool is_read)
  *
  * param[in] dev           Pointer to controller device driver instance.
  * param[in] type          i3c config type
- * param[in] rnw           read or write request.
+ * param[in] is_rx         true=rx or false=tx operation.
  * param[in] buf           Buffer to store data.
  * param[in] buf_sz        Number of bytes to read.
  * param[in] no_ending     True if not to signal end of message.
@@ -743,11 +760,11 @@ static int npcm_i3c_pdma_start(const struct device *dev, bool is_read)
  * return  Successful return 0, or negative if error.
  *
  */
-static int npcm_i3c_pdma_configure(const struct device *dev, enum i3c_config_type type,
-				   bool is_read, uint8_t *buf, uint8_t buf_sz, bool no_ending)
+static int npcm_i3c_pdma_configure(const struct device *dev, enum i3c_config_type type, bool is_rx,
+				   uint8_t *buf, uint8_t buf_sz, bool no_ending)
 {
 	struct i3c_reg *i3c_inst = HAL_INSTANCE(dev);
-	struct npcm_i3c_data *data = dev->data;
+	struct npcm_i3c_data *const data = dev->data;
 	struct pdma_reg *pdma_inst;
 	struct pdma_dsct_reg *dsct_inst = NULL;
 	uint8_t dsct_idx;
@@ -757,16 +774,14 @@ static int npcm_i3c_pdma_configure(const struct device *dev, enum i3c_config_typ
 	uint32_t ctrl;
 	uint32_t key;
 
-	ARG_UNUSED(type);
-
-	/* No data to be transferred */
-	if ((buf == NULL) || (buf_sz == 0)) {
+	/* No data to be transferred or wrong type */
+	if ((buf == NULL) || (buf_sz == 0) || (type == I3C_CONFIG_CUSTOM)) {
 		return 0;
 	}
 
-	dsct_idx = npcm_i3c_pdma_dsct(dev, is_read, &dsct_inst);
+	dsct_idx = npcm_i3c_pdma_dsct(dev, is_rx, &dsct_inst);
 	if (dsct_inst == NULL) {
-		LOG_ERR("dsct(%d) not exist", is_read);
+		LOG_ERR("dsct(%d) not exist", is_rx);
 		return -EINVAL;
 	}
 
@@ -777,7 +792,7 @@ static int npcm_i3c_pdma_configure(const struct device *dev, enum i3c_config_typ
 		return -EINVAL;
 	}
 
-	i3c_mux_id = I3C_NPCM_PDMA_MUX_ID((uint32_t)i3c_inst, is_read);
+	i3c_mux_id = I3C_NPCM_PDMA_MUX_ID((uint32_t)i3c_inst, is_rx);
 
 	key = irq_lock();
 
@@ -786,7 +801,8 @@ static int npcm_i3c_pdma_configure(const struct device *dev, enum i3c_config_typ
 			   NPCM_PDMA_REQSEL_CHANNEL(dsct_idx % NPCM_PDMA_CHANNEL_PER_REQ),
 			   i3c_mux_id);
 
-	/* PDMA support scatter-gather and basic mode, we use scatter-gather mode
+	/*
+	 * PDMA support scatter-gather and basic mode, we use scatter-gather mode
 	 * as default mode.
 	 */
 	ctrl = 0;
@@ -795,12 +811,14 @@ static int npcm_i3c_pdma_configure(const struct device *dev, enum i3c_config_typ
 	dsct_inst->CTL = NPCM_PDMA_DSCT_CTL_OPMODE_SGM;
 	dsct_inst->SA = 0x0;
 	dsct_inst->DA = 0x0;
-	dsct_inst->NEXT = (uint32_t)&data->dsct_sg[0];
+	dsct_inst->NEXT = (is_rx) ? ((uint32_t)&data->dsct_sg[0]) & 0xFFFF
+				  : ((uint32_t)&data->dsct_sg[2]) & 0xFFFF;
 
 	/* Configure scatter-gather table base MSB address. */
-	pdma_inst->PDMA_SCATBA = (uint32_t)&data->dsct_sg[0];
+	pdma_inst->PDMA_SCATBA = (is_rx) ? ((uint32_t)&data->dsct_sg[0]) & 0xFFFF0000
+					 : ((uint32_t)&data->dsct_sg[2]) & 0xFFFF0000;
 
-	/* set 8 bits transfer width */
+	/* Set 8 bits transfer width */
 	NPCM_SET_REG_FIELD(ctrl, NPCM_PDMA_DSCT_CTL_TXWIDTH, NPCM_PDMA_DSCT_CTL_TX_WIDTH_8);
 
 	/* Set DMA single request type */
@@ -809,30 +827,39 @@ static int npcm_i3c_pdma_configure(const struct device *dev, enum i3c_config_typ
 	/* Set mode as basic means the last descriptor */
 	NPCM_SET_REG_FIELD(ctrl, NPCM_PDMA_DSCT_CTL_OPMODE, NPCM_PDMA_DSCT_CTL_OPMODE_BASIC);
 
-	/* For read DMA, fixed src address.
-	 * For write DMA, fixed dst address
+	/*
+	 * For read DMA, fixed src address.
+	 * For write DMA, fixed dst address.
 	 */
-	if (is_read) {
+	if (is_rx) {
 		/* Set transfer size, TXCNT + 1 */
 		NPCM_SET_REG_FIELD(ctrl, NPCM_PDMA_DSCT_CTL_TXCNT, (buf_sz - 1));
 		NPCM_SET_REG_FIELD(ctrl, NPCM_PDMA_DSCT_CTL_SAINC, NPCM_PDMA_DSCT_CTL_SAINC_FIX);
 		NPCM_SET_REG_FIELD(ctrl, NPCM_PDMA_DSCT_CTL_DAINC, 0x0);
 
-		src_addr = (uint32_t)&i3c_inst->MRDATAB;
+		/* Set source address */
+		src_addr = (type == I3C_CONFIG_CONTROLLER) ? (uint32_t)&i3c_inst->MRDATAB
+							   : (uint32_t)&i3c_inst->RDATAB;
+
+		/* Fixed destination address */
 		dst_addr = (uint32_t)&buf[0];
 	} else {
 		NPCM_SET_REG_FIELD(ctrl, NPCM_PDMA_DSCT_CTL_DAINC, NPCM_PDMA_DSCT_CTL_DAINC_FIX);
 		NPCM_SET_REG_FIELD(ctrl, NPCM_PDMA_DSCT_CTL_SAINC, 0x0);
 
+		/* Fixed source address */
 		src_addr = (uint32_t)&buf[0];
 
 		/* Set transfer size, TXCNT + 1 */
 		NPCM_SET_REG_FIELD(ctrl, NPCM_PDMA_DSCT_CTL_TXCNT, (buf_sz - 1));
 
+		/* Set destination address */
 		if (no_ending) {
-			dst_addr = (uint32_t)&i3c_inst->MWDATAB1;
+			dst_addr = (type == I3C_CONFIG_CONTROLLER) ? (uint32_t)&i3c_inst->MWDATAB1
+								   : (uint32_t)&i3c_inst->WDATAB1;
 		} else if (buf_sz > 1) {
-			/* In this case need use second descriptor table, re-configure
+			/*
+			 * In this case need use second descriptor table, re-configure
 			 * first descriptor SGM and (tx_length - 2), the last byte use
 			 * second decriptor table.
 			 */
@@ -840,38 +867,43 @@ static int npcm_i3c_pdma_configure(const struct device *dev, enum i3c_config_typ
 					   NPCM_PDMA_DSCT_CTL_OPMODE_SGM);
 			NPCM_SET_REG_FIELD(ctrl, NPCM_PDMA_DSCT_CTL_TXCNT, (buf_sz - 2));
 
-			dst_addr = (uint32_t)&i3c_inst->MWDATAB1;
+			dst_addr = (type == I3C_CONFIG_CONTROLLER) ? (uint32_t)&i3c_inst->MWDATAB1
+								   : (uint32_t)&i3c_inst->WDATAB1;
 		} else {
-			dst_addr = (uint32_t)&i3c_inst->MWDATABE;
+			dst_addr = (type == I3C_CONFIG_CONTROLLER) ? (uint32_t)&i3c_inst->MWDATABE
+								   : (uint32_t)&i3c_inst->WDATABE;
 		}
 	}
 
-	memset(&data->dsct_sg, 0x0, sizeof(data->dsct_sg));
-
 	/* Set next descriptor */
-	dsct_inst->NEXT = (uint32_t)&data->dsct_sg[0];
+	if (is_rx) {
+		data->dsct_sg[0].CTL = ctrl;
+		data->dsct_sg[0].SA = src_addr;
+		data->dsct_sg[0].DA = dst_addr;
+		data->dsct_sg[0].NEXT = 0x0;
+	} else {
+		data->dsct_sg[2].CTL = ctrl;
+		data->dsct_sg[2].SA = src_addr;
+		data->dsct_sg[2].DA = dst_addr;
+		data->dsct_sg[2].NEXT = 0x0;
 
-	data->dsct_sg[0].CTL = ctrl;
-	data->dsct_sg[0].SA = src_addr;
-	data->dsct_sg[0].DA = dst_addr;
-	data->dsct_sg[0].NEXT = 0x0;
-
-	if (!is_read) {
 		/* If first descriptor use scatter-gather mode */
-		if (NPCM_GET_REG_FIELD(data->dsct_sg[0].CTL, NPCM_PDMA_DSCT_CTL_OPMODE) ==
+		if (NPCM_GET_REG_FIELD(data->dsct_sg[2].CTL, NPCM_PDMA_DSCT_CTL_OPMODE) ==
 		    NPCM_PDMA_DSCT_CTL_OPMODE_SGM) {
 			/* Configure next descriptor. */
-			data->dsct_sg[0].NEXT = (uint32_t)&data->dsct_sg[1];
+			data->dsct_sg[2].NEXT = (uint32_t)&data->dsct_sg[3];
 
 			/* Set basic mode for last descriptor */
 			NPCM_SET_REG_FIELD(ctrl, NPCM_PDMA_DSCT_CTL_OPMODE,
 					   NPCM_PDMA_DSCT_CTL_OPMODE_BASIC);
 			NPCM_SET_REG_FIELD(ctrl, NPCM_PDMA_DSCT_CTL_TXCNT, 0x0);
 
-			data->dsct_sg[1].CTL = ctrl;
-			data->dsct_sg[1].SA = (uint32_t)&buf[buf_sz - 1];
-			data->dsct_sg[1].DA = (uint32_t)&i3c_inst->MWDATABE;
-			data->dsct_sg[1].NEXT = 0x0;
+			data->dsct_sg[3].CTL = ctrl;
+			data->dsct_sg[3].SA = (uint32_t)&buf[buf_sz - 1];
+			data->dsct_sg[3].DA = (type == I3C_CONFIG_CONTROLLER)
+						      ? (uint32_t)&i3c_inst->MWDATABE
+						      : (uint32_t)&i3c_inst->WDATABE;
+			data->dsct_sg[3].NEXT = 0x0;
 		}
 	}
 
@@ -880,62 +912,217 @@ static int npcm_i3c_pdma_configure(const struct device *dev, enum i3c_config_typ
 	return 0;
 }
 
-static int npcm_i3c_do_request_dma(const struct device *dev, bool is_read, uint8_t *buf,
-				   size_t buf_sz, bool no_ending, bool lock)
+static uint8_t npcm_i3c_pdma_get_index(const struct device *dev, bool is_rx)
 {
-	uint32_t key;
-	int ret;
+	struct pdma_dsct_reg *dsct_inst = NULL;
+	uint8_t dsct_idx;
 
-	/* Configure PDMA */
-	ret = npcm_i3c_pdma_configure(dev, I3C_CONFIG_TARGET, is_read, buf, buf_sz, no_ending);
-	if (ret != 0) {
-		goto out_dma;
+	dsct_idx = npcm_i3c_pdma_dsct(dev, is_rx, &dsct_inst);
+	if (dsct_inst == NULL) {
+		LOG_ERR("dsct(%d) not exist", dsct_idx);
+		return -EINVAL;
 	}
 
-	/* For write operation, disable all interrupts to avoid I3C stall timeout. */
-	if (lock) {
-		key = irq_lock();
+	return dsct_idx;
+}
+
+static int npcm_i3c_controller_dma_on(const struct device *dev, bool is_rx)
+{
+	struct i3c_reg *i3c_inst = HAL_INSTANCE(dev);
+	int ret = 0;
+
+	/* Enable PDMA */
+	ret = npcm_i3c_pdma_start(dev, is_rx);
+	if (ret != 0) {
+		return ret;
+	}
+
+	/* Enable DMA */
+	if (is_rx) {
+		/* Receive */
+		NPCM_SET_REG_FIELD(i3c_inst->MDMACTRL, NPCM_I3C_MDMACTRL_DMAFB,
+				   NPCM_I3C_MDMACTRL_DMAFB_EN_MANUAL);
+	} else {
+		/* Transmit */
+		NPCM_SET_REG_FIELD(i3c_inst->MDMACTRL, NPCM_I3C_MDMACTRL_DMATB,
+				   NPCM_I3C_MDMACTRL_DMATB_EN_MANUAL);
+	}
+
+	return 0;
+}
+
+static int npcm_i3c_controller_dma_off(const struct device *dev, bool is_rx)
+{
+	struct i3c_reg *i3c_inst = HAL_INSTANCE(dev);
+	struct npcm_i3c_data *const data = dev->data;
+	uint8_t dsct_idx = npcm_i3c_pdma_get_index(dev, is_rx);
+	int ret = 0;
+
+	/* Only disable set DMA */
+	if (!(data->dma_triggered & BIT(dsct_idx))) {
+		return ret;
+	}
+
+	/* Disable DMA */
+	if (is_rx) {
+		if (NPCM_GET_REG_FIELD(i3c_inst->MDMACTRL, NPCM_I3C_MDMACTRL_DMAFB) !=
+		    NPCM_I3C_MDMACTRL_DMAFB_DISABLE) {
+			NPCM_SET_REG_FIELD(i3c_inst->MDMACTRL, NPCM_I3C_MDMACTRL_DMAFB,
+					   NPCM_I3C_MDMACTRL_DMAFB_DISABLE);
+		}
+	} else {
+		if (NPCM_GET_REG_FIELD(i3c_inst->MDMACTRL, NPCM_I3C_MDMACTRL_DMATB) !=
+		    NPCM_I3C_MDMACTRL_DMATB_DISABLE) {
+			NPCM_SET_REG_FIELD(i3c_inst->MDMACTRL, NPCM_I3C_MDMACTRL_DMATB,
+					   NPCM_I3C_MDMACTRL_DMATB_DISABLE);
+		}
+	}
+
+	/* Stop PDMA */
+	ret = npcm_i3c_pdma_stop(dev, is_rx);
+
+	/* Flush FIFO */
+	npcm_i3c_controller_fifo_flush(i3c_inst);
+
+	return ret;
+}
+
+static int npcm_i3c_target_dma_on(const struct device *dev, bool is_rx)
+{
+	struct i3c_reg *i3c_inst = HAL_INSTANCE(dev);
+	int ret = 0;
+
+	ret = npcm_i3c_pdma_start(dev, is_rx);
+	if (ret < 0) {
+		return ret;
+	}
+
+	if (is_rx) {
+		NPCM_SET_REG_FIELD(i3c_inst->DMACTRL, NPCM_I3C_DMACTRL_DMAFB,
+				   NPCM_I3C_DMACTRL_DMAFB_EN_MANUAL);
+	} else {
+		NPCM_SET_REG_FIELD(i3c_inst->DMACTRL, NPCM_I3C_DMACTRL_DMATB,
+				   NPCM_I3C_DMACTRL_DMATB_EN_MANUAL);
+	}
+
+	return 0;
+}
+
+static int npcm_i3c_target_dma_off(const struct device *dev, bool is_rx)
+{
+	struct i3c_reg *i3c_inst = HAL_INSTANCE(dev);
+	struct npcm_i3c_data *const data = dev->data;
+	uint8_t dsct_idx = npcm_i3c_pdma_get_index(dev, is_rx);
+	int ret = 0;
+
+	/* Only disable set DMA */
+	if (!(data->dma_triggered & BIT(dsct_idx))) {
+		return ret;
+	}
+
+	/* Disable DMA */
+	if (is_rx) {
+		/* Receive */
+		if (NPCM_GET_REG_FIELD(i3c_inst->DMACTRL, NPCM_I3C_DMACTRL_DMAFB) !=
+		    NPCM_I3C_DMACTRL_DMAFB_DISABLE) {
+			NPCM_SET_REG_FIELD(i3c_inst->DMACTRL, NPCM_I3C_DMACTRL_DMAFB,
+					   NPCM_I3C_DMACTRL_DMAFB_DISABLE);
+		}
+	} else {
+		/* Transmit */
+		if (NPCM_GET_REG_FIELD(i3c_inst->DMACTRL, NPCM_I3C_DMACTRL_DMATB) !=
+		    NPCM_I3C_DMACTRL_DMATB_DISABLE) {
+			NPCM_SET_REG_FIELD(i3c_inst->DMACTRL, NPCM_I3C_DMACTRL_DMATB,
+					   NPCM_I3C_DMACTRL_DMATB_DISABLE);
+		}
+	}
+
+	/* Stop PDMA */
+	ret = npcm_i3c_pdma_stop(dev, is_rx);
+
+	/* Flush FIFO */
+	if (is_rx) {
+		npcm_i3c_target_rx_fifo_flush(i3c_inst);
+	} else {
+		npcm_i3c_target_tx_fifo_flush(i3c_inst);
+	}
+
+	return ret;
+}
+
+/*
+ * brief:  Perform I3C target DMA transaction.
+ *
+ * This function performs I3C target DMA transaction for read or write.
+ *
+ * param[in] dev       Pointer to controller device driver instance.
+ * param[in] is_rx     true=rx or false=tx operation.
+ * param[in] buf       Buffer containing data to be sent or received.
+ *                     The caller must ensure that the buffer is valid until the
+ *                     transaction is completed.
+ * param[in] buf_sz    Number of bytes in buf to send or receive.
+ * param[in] no_ending True if not to signal end of message.
+ *
+ * return  Number of bytes transferred, or negative if error.
+ *
+ */
+static int npcm_i3c_target_do_request_dma(const struct device *dev, bool is_rx, uint8_t *buf,
+					  size_t buf_sz, bool no_ending)
+{
+	int ret;
+
+	/* Stop PDMA */
+	npcm_i3c_target_dma_off(dev, is_rx);
+
+	/* Configure PDMA */
+	ret = npcm_i3c_pdma_configure(dev, I3C_CONFIG_TARGET, is_rx, buf, buf_sz, no_ending);
+	if (ret != 0) {
+		goto err_out;
 	}
 
 	/* Enable PDMA */
-	ret = npcm_i3c_pdma_start(dev, is_read);
-
-	/* Enable interrupts */
-	if (lock) {
-		irq_unlock(key);
+	if (npcm_i3c_target_dma_on(dev, is_rx) < 0) {
+		ret = -EIO;
+		goto err_out;
 	}
 
-out_dma:
-	g_rx_cnt = buf_sz;
+	/* Check remian data count */
+	ret = npcm_i3c_pdma_remain_count(dev, is_rx);
+	if (ret >= 0) {
+		return (buf_sz - ret);
+	}
+
+err_out:
+	npcm_i3c_target_dma_off(dev, is_rx);
+
 	return ret;
 }
 
 static int npcm_i3c_ctlr_xfer_read_fifo_dma(const struct device *dev, uint8_t addr,
 					    enum npcm_i3c_mctrl_type op_type, uint8_t *buf,
-					    size_t buf_sz, bool is_read, bool emit_start,
+					    size_t buf_sz, bool is_rx, bool emit_start,
 					    bool emit_stop, bool no_ending)
 {
 	struct i3c_reg *i3c_inst = HAL_INSTANCE(dev);
 	int ret;
+
+	/* Stop PDMA */
+	npcm_i3c_target_dma_off(dev, true);
 
 	ret = npcm_i3c_pdma_configure(dev, I3C_CONFIG_CONTROLLER, true, buf, buf_sz, no_ending);
 	if (ret) {
 		return ret;
 	}
 
-	/* Enable PDMA before emit start */
-	ret = npcm_i3c_pdma_start(dev, true);
+	/* Enable DMA until DMA is disabled by setting DMAFB to 00 */
+	ret = npcm_i3c_controller_dma_on(dev, true);
 	if (ret) {
 		goto out_read_fifo_dma;
 	}
 
-	/* Enable DMA until DMA is disabled by setting DMAFB to 00 */
-	NPCM_SET_REG_FIELD(i3c_inst->MDMACTRL, NPCM_I3C_MDMACTRL_DMAFB,
-			   NPCM_I3C_MDMACTRL_DMAFB_EN_MANUAL);
-
 	/* Emit START if needed */
 	if (emit_start) {
-		ret = npcm_i3c_request_emit_start(i3c_inst, addr, op_type, is_read, buf_sz);
+		ret = npcm_i3c_request_emit_start(i3c_inst, addr, op_type, is_rx, buf_sz);
 		if (ret != 0) {
 			goto out_read_fifo_dma;
 		}
@@ -958,14 +1145,7 @@ static int npcm_i3c_ctlr_xfer_read_fifo_dma(const struct device *dev, uint8_t ad
 	}
 
 out_read_fifo_dma:
-	/* Disable DMA */
-	if (NPCM_GET_REG_FIELD(i3c_inst->MDMACTRL, NPCM_I3C_MDMACTRL_DMAFB) !=
-	    NPCM_I3C_MDMACTRL_DMAFB_DISABLE) {
-		NPCM_SET_REG_FIELD(i3c_inst->MDMACTRL, NPCM_I3C_MDMACTRL_DMAFB,
-				   NPCM_I3C_MDMACTRL_DMAFB_DISABLE);
-	}
-
-	if (npcm_i3c_pdma_stop(dev, true)) {
+	if (npcm_i3c_controller_dma_off(dev, true) < 0) {
 		ret = -EIO;
 	}
 
@@ -986,7 +1166,7 @@ out_read_fifo_dma:
 
 static int npcm_i3c_ctlr_xfer_write_fifo_dma(const struct device *dev, uint8_t addr,
 					     enum npcm_i3c_mctrl_type op_type, uint8_t *buf,
-					     size_t buf_sz, bool is_read, bool emit_start,
+					     size_t buf_sz, bool is_rx, bool emit_start,
 					     bool emit_stop, bool no_ending)
 {
 	struct i3c_reg *i3c_inst = HAL_INSTANCE(dev);
@@ -998,14 +1178,15 @@ static int npcm_i3c_ctlr_xfer_write_fifo_dma(const struct device *dev, uint8_t a
 		return ret;
 	}
 
-	/* For write operation, we enable dma after emit start. Disable all interrupts
+	/*
+	 * For write operation, we enable dma after emit start. Disable all interrupts
 	 * to avoid i3c stall timeout.
 	 */
 	key = irq_lock();
 
 	/* Emit START if needed */
 	if (emit_start) {
-		ret = npcm_i3c_request_emit_start(i3c_inst, addr, op_type, is_read, buf_sz);
+		ret = npcm_i3c_request_emit_start(i3c_inst, addr, op_type, is_rx, buf_sz);
 		if (ret != 0) {
 			irq_unlock(key);
 			return ret;
@@ -1013,15 +1194,11 @@ static int npcm_i3c_ctlr_xfer_write_fifo_dma(const struct device *dev, uint8_t a
 	}
 
 	/* Enable PDMA after emit start */
-	ret = npcm_i3c_pdma_start(dev, false);
+	ret = npcm_i3c_controller_dma_on(dev, false);
 	if (ret) {
 		irq_unlock(key);
 		goto out_write_fifo_dma;
 	}
-
-	/* Enable DMA until DMA is disabled by setting DMATB to 00 */
-	NPCM_SET_REG_FIELD(i3c_inst->MDMACTRL, NPCM_I3C_MDMACTRL_DMATB,
-			   NPCM_I3C_MDMACTRL_DMATB_EN_MANUAL);
 
 	/* Enable interrupts */
 	irq_unlock(key);
@@ -1043,14 +1220,7 @@ static int npcm_i3c_ctlr_xfer_write_fifo_dma(const struct device *dev, uint8_t a
 	}
 
 out_write_fifo_dma:
-	/* Disable DMA */
-	if (NPCM_GET_REG_FIELD(i3c_inst->MDMACTRL, NPCM_I3C_MDMACTRL_DMATB) !=
-	    NPCM_I3C_MDMACTRL_DMATB_DISABLE) {
-		NPCM_SET_REG_FIELD(i3c_inst->MDMACTRL, NPCM_I3C_MDMACTRL_DMATB,
-				   NPCM_I3C_MDMACTRL_DMATB_DISABLE);
-	}
-
-	if (npcm_i3c_pdma_stop(dev, false)) {
+	if (npcm_i3c_controller_dma_off(dev, false) < 0) {
 		ret = -EIO;
 	}
 
@@ -1077,7 +1247,7 @@ out_write_fifo_dma:
  * param[in] op_type     Request type.
  * param[in] buf         Buffer for data to be sent or received.
  * param[in] buf_sz      Buffer size in bytes.
- * param[in] is_read     True if this is a read transaction, false if write.
+ * param[in] is_rx    true=rx or false=tx operation.
  * param[in] emit_start  True if START is needed before read/write.
  * param[in] emit_stop   True if STOP is needed after read/write.
  * param[in] no_ending   True if not to signal end of message.
@@ -1086,7 +1256,7 @@ out_write_fifo_dma:
  */
 static int npcm_i3c_do_one_xfer_dma(const struct device *dev, uint8_t addr,
 				    enum npcm_i3c_mctrl_type op_type, uint8_t *buf, size_t buf_sz,
-				    bool is_read, bool emit_start, bool emit_stop, bool no_ending)
+				    bool is_rx, bool emit_start, bool emit_stop, bool no_ending)
 {
 	struct i3c_reg *i3c_inst = HAL_INSTANCE(dev);
 	int ret = 0;
@@ -1094,16 +1264,16 @@ static int npcm_i3c_do_one_xfer_dma(const struct device *dev, uint8_t addr,
 	npcm_i3c_status_clear_all(i3c_inst);
 	npcm_i3c_errwarn_clear_all(i3c_inst);
 
-	if (is_read) {
-		ret = npcm_i3c_ctlr_xfer_read_fifo_dma(dev, addr, op_type, buf, buf_sz, is_read,
+	if (is_rx) {
+		ret = npcm_i3c_ctlr_xfer_read_fifo_dma(dev, addr, op_type, buf, buf_sz, is_rx,
 						       emit_start, emit_stop, no_ending);
 	} else {
-		ret = npcm_i3c_ctlr_xfer_write_fifo_dma(dev, addr, op_type, buf, buf_sz, is_read,
+		ret = npcm_i3c_ctlr_xfer_write_fifo_dma(dev, addr, op_type, buf, buf_sz, is_rx,
 							emit_start, emit_stop, no_ending);
 	}
 
 	if (ret < 0) {
-		LOG_ERR("%s fifo fail", is_read ? "read" : "write");
+		LOG_ERR("%s fifo fail", is_rx ? "read" : "write");
 		return ret;
 	}
 
@@ -1115,7 +1285,7 @@ static int npcm_i3c_do_one_xfer_dma(const struct device *dev, uint8_t addr,
 
 	if (no_ending) {
 		/* Flush fifo data */
-		npcm_i3c_fifo_flush(i3c_inst);
+		npcm_i3c_controller_fifo_flush(i3c_inst);
 	}
 
 	return ret;
@@ -1123,65 +1293,235 @@ static int npcm_i3c_do_one_xfer_dma(const struct device *dev, uint8_t addr,
 
 /* brief:  Handle the end of transfer (read request or write request).
  *         The ending signal might be either STOP or Sr.
- * return: -EINVAL:
- *              1. operation not read or write request.
- *              2. start or stop flag is not set.
- *         -ETIMEDOUT: in write request, wait for mdma done.
+ * return: -EINVAL: operation not read or write request.
+ *         -ETIMEDOUT: in write request, wait rx fifo empty as pdma done.
  *          0: success
  */
-static int npcm_i3c_target_xfer_end_handle(const struct device *dev)
+static int npcm_i3c_target_xfer_end_handle_dma(const struct device *dev,
+					       enum npcm_i3c_oper_state oper_state)
 {
-	const struct npcm_i3c_config *config = dev->config;
-	struct i3c_reg *inst = config->base;
-	bool is_i3c_start = ((inst->INTMASKED & NPCM_I3C_INTMASKED_START) != 0);
-	bool is_i3c_stop = ((inst->INTMASKED & NPCM_I3C_INTMASKED_STOP) != 0);
-	enum npcm_i3c_oper_state op_state = get_oper_state(dev);
+	struct i3c_reg *i3c_inst = HAL_INSTANCE(dev);
+	struct npcm_i3c_data *const data = dev->data;
+	const struct i3c_target_callbacks *target_cb =
+		(data->target_config != NULL) ? data->target_config->callbacks : NULL;
+	uint8_t len = 0;
+	uint8_t rx_fifo_count;
+	bool is_rx;
 	int ret = 0;
-#ifdef CONFIG_I3C_TARGET_BUFFER_MODE
-	struct npcm_i3c_data *data = dev->data;
-	const struct i3c_target_callbacks *target_cb = data->target_config->callbacks;
-#endif
+	int i;
 
-	/* The end of transfer should be START or STOP */
-	if ((is_i3c_start | is_i3c_stop) == 0) {
-		LOG_ERR("not the end of xfer, is_start: %d, is_stop:%d", is_i3c_start, is_i3c_stop);
-		return -EINVAL;
-	}
+	if (oper_state == I3C_OP_STATE_RD) {
+		is_rx = false;
 
-	if (op_state == NPCM_I3C_OP_STATE_RD) {
-		/* No data to be transferred */
+		/* After STOP, the data in tx fifo is invalid. */
+		data->tx_valid = false;
+
 		goto out_pdma_end;
-	} else if (op_state == NPCM_I3C_OP_STATE_WR) {
-		/* Check pdma is done */
-		ret = npcm_i3c_pdma_wait_completion(dev, false);
-		if (ret != 0) {
-			LOG_ERR("i3c wait dma completion timeout");
-			goto out_pdma_end;
+	} else if (oper_state == I3C_OP_STATE_WR) {
+		is_rx = true;
+
+		/* Wait until rx fifo is stable */
+#define RX_FIFO_EMPTY_TIMEOUT 100
+		len = NPCM_GET_REG_FIELD(i3c_inst->DATACTRL, NPCM_I3C_DATACTRL_RXCOUNT);
+		for (i = 0; i < RX_FIFO_EMPTY_TIMEOUT; i++) {
+			/* For 12.5MHz, [data] + [T] = 0.75us */
+			k_busy_wait(10);
+			rx_fifo_count =
+				NPCM_GET_REG_FIELD(i3c_inst->DATACTRL, NPCM_I3C_DATACTRL_RXCOUNT);
+
+			if (len == rx_fifo_count) {
+				break;
+			} else {
+				len = rx_fifo_count;
+			}
 		}
 
+		if (len) {
+			ret = npcm_i3c_target_do_request_dma(dev, is_rx, data->dma_rx_buf, len,
+							     false);
+			if (ret < 0) {
+				LOG_ERR("DMA write request failed");
+				goto out_pdma_end;
+			}
+
+			ret = npcm_i3c_pdma_wait_completion(dev, is_rx);
+			if (ret) {
+				LOG_ERR("i3c wait dma completion timeout");
+			}
+
 #ifdef CONFIG_I3C_TARGET_BUFFER_MODE
-		if (target_cb && target_cb->buf_write_received_cb) {
-			target_cb->buf_write_received_cb(data->target_config, data->dma_rx_buf,
-							 g_rx_cnt);
-		}
+			if (target_cb && target_cb->buf_write_received_cb) {
+				target_cb->buf_write_received_cb(data->target_config,
+								 data->dma_rx_buf, len);
+			}
 #endif
+		} else {
+			LOG_ERR("rx fifo empty");
+		}
 	} else {
-		LOG_ERR("op_staste error :%d", op_state);
+		LOG_ERR("oper_state error :%d", oper_state);
 		return -EINVAL;
 	}
 
 out_pdma_end:
-	npcm_i3c_pdma_stop(dev, true);
+	npcm_i3c_target_dma_off(dev, is_rx);
 
-	/* Clear DA matched status and re-enable interrupt */
-	inst->STATUS = NPCM_I3C_STATUS_MATCHED;
-	inst->INTSET = NPCM_I3C_INTSET_MATCHED;
+	return ret;
+}
+#else
+static bool npcm_i3c_target_has_error(struct i3c_reg *i3c_inst)
+{
+	if (i3c_inst->STATUS & NPCM_I3C_STATUS_ERRWARN) {
+		LOG_WRN("ERROR: STATUS 0x%08x ERRWARN 0x%08x", i3c_inst->STATUS, i3c_inst->ERRWARN);
 
-	if (is_i3c_start) {
-		set_oper_state(dev, NPCM_I3C_OP_STATE_IDLE);
+		return true;
+	}
+
+	return false;
+}
+
+/* brief:  Handle the end of transfer (read request or write request).
+ *         The ending signal might be either STOP or Sr.
+ * return: -EINVAL: operation not read or write request.
+ *         -ETIMEDOUT: in write request, wait rx fifo empty as pdma done.
+ *          0: success
+ */
+static int npcm_i3c_target_xfer_end_handle(const struct device *dev,
+					   enum npcm_i3c_oper_state oper_state)
+
+{
+	struct i3c_reg *i3c_inst = HAL_INSTANCE(dev);
+	struct npcm_i3c_data *const data = dev->data;
+#ifdef CONFIG_I3C_TARGET_BUFFER_MODE
+	const struct i3c_target_callbacks *target_cb =
+		(data->target_config != NULL) ? data->target_config->callbacks : NULL;
+#endif
+	int ret = 0;
+
+	if (oper_state == I3C_OP_STATE_RD) {
+		/* Set buffer invalid */
+		data->tx_len = 0;
+
+		npcm_i3c_target_tx_fifo_flush(i3c_inst);
+	} else if (oper_state == I3C_OP_STATE_WR) {
+#ifdef CONFIG_I3C_TARGET_BUFFER_MODE
+		if (target_cb && target_cb->buf_write_received_cb) {
+			target_cb->buf_write_received_cb(data->target_config, data->rx_buf,
+							 data->rx_len);
+		}
+
+		npcm_i3c_target_rx_fifo_flush(i3c_inst);
+#endif
 	}
 
 	return ret;
+}
+
+/*
+ * brief:  Perform one write transaction.
+ *
+ * This writes all data in buf to TX FIFO or time out
+ * waiting for FIFO spaces.
+ *
+ * param[in] i3c_inst   Pointer to controller registers.
+ * param[in] buf        Buffer containing data to be sent.
+ * param[in] buf_sz     Number of bytes in buf to send.
+ * param[in] no_ending  True if not to signal end of message.
+ *
+ * return  Number of bytes written, or negative if error.
+ *
+ */
+static int npcm_i3c_xfer_target_write_fifo(struct i3c_reg *i3c_inst, uint8_t *buf, uint8_t buf_sz,
+					   bool no_ending)
+{
+	int remaining;
+	int offset;
+	int tx_remain;
+	int i;
+
+	/* Set buf_sz - 1 bytes */
+	for (offset = 0, remaining = buf_sz - 1; remaining > 0;
+	     offset += tx_remain, remaining -= tx_remain) {
+		if (WAIT_FOR(NPCM_GET_REG_FIELD(i3c_inst->DATACTRL, NPCM_I3C_DATACTRL_TXCOUNT) <
+				     I3C_FIFO_SIZE,
+			     I3C_CHK_TIMEOUT_US, NULL) == false) {
+			return -ETIMEDOUT;
+		}
+
+		tx_remain = I3C_FIFO_SIZE -
+			    NPCM_GET_REG_FIELD(i3c_inst->DATACTRL, NPCM_I3C_DATACTRL_TXCOUNT);
+		tx_remain = (tx_remain > remaining) ? remaining : tx_remain;
+
+		for (i = 0; i < tx_remain; i++) {
+			i3c_inst->WDATAB = (uint32_t)buf[offset + i];
+		}
+	}
+
+	/* Set last byte */
+	if (no_ending) {
+		i3c_inst->WDATAB = (uint32_t)buf[offset++];
+	} else {
+		i3c_inst->WDATABE = (uint32_t)buf[offset++];
+	}
+
+	return offset;
+}
+
+/*
+ * brief:  Perform read transaction.
+ *
+ * This reads from RX FIFO until COMPLETE bit is set in MSTATUS
+ * or time out.
+ *
+ * param[in] i3c_inst  Pointer to controller registers.
+ * param[in] buf       Buffer to store data.
+ *
+ * return  Number of bytes read, or negative if error.
+ *
+ */
+static int npcm_i3c_xfer_target_read_fifo(struct i3c_reg *i3c_inst, uint8_t *buf)
+{
+	bool is_done = false;
+	int offset = 0;
+
+	while (is_done == false) {
+		/* Check tarnsaction is done */
+		if ((i3c_inst->STATUS & NPCM_I3C_STATUS_STOP) ||
+		    (i3c_inst->STATUS & NPCM_I3C_STATUS_START)) {
+			is_done = true;
+		}
+
+		/* Check message is canceled */
+		if (i3c_inst->STATUS & NPCM_I3C_STATUS_CHANDLED) {
+			is_done = true;
+		}
+
+		/* Check I3C bus error */
+		if (npcm_i3c_target_has_error(i3c_inst)) {
+			/* Check timeout */
+			if (i3c_inst->ERRWARN & NPCM_I3C_ERRWARN_TERM) {
+				LOG_WRN("ERR: terminated");
+			}
+
+			i3c_inst->ERRWARN = i3c_inst->ERRWARN;
+
+			return -EIO;
+		}
+
+		/* Check rx not empty */
+		if (i3c_inst->STATUS & NPCM_I3C_STATUS_RXPEND) {
+			/*
+			 * Receive all the data in this round.
+			 * Read in a tight loop to reduce chance of losing
+			 * FIFO data when the i3c speed is high.
+			 */
+			while (NPCM_GET_REG_FIELD(i3c_inst->DATACTRL, NPCM_I3C_DATACTRL_RXCOUNT)) {
+				buf[offset++] = (uint8_t)i3c_inst->RDATAB;
+			}
+		}
+	}
+
+	return offset;
 }
 #endif /* End of CONFIG_I3C_NPCM_DMA */
 
@@ -1193,7 +1533,7 @@ out_pdma_end:
  * param[in] op_type     Request type.
  * param[in] buf         Buffer for data to be sent or received.
  * param[in] buf_sz      Buffer size in bytes.
- * param[in] is_read     True if this is a read transaction, false if write.
+ * param[in] is_rx       true=rx or false=tx operation.
  * param[in] emit_start  True if START is needed before read/write.
  * param[in] emit_stop   True if STOP is needed after read/write.
  * param[in] no_ending   True if not to signal end of write message.
@@ -1202,7 +1542,7 @@ out_pdma_end:
  */
 static int npcm_i3c_do_one_xfer(const struct device *dev, uint8_t addr,
 				enum npcm_i3c_mctrl_type op_type, uint8_t *buf, size_t buf_sz,
-				bool is_read, bool emit_start, bool emit_stop, bool no_ending)
+				bool is_rx, bool emit_start, bool emit_stop, bool no_ending)
 {
 	struct i3c_reg *i3c_inst = HAL_INSTANCE(dev);
 	int ret = 0;
@@ -1212,7 +1552,7 @@ static int npcm_i3c_do_one_xfer(const struct device *dev, uint8_t addr,
 
 	/* Emit START if needed */
 	if (emit_start) {
-		ret = npcm_i3c_request_emit_start(i3c_inst, addr, op_type, is_read, buf_sz);
+		ret = npcm_i3c_request_emit_start(i3c_inst, addr, op_type, is_rx, buf_sz);
 		if (ret != 0) {
 			goto out_do_one_xfer;
 		}
@@ -1224,23 +1564,23 @@ static int npcm_i3c_do_one_xfer(const struct device *dev, uint8_t addr,
 	}
 
 	/* Select read or write operation */
-	if (is_read) {
+	if (is_rx) {
 		ret = npcm_i3c_xfer_read_fifo(i3c_inst, buf, buf_sz);
 	} else {
 		ret = npcm_i3c_xfer_write_fifo(i3c_inst, buf, buf_sz, no_ending);
 	}
 
 	if (ret < 0) {
-		LOG_ERR("%s fifo fail", is_read ? "read" : "write");
+		LOG_ERR("%s fifo fail", is_rx ? "read" : "write");
 		goto out_do_one_xfer;
 	}
 
 	/* Check message complete if is a read transaction or
 	 * ending byte of a write transaction.
 	 */
-	if (is_read || !no_ending) {
+	if (is_rx || !no_ending) {
 		/* Wait message transfer complete */
-		if (WAIT_FOR(i3c_inst->MSTATUS & NPCM_I3C_MSTATUS_COMPLETE, NPCM_I3C_CHK_TIMEOUT_US,
+		if (WAIT_FOR(i3c_inst->MSTATUS & NPCM_I3C_MSTATUS_COMPLETE, I3C_CHK_TIMEOUT_US,
 			     NULL) == false) {
 			LOG_ERR("timed out addr 0x%02x, buf_sz %u", addr, buf_sz);
 
@@ -1301,7 +1641,7 @@ static int npcm_i3c_transfer(const struct device *dev, struct i3c_device_desc *t
 
 	/* Check bus in idle state */
 	if (WAIT_FOR((npcm_i3c_state_get(i3c_inst) == NPCM_I3C_MSTATUS_STATE_IDLE),
-		     NPCM_I3C_CHK_TIMEOUT_US, NULL) == false) {
+		     I3C_CHK_TIMEOUT_US, NULL) == false) {
 		LOG_ERR("xfer state error: %d", npcm_i3c_state_get(i3c_inst));
 		npcm_i3c_mutex_unlock(dev);
 		return -ETIMEDOUT;
@@ -1315,8 +1655,7 @@ static int npcm_i3c_transfer(const struct device *dev, struct i3c_device_desc *t
 
 	/* Iterate over all the messages */
 	for (int i = 0; i < num_msgs; i++) {
-
-		bool is_read = (msgs[i].flags & I3C_MSG_RW_MASK) == I3C_MSG_READ;
+		bool is_rx = (msgs[i].flags & I3C_MSG_RW_MASK) == I3C_MSG_READ;
 		bool no_ending = false;
 
 		/*
@@ -1336,7 +1675,7 @@ static int npcm_i3c_transfer(const struct device *dev, struct i3c_device_desc *t
 		 * message to be the last byte of a series of write mssages.
 		 * If not, tell the write function not to treat it that way.
 		 */
-		if (!is_read && !emit_stop && ((i + 1) != num_msgs)) {
+		if (!is_rx && !emit_stop && ((i + 1) != num_msgs)) {
 			bool next_is_write = (msgs[i + 1].flags & I3C_MSG_RW_MASK) == I3C_MSG_WRITE;
 			bool next_is_restart =
 				((msgs[i + 1].flags & I3C_MSG_RESTART) == I3C_MSG_RESTART);
@@ -1357,7 +1696,7 @@ static int npcm_i3c_transfer(const struct device *dev, struct i3c_device_desc *t
 		 */
 		if (!(msgs[i].flags & I3C_MSG_NBCH) && (send_broadcast)) {
 			ret = npcm_i3c_request_emit_start(i3c_inst, I3C_BROADCAST_ADDR,
-							  NPCM_I3C_MCTRL_TYPE_I3C, false, 0);
+							  I3C_MCTRL_TYPE_I3C, false, 0);
 			if (ret < 0) {
 				LOG_ERR("emit start of broadcast addr failed, error (%d)", ret);
 				break;
@@ -1367,13 +1706,13 @@ static int npcm_i3c_transfer(const struct device *dev, struct i3c_device_desc *t
 
 #ifdef CONFIG_I3C_NPCM_DMA
 		/* Do transfer with target device */
-		xfered_len = npcm_i3c_do_one_xfer_dma(
-			dev, target->dynamic_addr, NPCM_I3C_MCTRL_TYPE_I3C, msgs[i].buf,
-			msgs[i].len, is_read, emit_start, emit_stop, no_ending);
+		xfered_len = npcm_i3c_do_one_xfer_dma(dev, target->dynamic_addr, I3C_MCTRL_TYPE_I3C,
+						      msgs[i].buf, msgs[i].len, is_rx, emit_start,
+						      emit_stop, no_ending);
 #else
-		xfered_len = npcm_i3c_do_one_xfer(dev, target->dynamic_addr,
-						  NPCM_I3C_MCTRL_TYPE_I3C, msgs[i].buf, msgs[i].len,
-						  is_read, emit_start, emit_stop, no_ending);
+		xfered_len = npcm_i3c_do_one_xfer(dev, target->dynamic_addr, I3C_MCTRL_TYPE_I3C,
+						  msgs[i].buf, msgs[i].len, is_rx, emit_start,
+						  emit_stop, no_ending);
 #endif
 		if (xfered_len < 0) {
 			LOG_ERR("do xfer fail");
@@ -1406,7 +1745,6 @@ static int npcm_i3c_transfer(const struct device *dev, struct i3c_device_desc *t
 	npcm_i3c_interrupt_enable(i3c_inst, intmask);
 
 	npcm_i3c_mutex_unlock(dev);
-
 	return ret;
 }
 
@@ -1440,7 +1778,7 @@ static int npcm_i3c_do_daa(const struct device *dev)
 
 	/* Check bus in idle state */
 	if (WAIT_FOR((npcm_i3c_state_get(i3c_inst) == NPCM_I3C_MSTATUS_STATE_IDLE),
-		     NPCM_I3C_CHK_TIMEOUT_US, NULL) == false) {
+		     I3C_CHK_TIMEOUT_US, NULL) == false) {
 		LOG_ERR("DAA state error: %d", npcm_i3c_state_get(i3c_inst));
 		npcm_i3c_mutex_unlock(dev);
 		return -ETIMEDOUT;
@@ -1536,6 +1874,9 @@ static int npcm_i3c_do_daa(const struct device *dev)
 			 */
 			if ((target != NULL) && (target->static_addr != 0U) &&
 			    (dyn_addr != target->static_addr)) {
+
+				LOG_DBG("Free static address 0x%02x", target->static_addr);
+
 				i3c_addr_slots_mark_free(&data->common.attached_dev.addr_slots,
 							 dyn_addr);
 			}
@@ -1586,7 +1927,7 @@ out_do_daa:
 	/* Re-Enable I3C IRQ sources. */
 	npcm_i3c_interrupt_enable(i3c_inst, intmask);
 
-	npcm_i3c_fifo_flush(i3c_inst);
+	npcm_i3c_controller_fifo_flush(i3c_inst);
 	npcm_i3c_mutex_unlock(dev);
 
 	return ret;
@@ -1628,8 +1969,8 @@ static int npcm_i3c_do_ccc(const struct device *dev, struct i3c_ccc_payload *pay
 	LOG_DBG("CCC[0x%02x]", payload->ccc.id);
 
 	/* Write emit START and broadcast address (0x7E) */
-	ret = npcm_i3c_request_emit_start(i3c_inst, I3C_BROADCAST_ADDR, NPCM_I3C_MCTRL_TYPE_I3C,
-					  false, 0);
+	ret = npcm_i3c_request_emit_start(i3c_inst, I3C_BROADCAST_ADDR, I3C_MCTRL_TYPE_I3C, false,
+					  0);
 	if (ret < 0) {
 		LOG_ERR("CCC[0x%02x] %s START error (%d)", payload->ccc.id,
 			i3c_ccc_is_payload_broadcast(payload) ? "broadcast" : "direct", ret);
@@ -1670,8 +2011,8 @@ static int npcm_i3c_do_ccc(const struct device *dev, struct i3c_ccc_payload *pay
 	}
 
 	/* Wait message transfer complete */
-	if (WAIT_FOR(i3c_inst->MSTATUS & NPCM_I3C_MSTATUS_COMPLETE, NPCM_I3C_CHK_TIMEOUT_US,
-		     NULL) == false) {
+	if (WAIT_FOR(i3c_inst->MSTATUS & NPCM_I3C_MSTATUS_COMPLETE, I3C_CHK_TIMEOUT_US, NULL) ==
+	    false) {
 		ret = -ETIMEDOUT;
 		LOG_DBG("Check complete timeout");
 		goto out_do_ccc;
@@ -1689,11 +2030,11 @@ static int npcm_i3c_do_ccc(const struct device *dev, struct i3c_ccc_payload *pay
 			struct i3c_ccc_target_payload *tgt_payload =
 				&payload->targets.payloads[idx];
 
-			bool is_read = (tgt_payload->rnw == 1U);
+			bool is_rx = (tgt_payload->rnw == 1U);
 
 			xfered_len = npcm_i3c_do_one_xfer(
-				dev, tgt_payload->addr, NPCM_I3C_MCTRL_TYPE_I3C, tgt_payload->data,
-				tgt_payload->data_len, is_read, true, false, false);
+				dev, tgt_payload->addr, I3C_MCTRL_TYPE_I3C, tgt_payload->data,
+				tgt_payload->data_len, is_rx, true, false, false);
 			if (xfered_len < 0) {
 				LOG_ERR("CCC[0x%02x] target payload error (%d)", payload->ccc.id,
 					ret);
@@ -1731,7 +2072,6 @@ static void npcm_i3c_ibi_work(struct k_work *work)
 	struct i3c_ibi_work *i3c_ibi_work = CONTAINER_OF(work, struct i3c_ibi_work, work);
 	const struct device *dev = i3c_ibi_work->controller;
 	struct npcm_i3c_data *data = dev->data;
-	struct i3c_dev_attached_list *dev_list = &data->common.attached_dev;
 	struct i3c_reg *i3c_inst = HAL_INSTANCE(dev);
 	struct i3c_device_desc *target = NULL;
 	uint32_t ibitype, ibiaddr;
@@ -1752,7 +2092,7 @@ static void npcm_i3c_ibi_work(struct k_work *work)
 	npcm_i3c_request_auto_ibi(i3c_inst);
 
 	/* Wait for target to win address arbitration (ibitype and ibiaddr) */
-	if (WAIT_FOR(i3c_inst->MSTATUS & NPCM_I3C_MSTATUS_IBIWON, NPCM_I3C_CHK_TIMEOUT_US, NULL) ==
+	if (WAIT_FOR(i3c_inst->MSTATUS & NPCM_I3C_MSTATUS_IBIWON, I3C_CHK_TIMEOUT_US, NULL) ==
 	    false) {
 		LOG_ERR("IBI work, IBIWON timeout");
 
@@ -1764,7 +2104,7 @@ static void npcm_i3c_ibi_work(struct k_work *work)
 
 	switch (ibitype) {
 	case NPCM_I3C_MSTATUS_IBITYPE_IBI:
-		target = i3c_dev_list_i3c_addr_find(dev_list, (uint8_t)ibiaddr);
+		target = i3c_dev_list_i3c_addr_find(dev, (uint8_t)ibiaddr);
 		if (target != NULL) {
 			ret = npcm_i3c_xfer_read_fifo(i3c_inst, &payload[0], sizeof(payload));
 			if (ret >= 0) {
@@ -1841,7 +2181,7 @@ out_ibi_work:
 	k_sem_give(&data->ibi_lock_sem);
 
 	/* Re-enable target initiated IBI interrupt. */
-	i3c_inst->MINTSET = NPCM_I3C_MINTSET_TGTSTART;
+	i3c_inst->MINTSET = NPCM_I3C_MINTSET_SLVSTART;
 }
 
 /* Set local IBI information to IBIRULES register */
@@ -1880,8 +2220,6 @@ static void npcm_i3c_ibi_rules_setup(struct npcm_i3c_data *data, struct i3c_reg 
 
 	/* Update the register */
 	i3c_inst->IBIRULES = ibi_rules;
-
-	LOG_DBG("MIBIRULES 0x%08x", ibi_rules);
 }
 
 static int npcm_i3c_ibi_enable(const struct device *dev, struct i3c_device_desc *target)
@@ -1914,9 +2252,7 @@ static int npcm_i3c_ibi_enable(const struct device *dev, struct i3c_device_desc 
 	}
 
 	/* Disable controller interrupt while we configure IBI rules. */
-	i3c_inst->MINTCLR = NPCM_I3C_MINTCLR_TGTSTART;
-
-	LOG_DBG("IBI enabling for 0x%02x (BCR 0x%02x)", target->dynamic_addr, target->bcr);
+	i3c_inst->MINTCLR = NPCM_I3C_MINTCLR_SLVSTART;
 
 	/* Check addess(7-bit) MSB enable */
 	msb = (target->dynamic_addr & BIT(6)) == BIT(6);
@@ -1988,7 +2324,7 @@ out_ibi_enable:
 		 * enable controller to raise interrupt when a target
 		 * initiates IBI.
 		 */
-		i3c_inst->MINTSET = NPCM_I3C_MINTSET_TGTSTART;
+		i3c_inst->MINTSET = NPCM_I3C_MINTSET_SLVSTART;
 	}
 
 	return ret;
@@ -2019,7 +2355,7 @@ static int npcm_i3c_ibi_disable(const struct device *dev, struct i3c_device_desc
 	}
 
 	/* Disable controller interrupt while we configure IBI rules. */
-	i3c_inst->MINTCLR = NPCM_I3C_MINTCLR_TGTSTART;
+	i3c_inst->MINTCLR = NPCM_I3C_MINTCLR_SLVSTART;
 
 	/* Clear the ibi rule data */
 	data->ibi.addr[idx] = 0U;
@@ -2039,7 +2375,7 @@ static int npcm_i3c_ibi_disable(const struct device *dev, struct i3c_device_desc
 		 * Enable controller to raise interrupt when a target
 		 * initiates IBI.
 		 */
-		i3c_inst->MINTSET = NPCM_I3C_MINTSET_TGTSTART;
+		i3c_inst->MINTSET = NPCM_I3C_MINTSET_SLVSTART;
 	}
 
 	return ret;
@@ -2049,7 +2385,6 @@ static int npcm_i3c_target_ibi_raise(const struct device *dev, struct i3c_ibi *r
 {
 	struct i3c_reg *i3c_inst = HAL_INSTANCE(dev);
 	struct npcm_i3c_data *data = dev->data;
-	int index;
 
 	/* The request or the payload were not specific */
 	if ((request == NULL) || ((request->payload_len) && (request->payload == NULL))) {
@@ -2073,24 +2408,39 @@ static int npcm_i3c_target_ibi_raise(const struct device *dev, struct i3c_ibi *r
 			return -EINVAL;
 		}
 
+		/* The payload length is too long */
+		if (request->payload_len > I3C_IBI_MAX_PAYLOAD_SIZE) {
+			LOG_ERR("IBI payload too long, use dma instead");
+			return -EINVAL;
+		}
+
 		k_sem_take(&data->target_event_lock_sem, K_FOREVER);
-		set_oper_state(dev, NPCM_I3C_OP_STATE_IBI);
+		set_oper_state(dev, I3C_OP_STATE_IBI);
 
 		/* Mandatory data byte */
 		NPCM_SET_REG_FIELD(i3c_inst->CTRL, NPCM_I3C_CTRL_IBIDATA, request->payload[0]);
 
 		/* Extended data */
 		if (request->payload_len > 1) {
-			if (request->payload_len <= 32) {
-				for (index = 1; index < (request->payload_len - 1); index++) {
-					i3c_inst->WDATAB = request->payload[index];
-				}
+#ifdef CONFIG_I3C_NPCM_DMA
+			int ret;
 
-				i3c_inst->WDATABE = request->payload[index];
-			} else {
-				/* transfer data from MDMA */
+			ret = npcm_i3c_target_do_request_dma(dev, false, &request->payload[1],
+							     request->payload_len - 1, false);
+			if (ret < 0) {
+				LOG_ERR("DMA write request failed");
+				return -EIO;
+			}
+#else
+			int index;
+
+			/* For transaction > 16 bytes, use dma to avoid bus underrun. */
+			for (index = 1; index < (request->payload_len - 1); index++) {
+				i3c_inst->WDATAB = request->payload[index];
 			}
 
+			i3c_inst->WDATABE = request->payload[index];
+#endif
 			NPCM_SET_REG_FIELD(i3c_inst->IBIEXT1, NPCM_I3C_IBIEXT1_CNT, 0);
 			i3c_inst->CTRL |= NPCM_I3C_CTRL_EXTDATA;
 		}
@@ -2113,7 +2463,7 @@ static int npcm_i3c_target_ibi_raise(const struct device *dev, struct i3c_ibi *r
 		}
 
 		k_sem_take(&data->target_event_lock_sem, K_FOREVER);
-		set_oper_state(dev, NPCM_I3C_OP_STATE_IBI);
+		set_oper_state(dev, I3C_OP_STATE_IBI);
 
 		NPCM_SET_REG_FIELD(i3c_inst->CTRL, NPCM_I3C_CTRL_EVENT,
 				   NPCM_I3C_CTRL_EVENT_CNTLR_REQ);
@@ -2125,7 +2475,7 @@ static int npcm_i3c_target_ibi_raise(const struct device *dev, struct i3c_ibi *r
 		}
 
 		k_sem_take(&data->target_event_lock_sem, K_FOREVER);
-		set_oper_state(dev, NPCM_I3C_OP_STATE_IBI);
+		set_oper_state(dev, I3C_OP_STATE_IBI);
 
 		i3c_inst->CONFIG &= ~NPCM_I3C_CONFIG_SLVENA;
 		NPCM_SET_REG_FIELD(i3c_inst->CTRL, NPCM_I3C_CTRL_EVENT, NPCM_I3C_CTRL_EVENT_HJ);
@@ -2140,153 +2490,276 @@ static int npcm_i3c_target_ibi_raise(const struct device *dev, struct i3c_ibi *r
 }
 #endif /* CONFIG_I3C_USE_IBI */
 
+static inline int npcm_i3c_target_MATCHED_handler(const struct device *dev)
+{
+	struct i3c_reg *i3c_inst = HAL_INSTANCE(dev);
+	struct npcm_i3c_data *data = dev->data;
+	const struct i3c_target_callbacks *target_cb =
+		(data->target_config != NULL) ? data->target_config->callbacks : NULL;
+	enum npcm_i3c_oper_state oper_state = get_oper_state(dev);
+	int ret = 0;
+	uint32_t int_status = i3c_inst->STATUS;
+
+#ifdef CONFIG_I3C_NPCM_DMA
+	if (oper_state != I3C_OP_STATE_IBI) {
+		/* The current bus request is an SDR mode read or write */
+		if (int_status & NPCM_I3C_STATUS_STREQRD) {
+			/* SDR read request */
+			set_oper_state(dev, I3C_OP_STATE_RD);
+			ret = 1;
+
+			/*
+			 * It will be too late to enable pdma here, use target_tx_write() to
+			 * write tx data into fifo before controller send read request.
+			 */
+#if CONFIG_I3C_TARGET_BUFFER_MODE
+			/* Emit read request callback */
+			if ((target_cb != NULL) && (target_cb->buf_read_requested_cb != NULL)) {
+				target_cb->buf_read_requested_cb(data->target_config, NULL, NULL,
+								 NULL);
+			}
+#endif
+		} else if (int_status & NPCM_I3C_STATUS_STREQWR) {
+			/* SDR write request */
+			set_oper_state(dev, I3C_OP_STATE_WR);
+			ret = 1;
+
+			/* Emit write request callback */
+			if ((target_cb != NULL) && (target_cb->write_requested_cb != NULL)) {
+				target_cb->write_requested_cb(data->target_config);
+			}
+		}
+	}
+#else
+	if (oper_state != I3C_OP_STATE_IBI) {
+		if (int_status & NPCM_I3C_STATUS_STREQRD) {
+			/* SDR read request */
+			set_oper_state(dev, I3C_OP_STATE_RD);
+			ret = 1;
+
+			/*
+			 * It will be too late to fill in buffer and write to fifo here, use write
+			 * request to notify target to prepare tx data with target_tx_write()
+			 * before controller send read request.
+			 */
+#ifndef CONFIG_I3C_TARGET_BUFFER_MODE
+			/* Emit read request callback. */
+			if ((target_cb != NULL) && (target_cb->read_requested_cb != NULL)) {
+				target_cb->read_requested_cb(data->target_config, data->tx_buf);
+			}
+#endif
+
+			/* Fill tx FIFO */
+			if (data->tx_len) {
+				ret = npcm_i3c_xfer_target_write_fifo(i3c_inst, data->tx_buf,
+								      data->tx_len, false);
+				if (ret < 0) {
+					LOG_ERR("Write tx FIFO failed");
+				}
+			} else {
+				LOG_ERR("No tx data");
+				ret = -EINVAL;
+			}
+
+#ifdef CONFIG_I3C_TARGET_BUFFER_MODE
+			/* Emit buffer read request callback */
+			if ((target_cb != NULL) && (target_cb->buf_read_requested_cb != NULL)) {
+				target_cb->buf_read_requested_cb(data->target_config, NULL, NULL,
+								 NULL);
+			}
+#endif
+		} else if (int_status & NPCM_I3C_STATUS_STREQWR) {
+			/* SDR write request */
+			set_oper_state(dev, I3C_OP_STATE_WR);
+			ret = 1;
+
+			/* Emit write request callback */
+			if ((target_cb != NULL) && (target_cb->write_requested_cb != NULL)) {
+				target_cb->write_requested_cb(data->target_config);
+			}
+
+			/* Fill write data to rx buffer */
+			ret = npcm_i3c_xfer_target_read_fifo(i3c_inst, data->rx_buf);
+			if (ret < 0) {
+				LOG_ERR("Read rx FIFO failed");
+			} else {
+				data->rx_len = ret;
+			}
+		}
+	}
+#endif
+
+	/*
+	 * If CONFIG.MATCHSS=1, MATCHED bit must remain 1 to detect next start
+	 * or stop.
+	 *
+	 * Clear the status bit in STOP or START handler.
+	 */
+	if (i3c_inst->CONFIG & NPCM_I3C_CONFIG_MATCHSS) {
+		i3c_inst->INTCLR = NPCM_I3C_INTCLR_MATCHED;
+	} else {
+		i3c_inst->STATUS = NPCM_I3C_STATUS_MATCHED;
+	}
+
+	return ret;
+}
+
+static inline void npcm_i3c_target_STOP_handler(const struct device *dev)
+{
+	struct i3c_reg *i3c_inst = HAL_INSTANCE(dev);
+	struct npcm_i3c_data *data = dev->data;
+	const struct i3c_target_callbacks *target_cb =
+		(data->target_config != NULL) ? data->target_config->callbacks : NULL;
+	enum npcm_i3c_oper_state oper_state = get_oper_state(dev);
+
+	if (i3c_inst->INTMASKED & NPCM_I3C_INTMASKED_START) {
+		/* Clear the status bit */
+		i3c_inst->STATUS = NPCM_I3C_STATUS_START;
+	}
+
+	/*
+	 * The end of xfer is a STOP.
+	 * For write request: check whether rx fifo count is 0.
+	 * For read request: disable the pdma operation.
+	 */
+#ifdef CONFIG_I3C_NPCM_DMA
+	if ((oper_state == I3C_OP_STATE_WR) || (oper_state == I3C_OP_STATE_RD)) {
+		if (npcm_i3c_target_xfer_end_handle_dma(dev, oper_state) != 0) {
+			LOG_ERR("xfer end handle failed after stop, op state=%d", oper_state);
+		}
+	} else if (oper_state == I3C_OP_STATE_IBI) {
+		npcm_i3c_target_dma_off(dev, false);
+	} else {
+		/* Check RXPEND */
+		if ((i3c_inst->STATUS & NPCM_I3C_STATUS_RXPEND) && !(data->tx_valid)) {
+			npcm_i3c_target_rx_fifo_flush(i3c_inst);
+		}
+	}
+#else
+	if ((oper_state == I3C_OP_STATE_WR) || (oper_state == I3C_OP_STATE_RD)) {
+		if (npcm_i3c_target_xfer_end_handle(dev, oper_state) != 0) {
+			LOG_ERR("xfer end handle failed after stop, op state=%d", oper_state);
+		}
+	}
+#endif
+
+	/* Clear the status bit */
+	i3c_inst->STATUS = NPCM_I3C_STATUS_STOP;
+
+	/* Notify upper layer a STOP condition received */
+	if ((target_cb != NULL) && (target_cb->stop_cb != NULL)) {
+		target_cb->stop_cb(data->target_config);
+	}
+
+	set_oper_state(dev, I3C_OP_STATE_IDLE);
+}
+
+static inline void npcm_i3c_target_START_handler(const struct device *dev)
+{
+	struct i3c_reg *i3c_inst = HAL_INSTANCE(dev);
+	enum npcm_i3c_oper_state oper_state = get_oper_state(dev); /* Entry operation state */
+
+	/* The end of xfer is a Sr */
+	if ((oper_state == I3C_OP_STATE_WR) || (oper_state == I3C_OP_STATE_RD)) {
+		/* Use entry operation state to handle the xfer end */
+#ifdef CONFIG_I3C_NPCM_DMA
+		if (npcm_i3c_target_xfer_end_handle_dma(dev, oper_state) == -ETIMEDOUT) {
+			LOG_ERR("xfer end handle failed after start, op state=%d", oper_state);
+
+			set_oper_state(dev, I3C_OP_STATE_IDLE);
+		}
+#else
+		if (npcm_i3c_target_xfer_end_handle(dev, oper_state) != 0) {
+			LOG_ERR("xfer end handle failed after stop, op state=%d", oper_state);
+		}
+#endif
+	}
+
+	/* Clear the status bit */
+	i3c_inst->STATUS = NPCM_I3C_STATUS_START;
+}
+
 static void npcm_i3c_target_isr(const struct device *dev)
 {
 	struct npcm_i3c_data *data = dev->data;
 	struct i3c_config_target *config_target = &data->config_target;
 	struct i3c_target_config *target_config = data->target_config;
-	struct i3c_reg *inst = HAL_INSTANCE(dev);
-	const struct i3c_target_callbacks *target_cb = data->target_config->callbacks;
-	enum npcm_i3c_oper_state op_state = get_oper_state(dev);
+	struct i3c_reg *i3c_inst = HAL_INSTANCE(dev);
+	uint32_t intmask = i3c_inst->INTMASKED;
 
-	while (inst->INTMASKED) {
-		/* Check STOP detected */
-		if (inst->INTMASKED & NPCM_I3C_INTMASKED_STOP) {
-
-			if (inst->INTMASKED & NPCM_I3C_INTMASKED_START) {
-				inst->STATUS = NPCM_I3C_STATUS_START;
-			}
-
-#ifdef CONFIG_I3C_NPCM_DMA
-			/*
-			 * The end of xfer is a stop.
-			 * For write request: check whether mdma TC is done or still busy.
-			 * For read request: disable the mdma operation.
-			 */
-			if (npcm_i3c_target_xfer_end_handle(dev) != 0) {
-				LOG_ERR("xfer end handle failed after stop, op state=%d", op_state);
-			}
-
-			inst->STATUS = NPCM_I3C_STATUS_STOP;
+	while (intmask != 0) {
+#ifndef CONFIG_I3C_NPCM_DMA
+		if (intmask & NPCM_I3C_STATUS_RXPEND) {
+			/* Flush rx and tx FIFO */
+			npcm_i3c_target_rx_fifo_flush(i3c_inst);
+			npcm_i3c_target_tx_fifo_flush(i3c_inst);
+		}
 #endif
 
-			/* Notify upper layer a STOP condition received */
-			if ((target_cb != NULL) && (target_cb->stop_cb != NULL)) {
-				target_cb->stop_cb(data->target_config);
-			}
-
-			/* Clear DA matched status and re-enable interrupt */
-			inst->STATUS = NPCM_I3C_STATUS_MATCHED;
-			inst->INTSET = NPCM_I3C_INTSET_MATCHED;
-			set_oper_state(dev, NPCM_I3C_OP_STATE_IDLE);
+		/* Check STOP detected */
+		if (intmask & NPCM_I3C_INTMASKED_STOP) {
+			npcm_i3c_target_STOP_handler(dev);
 		}
 
 		/* Check START or Sr detected */
-		if (inst->INTMASKED & NPCM_I3C_INTMASKED_START) {
-			/* The end of xfer is a Sr */
-			if (npcm_i3c_target_xfer_end_handle(dev) == -ETIMEDOUT) {
-				return;
-			}
-
-			inst->STATUS = NPCM_I3C_STATUS_START;
-		}
-
-		/* Check target reset detected */
-		if (inst->INTMASKED & NPCM_I3C_INTMASKED_TGTRST) {
-			inst->STATUS = NPCM_I3C_STATUS_TGTRST;
-		}
-
-		/* Check error or warning has occurred */
-		if (inst->INTMASKED & NPCM_I3C_INTMASKED_ERRWARN) {
-			LOG_ERR("Error %#x", inst->ERRWARN);
-			inst->ERRWARN = inst->ERRWARN;
+		if (intmask & NPCM_I3C_INTMASKED_START) {
+			npcm_i3c_target_START_handler(dev);
 		}
 
 		/* Check incoming header matched target dynamic address */
-		if (inst->INTMASKED & NPCM_I3C_INTMASKED_MATCHED) {
-			if (op_state != NPCM_I3C_OP_STATE_IBI) {
-				/* The current bus request is an SDR mode read or write */
-				if (inst->STATUS & NPCM_I3C_STATUS_STREQRD) {
-					/* SDR read request */
-					set_oper_state(dev, NPCM_I3C_OP_STATE_RD);
+		if (intmask & NPCM_I3C_INTMASKED_MATCHED) {
+			npcm_i3c_target_MATCHED_handler(dev);
+		}
 
-					/* Emit read request callback */
-#if CONFIG_I3C_TARGET_BUFFER_MODE
-					/* It will be too late to enable mdma here, use
-					 * target_tx_write() to write tx data into fifo before
-					 * controller send read request.
-					 */
-					if ((target_cb != NULL) &&
-					    (target_cb->buf_read_requested_cb != NULL)) {
-						target_cb->buf_read_requested_cb(
-							data->target_config, NULL, NULL, NULL);
-					}
-#endif
-				} else {
-					/* SDR write request */
-					set_oper_state(dev, NPCM_I3C_OP_STATE_WR);
+		/* Check target reset detected */
+		if (intmask & NPCM_I3C_INTMASKED_SLVSTART) {
+			i3c_inst->STATUS = NPCM_I3C_STATUS_SLVSTART;
+		}
 
-					/* Emit write request callback */
-					if ((target_cb != NULL) &&
-					    (target_cb->write_requested_cb != NULL)) {
-						target_cb->write_requested_cb(data->target_config);
-					}
+		/* Check error or warning has occurred */
+		if (intmask & NPCM_I3C_INTMASKED_ERRWARN) {
+			LOG_ERR("ERRWARN %#x", i3c_inst->ERRWARN);
 
-					npcm_i3c_do_request_dma(dev, true, data->dma_rx_buf,
-								config_target->max_read_len, true,
-								false);
-				}
-			}
-
-			/*
-			 * If CONFIG.MATCHSS=1, MATCHED bit must remain 1 to detect next start
-			 * or stop.
-			 *
-			 * Clear the status bit in STOP or START handler.
-			 */
-			if (inst->CONFIG & NPCM_I3C_CONFIG_MATCHSS) {
-				inst->INTCLR = NPCM_I3C_INTCLR_MATCHED;
-			} else {
-				inst->STATUS = NPCM_I3C_STATUS_MATCHED;
-			}
+			i3c_inst->ERRWARN = i3c_inst->ERRWARN;
 		}
 
 		/* Check dynamic address changed */
-		if (inst->INTMASKED & NPCM_I3C_INTMASKED_DACHG) {
-			inst->STATUS = NPCM_I3C_STATUS_DACHG;
-
-			if (inst->DYNADDR & NPCM_I3C_DYNADDR_DAVALID) {
+		if (intmask & NPCM_I3C_INTMASKED_DACHG) {
+			i3c_inst->STATUS = NPCM_I3C_STATUS_DACHG;
+			if (i3c_inst->DYNADDR & NPCM_I3C_DYNADDR_DAVALID) {
 				if (target_config != NULL) {
 					config_target->dynamic_addr = NPCM_GET_REG_FIELD(
-						inst->DYNADDR, NPCM_I3C_DYNADDR_DADDR);
+						i3c_inst->DYNADDR, NPCM_I3C_DYNADDR_DADDR);
 				}
 			}
 		}
 
 		/* CCC 'not' automatically handled was received */
-		if (inst->INTMASKED & NPCM_I3C_INTMASKED_CCC) {
-			inst->STATUS = NPCM_I3C_STATUS_CCC;
+		if (intmask & NPCM_I3C_INTMASKED_CCC) {
+			i3c_inst->STATUS = NPCM_I3C_STATUS_CCC;
 		}
 
 		/* HDR command, address match */
-		if (inst->INTMASKED & NPCM_I3C_INTMASKED_DDRMATCHED) {
-			inst->STATUS = NPCM_I3C_STATUS_DDRMATCH;
+		if (intmask & NPCM_I3C_INTMASKED_DDRMATCHED) {
+			i3c_inst->STATUS = NPCM_I3C_STATUS_DDRMATCH;
 		}
 
 		/* CCC handled (handled by IP) */
-		if (inst->INTMASKED & NPCM_I3C_INTMASKED_CHANDLED) {
-			inst->STATUS = NPCM_I3C_STATUS_CHANDLED;
+		if (intmask & NPCM_I3C_INTMASKED_CHANDLED) {
+			i3c_inst->STATUS = NPCM_I3C_STATUS_CHANDLED;
 		}
 
 		/* Event requested. IBI, hot-join, bus control */
-		if (inst->INTMASKED & NPCM_I3C_INTMASKED_EVENT) {
-			inst->STATUS = NPCM_I3C_STATUS_EVENT;
-
-			if (NPCM_GET_REG_FIELD(inst->STATUS, NPCM_I3C_STATUS_EVDET) ==
+		if (intmask & NPCM_I3C_INTMASKED_EVENT) {
+			i3c_inst->STATUS = NPCM_I3C_STATUS_EVENT;
+			if (NPCM_GET_REG_FIELD(i3c_inst->STATUS, NPCM_I3C_STATUS_EVDET) ==
 			    NPCM_I3C_STATUS_EVDET_REQ_SENT_ACKED) {
 				k_sem_give(&data->target_event_lock_sem);
 			}
 		}
+
+		/* Check mask again, flags may be set when handling */
+		intmask = i3c_inst->INTMASKED;
 	}
 
 	/*
@@ -2294,9 +2767,9 @@ static void npcm_i3c_target_isr(const struct device *dev)
 	 * Check I3C now bus controller.
 	 * Disable target mode if target switch to controller mode success.
 	 */
-	if (inst->MINTMASKED & NPCM_I3C_MINTMASKED_NOWMASTER) {
-		inst->MSTATUS = NPCM_I3C_MSTATUS_NOWCNTLR; /* W1C */
-		inst->CONFIG &= ~NPCM_I3C_CONFIG_SLVENA;   /* Disable target mode */
+	if (i3c_inst->MINTMASKED & NPCM_I3C_MINTMASKED_NOWMASTER) {
+		i3c_inst->MSTATUS = NPCM_I3C_MSTATUS_NOWCNTLR; /* W1C */
+		i3c_inst->CONFIG &= ~NPCM_I3C_CONFIG_SLVENA;   /* Disable target mode */
 	}
 }
 
@@ -2305,12 +2778,11 @@ static void npcm_i3c_isr(const struct device *dev)
 	struct i3c_reg *i3c_inst = HAL_INSTANCE(dev);
 
 	if (i3c_inst->CONFIG & NPCM_I3C_CONFIG_SLVENA) {
+		/* Target mode */
 		npcm_i3c_target_isr(dev);
-		return;
-	}
-
-	if (NPCM_GET_REG_FIELD(i3c_inst->MCONFIG, NPCM_I3C_MCONFIG_MSTENA) ==
-	    NPCM_I3C_MCONFIG_MSTENA_ON) {
+	} else if (NPCM_GET_REG_FIELD(i3c_inst->MCONFIG, NPCM_I3C_MCONFIG_MSTENA) ==
+		   NPCM_I3C_MCONFIG_MSTENA_ON) {
+		/* Controller mode */
 #ifdef CONFIG_I3C_NPCM_DMA
 		if (i3c_inst->MSTATUS & NPCM_I3C_MSTATUS_COMPLETE) {
 			/* Clear COMPLETE status */
@@ -2328,21 +2800,23 @@ static void npcm_i3c_isr(const struct device *dev)
 		int ret;
 
 		/* Target start detected */
-		if (i3c_inst->MSTATUS & NPCM_I3C_MSTATUS_TGTSTART) {
+		if (i3c_inst->MSTATUS & NPCM_I3C_MSTATUS_SLVSTART) {
 			/* Disable further target initiated IBI interrupt */
-			i3c_inst->MINTCLR = NPCM_I3C_MINTCLR_TGTSTART;
+			i3c_inst->MINTCLR = NPCM_I3C_MINTCLR_SLVSTART;
 
-			/* Clear TGTSTART interrupt */
-			i3c_inst->MSTATUS = NPCM_I3C_MSTATUS_TGTSTART;
+			/* Clear SLVSTART interrupt */
+			i3c_inst->MSTATUS = NPCM_I3C_MSTATUS_SLVSTART;
 
 			/* Handle IBI in workqueue */
 			ret = i3c_ibi_work_enqueue_cb(dev, npcm_i3c_ibi_work);
 			if (ret < 0) {
 				LOG_ERR("Enqueuing ibi work fail, ret %d", ret);
-				i3c_inst->MINTSET = NPCM_I3C_MINTSET_TGTSTART;
+				i3c_inst->MINTSET = NPCM_I3C_MINTSET_SLVSTART;
 			}
 		}
 #endif /* CONFIG_I3C_USE_IBI */
+	} else {
+		LOG_ERR("Unknown mode");
 	}
 }
 
@@ -2542,7 +3016,7 @@ static int npcm_i3c_freq_init(const struct device *dev)
 	return 0;
 }
 
-static int npcm_i3c_cntlr_init(const struct device *dev, uint8_t mode)
+static int npcm_i3c_controller_init(const struct device *dev, uint8_t mode)
 {
 	const struct npcm_i3c_config *config = dev->config;
 	struct i3c_reg *i3c_inst = HAL_INSTANCE(dev);
@@ -2571,7 +3045,7 @@ static int npcm_i3c_cntlr_init(const struct device *dev, uint8_t mode)
 	/* Enable timeout */
 	i3c_inst->MCONFIG &= ~NPCM_I3C_MCONFIG_DISTO;
 	/* Flush tx and tx FIFO buffer */
-	npcm_i3c_fifo_flush(i3c_inst);
+	npcm_i3c_controller_fifo_flush(i3c_inst);
 
 	/* Set bus available match value in target register */
 	ret = clock_control_get_rate(clk_dev, (clock_control_subsys_t *)config->clk_cfg,
@@ -2584,8 +3058,6 @@ static int npcm_i3c_cntlr_init(const struct device *dev, uint8_t mode)
 	}
 
 	bamatch = DIV_ROUND_UP(i3c_freq_rate, MHZ(1));
-	LOG_DBG("BAMATCH: %d", bamatch);
-
 	NPCM_SET_REG_FIELD(i3c_inst->CONFIG, NPCM_I3C_CONFIG_BAMATCH, bamatch);
 
 	return 0;
@@ -2596,15 +3068,15 @@ static int npcm_i3c_target_init(const struct device *dev)
 	const struct npcm_i3c_config *config = dev->config;
 	struct npcm_i3c_data *data = dev->data;
 	struct i3c_config_target *config_target = &data->config_target;
-	struct i3c_reg *inst = HAL_INSTANCE(dev);
+	struct i3c_reg *i3c_inst = HAL_INSTANCE(dev);
 	const struct device *const clk_dev = DEVICE_DT_GET(NPCM_PCC_NODE);
 	uint32_t i3c_freq_rate;
 	uint8_t bamatch;
 	int ret;
 	uint64_t pid;
 
-	/* Make sure Slave Enable is not set before configs are set */
-	inst->CONFIG &= ~NPCM_I3C_CONFIG_SLVENA;
+	/* Make sure Slave Enable is not set when setting up target */
+	i3c_inst->CONFIG &= ~NPCM_I3C_CONFIG_SLVENA;
 
 	/* Set bus available match value in target register */
 	ret = clock_control_get_rate(clk_dev, (clock_control_subsys_t *)config->clk_cfg,
@@ -2617,37 +3089,37 @@ static int npcm_i3c_target_init(const struct device *dev)
 	}
 
 	bamatch = DIV_ROUND_UP(i3c_freq_rate, MHZ(1));
-	LOG_DBG("BAMATCH: %d", bamatch);
-	NPCM_SET_REG_FIELD(inst->CONFIG, NPCM_I3C_CONFIG_BAMATCH, bamatch);
+	NPCM_SET_REG_FIELD(i3c_inst->CONFIG, NPCM_I3C_CONFIG_BAMATCH, bamatch);
 
 	/* Set Provisional ID */
 	pid = config_target->pid;
 	/* PID[47:33] MIPI manufacturer ID */
-	NPCM_SET_REG_FIELD(inst->VENDORID, NPCM_I3C_VENDORID_VID, (uint32_t)GET_PID_VENDOR_ID(pid));
+	NPCM_SET_REG_FIELD(i3c_inst->VENDORID, NPCM_I3C_VENDORID_VID,
+			   (uint32_t)GET_PID_VENDOR_ID(pid));
 
 	/* PID[32] Vendor fixed value(0) or random value(1) */
 	if (config_target->pid_random) {
-		inst->CONFIG |= NPCM_I3C_CONFIG_IDRAND;
+		i3c_inst->CONFIG |= NPCM_I3C_CONFIG_IDRAND;
 	} else {
-		inst->CONFIG &= ~NPCM_I3C_CONFIG_IDRAND;
+		i3c_inst->CONFIG &= ~NPCM_I3C_CONFIG_IDRAND;
 	}
 
 	/* PID[31:0] vendor fixed value */
-	inst->PARTNO = (uint32_t)GET_PID_PARTNO(pid);
+	i3c_inst->PARTNO = (uint32_t)GET_PID_PARTNO(pid);
 
 	LOG_DBG("pid: %#llx", pid);
 	LOG_DBG("vendro id: %#x", (uint32_t)GET_PID_VENDOR_ID(pid));
 	LOG_DBG("id type: %d", (uint32_t)GET_PID_ID_TYP(pid));
 	LOG_DBG("partno: %#x", (uint32_t)GET_PID_PARTNO(pid));
 
-	NPCM_SET_REG_FIELD(inst->IDEXT, NPCM_I3C_IDEXT_DCR, config_target->dcr);
-	NPCM_SET_REG_FIELD(inst->IDEXT, NPCM_I3C_IDEXT_BCR, config_target->bcr);
-	NPCM_SET_REG_FIELD(inst->CONFIG, NPCM_I3C_CONFIG_SADDR, config_target->static_addr);
-	NPCM_SET_REG_FIELD(inst->CONFIG, NPCM_I3C_CONFIG_HDRCMD,
+	NPCM_SET_REG_FIELD(i3c_inst->IDEXT, NPCM_I3C_IDEXT_DCR, config_target->dcr);
+	NPCM_SET_REG_FIELD(i3c_inst->IDEXT, NPCM_I3C_IDEXT_BCR, config_target->bcr);
+	NPCM_SET_REG_FIELD(i3c_inst->CONFIG, NPCM_I3C_CONFIG_SADDR, config_target->static_addr);
+	NPCM_SET_REG_FIELD(i3c_inst->CONFIG, NPCM_I3C_CONFIG_HDRCMD,
 			   NPCM_I3C_CONFIG_HDRCMD_RD_FROM_FIFO);
-	NPCM_SET_REG_FIELD(inst->MAXLIMITS, NPCM_I3C_MAXLIMITS_MAXRD,
+	NPCM_SET_REG_FIELD(i3c_inst->MAXLIMITS, NPCM_I3C_MAXLIMITS_MAXRD,
 			   (config_target->max_read_len) & 0xfff);
-	NPCM_SET_REG_FIELD(inst->MAXLIMITS, NPCM_I3C_MAXLIMITS_MAXWR,
+	NPCM_SET_REG_FIELD(i3c_inst->MAXLIMITS, NPCM_I3C_MAXLIMITS_MAXWR,
 			   (config_target->max_write_len) & 0xfff);
 
 	LOG_DBG("static addr: %#x", config_target->static_addr);
@@ -2655,13 +3127,17 @@ static int npcm_i3c_target_init(const struct device *dev)
 	LOG_DBG("max write len: %d", config_target->max_write_len);
 
 	/* Ignore DA and detect all START and STOP */
-	inst->CONFIG &= ~NPCM_I3C_CONFIG_MATCHSS;
+	i3c_inst->CONFIG &= ~NPCM_I3C_CONFIG_MATCHSS;
 
 	/* Enable the target interrupt events */
 	npcm_i3c_enable_target_interrupt(dev, true);
 
 	/* Target mode enable */
-	inst->CONFIG |= NPCM_I3C_CONFIG_SLVENA;
+	i3c_inst->CONFIG |= NPCM_I3C_CONFIG_SLVENA;
+
+	/* Flush target rx and tx fifo */
+	npcm_i3c_target_tx_fifo_flush(i3c_inst);
+	npcm_i3c_target_rx_fifo_flush(i3c_inst);
 
 	return 0;
 }
@@ -2679,19 +3155,19 @@ static void npcm_i3c_dev_init(const struct device *dev)
 		if (config_cntlr->is_secondary) {
 			LOG_DBG("Secondary controller");
 			/* Set Secondary controller boot as a target */
-			npcm_i3c_cntlr_init(dev, NPCM_I3C_MCONFIG_MSTENA_CAPABLE);
+			npcm_i3c_controller_init(dev, NPCM_I3C_MCONFIG_MSTENA_CAPABLE);
 
 			/* Set I3C target */
 			npcm_i3c_target_init(dev);
 		} else {
 			LOG_DBG("Primary controller");
 			/* Set Primary controller */
-			npcm_i3c_cntlr_init(dev, NPCM_I3C_MCONFIG_MSTENA_ON);
+			npcm_i3c_controller_init(dev, NPCM_I3C_MCONFIG_MSTENA_ON);
 		}
 	} else {
 		LOG_DBG("I3C target");
 		/* Disable I3C controller */
-		npcm_i3c_cntlr_init(dev, NPCM_I3C_MCONFIG_MSTENA_OFF);
+		npcm_i3c_controller_init(dev, NPCM_I3C_MCONFIG_MSTENA_OFF);
 
 		/* Set I3C target */
 		npcm_i3c_target_init(dev);
@@ -2717,7 +3193,7 @@ static int npcm_i3c_configure(const struct device *dev, enum i3c_config_type typ
 		(void)memcpy(&dev_data->common.ctrl_config, cntlr_cfg, sizeof(*cntlr_cfg));
 
 		/* Controller init */
-		return npcm_i3c_cntlr_init(dev, NPCM_I3C_MCONFIG_MSTENA_ON);
+		return npcm_i3c_controller_init(dev, NPCM_I3C_MCONFIG_MSTENA_ON);
 	} else if (type == I3C_CONFIG_TARGET) {
 		config_target = config;
 
@@ -2751,7 +3227,7 @@ static int npcm_i3c_init(const struct device *dev)
 	const struct npcm_i3c_config *config = dev->config;
 	struct npcm_i3c_data *data = dev->data;
 	struct i3c_config_controller *ctrl_config = &data->common.ctrl_config;
-	struct i3c_reg *inst = HAL_INSTANCE(dev);
+	struct i3c_reg *i3c_inst = HAL_INSTANCE(dev);
 	const struct device *const clk_dev = DEVICE_DT_GET(NPCM_PCC_NODE);
 	int ret;
 
@@ -2798,7 +3274,7 @@ static int npcm_i3c_init(const struct device *dev)
 	npcm_i3c_dev_init(dev);
 
 	/* Just in case the bus is not in idle. */
-	if (NPCM_GET_REG_FIELD(inst->MCONFIG, NPCM_I3C_MCONFIG_MSTENA) ==
+	if (NPCM_GET_REG_FIELD(i3c_inst->MCONFIG, NPCM_I3C_MCONFIG_MSTENA) ==
 	    NPCM_I3C_MCONFIG_MSTENA_ON) {
 		ret = npcm_i3c_recover_bus(dev);
 		if (ret != 0) {
@@ -2810,8 +3286,13 @@ static int npcm_i3c_init(const struct device *dev)
 	/* Configure interrupt */
 	config->irq_config_func(dev);
 
-	/* Check I3C target device exist in device tree */
-	if (config->common.dev_list.num_i3c > 0) {
+	/* Initialize driver status machine */
+	set_oper_state(dev, I3C_OP_STATE_IDLE);
+
+	/* Check I3C is controller mode and target device exist in device tree */
+	if ((config->common.dev_list.num_i3c > 0) &&
+	    (NPCM_GET_REG_FIELD(i3c_inst->MCONFIG, NPCM_I3C_MCONFIG_MSTENA) ==
+	     NPCM_I3C_MCONFIG_MSTENA_ON)) {
 		/* Perform bus initialization */
 		ret = i3c_bus_init(dev, &config->common.dev_list);
 		if (ret != 0) {
@@ -2839,7 +3320,7 @@ static int npcm_i3c_i2c_api_transfer(const struct device *dev, struct i2c_msg *m
 	npcm_i3c_mutex_lock(dev);
 
 	if (WAIT_FOR((npcm_i3c_state_get(i3c_inst) == NPCM_I3C_MSTATUS_STATE_IDLE),
-		     NPCM_I3C_CHK_TIMEOUT_US, NULL) == false) {
+		     I3C_CHK_TIMEOUT_US, NULL) == false) {
 		LOG_ERR("xfer state error: %d", npcm_i3c_state_get(i3c_inst));
 		npcm_i3c_mutex_unlock(dev);
 		return -ETIMEDOUT;
@@ -2853,7 +3334,7 @@ static int npcm_i3c_i2c_api_transfer(const struct device *dev, struct i2c_msg *m
 
 	/* Iterate over all the messages */
 	for (int i = 0; i < num_msgs; i++) {
-		bool is_read = (msgs[i].flags & I2C_MSG_RW_MASK) == I2C_MSG_READ;
+		bool is_rx = (msgs[i].flags & I2C_MSG_RW_MASK) == I2C_MSG_READ;
 		bool no_ending = false;
 
 		/*
@@ -2873,7 +3354,7 @@ static int npcm_i3c_i2c_api_transfer(const struct device *dev, struct i2c_msg *m
 		 * message to be the last byte of a series of write mssages.
 		 * If not, tell the write function not to treat it that way.
 		 */
-		if (!is_read && !emit_stop && ((i + 1) != num_msgs)) {
+		if (!is_rx && !emit_stop && ((i + 1) != num_msgs)) {
 			bool next_is_write = (msgs[i + 1].flags & I2C_MSG_RW_MASK) == I2C_MSG_WRITE;
 			bool next_is_restart =
 				((msgs[i + 1].flags & I2C_MSG_RESTART) == I2C_MSG_RESTART);
@@ -2885,13 +3366,13 @@ static int npcm_i3c_i2c_api_transfer(const struct device *dev, struct i2c_msg *m
 
 #ifdef CONFIG_I3C_NPCM_DMA
 		/* Do transfer with target device */
-		xfered_len = npcm_i3c_do_one_xfer_dma(dev, addr, NPCM_I3C_MCTRL_TYPE_I2C,
-						      msgs[i].buf, msgs[i].len, is_read, emit_start,
-						      emit_stop, no_ending);
+		xfered_len = npcm_i3c_do_one_xfer_dma(dev, addr, I3C_MCTRL_TYPE_I2C, msgs[i].buf,
+						      msgs[i].len, is_rx, emit_start, emit_stop,
+						      no_ending);
 #else
-		xfered_len = npcm_i3c_do_one_xfer(dev, addr, NPCM_I3C_MCTRL_TYPE_I2C, msgs[i].buf,
-						  msgs[i].len, is_read, emit_start, emit_stop,
-						  no_ending);
+		xfered_len =
+			npcm_i3c_do_one_xfer(dev, addr, I3C_MCTRL_TYPE_I2C, msgs[i].buf,
+					     msgs[i].len, is_rx, emit_start, emit_stop, no_ending);
 #endif
 		if (xfered_len < 0) {
 			LOG_ERR("do xfer fail");
@@ -2922,9 +3403,23 @@ out_xfer_i2c_stop_unlock:
 	return ret;
 }
 
+/*
+ * brief:  I3C target write data to controller.
+ *
+ * param[in] dev       Pointer to controller device driver instance.
+ * param[in] buf       Buffer containing data to be sent or received.
+ *                     The caller must ensure that the buffer is valid until the
+ *                     transaction is completed (STOP or Sr received).
+ * param[in] len       Number of bytes in buf to send or receive.
+ * param[in] hdr_mode  HDR mode.
+ *
+ * return  Number of bytes transferred, or negative if error.
+ */
 static int npcm_i3c_target_tx_write(const struct device *dev, uint8_t *buf, uint16_t len,
 				    uint8_t hdr_mode)
 {
+	int ret = 0;
+
 	if ((buf == NULL) || (len == 0)) {
 		LOG_ERR("Data buffer configuration failed");
 		return -EINVAL;
@@ -2936,18 +3431,53 @@ static int npcm_i3c_target_tx_write(const struct device *dev, uint8_t *buf, uint
 	}
 
 #ifdef CONFIG_I3C_NPCM_DMA
-	int xfered_len;
+	struct npcm_i3c_data *data = dev->data;
+	bool is_rx = false;
+	bool no_ending = false;
 
-	xfered_len = npcm_i3c_do_request_dma(dev, false, buf, len, true, true);
-	if (xfered_len < 0) {
+	data->tx_valid = true;
+
+	ret = npcm_i3c_target_do_request_dma(dev, is_rx, buf, len, no_ending);
+	if (ret < 0) {
+		data->tx_valid = false;
 		LOG_ERR("do xfer fail");
-		return -EIO;
 	}
 
-	return xfered_len;
+	return ret;
 #else
-	LOG_ERR("Support dma mode only");
-	return -ENOSYS;
+	struct i3c_reg *i3c_inst = HAL_INSTANCE(dev);
+	struct npcm_i3c_data *data = dev->data;
+	bool no_ending;
+
+	/* Flush buffer, make sure no dummy data remain. */
+	npcm_i3c_target_tx_fifo_flush(i3c_inst);
+
+	/* Tx buffer point to user buffer */
+	data->tx_buf = buf;
+
+	/* Check buffer length */
+	if (len > I3C_FIFO_SIZE) {
+		no_ending = true;
+		data->tx_len = I3C_FIFO_SIZE;
+	} else {
+		no_ending = false;
+		data->tx_len = len;
+	}
+
+	/* Write tx fifo */
+	ret = npcm_i3c_xfer_target_write_fifo(i3c_inst, data->tx_buf, data->tx_len, no_ending);
+	if (ret < 0) {
+		LOG_ERR("do xfer fail");
+	} else if (len > ret) {
+		/* Update buffer index */
+		data->tx_buf += ret;
+		data->tx_len = len - ret;
+
+		/* Update remain len */
+		ret = data->tx_len;
+	}
+
+	return ret;
 #endif
 }
 
@@ -2969,7 +3499,7 @@ static int npcm_i3c_target_unregister(const struct device *dev, struct i3c_targe
 	return 0;
 }
 
-static const struct i3c_driver_api npcm_i3c_driver_api = {
+static DEVICE_API(i3c, npcm_i3c_driver) = {
 	.i2c_api.configure = npcm_i3c_i2c_api_configure,
 	.i2c_api.transfer = npcm_i3c_i2c_api_transfer,
 	.i2c_api.recover_bus = npcm_i3c_recover_bus,
@@ -3026,10 +3556,8 @@ static const struct i3c_driver_api npcm_i3c_driver_api = {
 		.clocks.i2c_scl_hz = DT_INST_PROP_OR(inst, i2c_scl_hz, 0),                         \
 		IF_ENABLED(CONFIG_I3C_NPCM_DMA, ( \
 			.pdma_rx = (struct pdma_dsct_reg *)DT_INST_REG_ADDR_BY_IDX(inst, 1), \
-			))                                                \
-		IF_ENABLED(CONFIG_I3C_NPCM_DMA, ( \
 			.pdma_tx = (struct pdma_dsct_reg *)DT_INST_REG_ADDR_BY_IDX(inst, 2), \
-			)) };      \
+			)) };                  \
 	static struct npcm_i3c_data npcm_i3c_data_##inst = {                                       \
 		.common.ctrl_config.is_secondary = DT_INST_PROP_OR(inst, secondary, false),        \
 		.config_target.static_addr = DT_INST_PROP_OR(inst, static_address, 0),             \
@@ -3044,6 +3572,6 @@ static const struct i3c_driver_api npcm_i3c_driver_api = {
 	};                                                                                         \
 	DEVICE_DT_INST_DEFINE(inst, npcm_i3c_init, NULL, &npcm_i3c_data_##inst,                    \
 			      &npcm_i3c_config_##inst, POST_KERNEL,                                \
-			      CONFIG_I3C_CONTROLLER_INIT_PRIORITY, &npcm_i3c_driver_api);
+			      CONFIG_I3C_CONTROLLER_INIT_PRIORITY, &npcm_i3c_driver);
 
 DT_INST_FOREACH_STATUS_OKAY(I3C_NPCM_DEVICE)

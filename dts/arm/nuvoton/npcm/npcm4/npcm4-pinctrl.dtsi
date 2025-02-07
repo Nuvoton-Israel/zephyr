@@ -197,6 +197,7 @@
 		};
 		sda {
 			pinmux = <GPIO22__I3C1_SDA__DTRB__BUSY__P2_DGL 1>;
+			bias-pull-up;
 		};
 	};
 
@@ -206,6 +207,7 @@
 		};
 		sda {
 			pinmux = <GPIO24__I3C2_SDA__RIB__PD7__P2_DGH 1>;
+			bias-pull-up;
 		};
 	};
 
@@ -215,6 +217,7 @@
 		};
 		sda {
 			pinmux = <GPIO26__I3C3_SCL__PD5__LED_B__SCL1B 1>;
+			bias-pull-up;
 		};
 	};
 
@@ -224,6 +227,7 @@
 		};
 		sda {
 			pinmux = <GPIOD1__I3C4_SDA__SOUTE 1>;
+			bias-pull-up;
 		};
 	};
 
@@ -233,6 +237,7 @@
 		};
 		sda {
 			pinmux = <GPIO83__I3C5_SDA__TA0 1>;
+			bias-pull-up;
 		};
 	};
 
@@ -242,6 +247,7 @@
 		};
 		sda {
 			pinmux = <GPIO97__PECI__I3C6_SDA__SDA6A 2>;
+			bias-pull-up;
 		};
 	};
 

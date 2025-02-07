@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2024 Nuvoton Technology Corporation.
+ * Copyright (c) 2025 Nuvoton Technology Corporation.
  *
  * SPDX-License-Identifier: Apache-2.0
  */
@@ -10,21 +10,22 @@
 #include <zephyr/toolchain.h>
 #include <zephyr/types.h>
 #include <zephyr/drivers/i3c.h>
+#include <zephyr/drivers/gpio.h>
 
 /* Operation type */
 enum npcm_i3c_oper_state {
-	NPCM_I3C_OP_STATE_IDLE,
-	NPCM_I3C_OP_STATE_WR,
-	NPCM_I3C_OP_STATE_RD,
-	NPCM_I3C_OP_STATE_IBI,
-	NPCM_I3C_OP_STATE_MAX,
+	I3C_OP_STATE_IDLE,
+	I3C_OP_STATE_WR,
+	I3C_OP_STATE_RD,
+	I3C_OP_STATE_IBI,
+	I3C_OP_STATE_MAX,
 };
 
 /* Control type */
 enum npcm_i3c_mctrl_type {
-	NPCM_I3C_MCTRL_TYPE_I3C,
-	NPCM_I3C_MCTRL_TYPE_I2C,
-	NPCM_I3C_MCTRL_TYPE_I3C_HDR_DDR,
+	I3C_MCTRL_TYPE_I3C,
+	I3C_MCTRL_TYPE_I2C,
+	I3C_MCTRL_TYPE_I3C_HDR_DDR,
 };
 
 /* I3C timing configuration for each i3c/i2c speed */
@@ -91,7 +92,15 @@ struct npcm_i3c_data {
 
 #ifdef CONFIG_I3C_NPCM_DMA
 	uint8_t dma_rx_buf[4096];
-#endif /* End of CONFIG_I3C_NPCM_DMA */
+	uint16_t dma_rx_len;
+	uint16_t dma_triggered; /* The bit n is set to 1 if the n-th DMA channel is triggered */
+	bool tx_valid;          /* Tx has valid data */
+#else
+	uint8_t rx_buf[4096];
+	uint16_t rx_len;
+	uint8_t *tx_buf;
+	uint16_t tx_len;
+#endif
 
 #ifdef CONFIG_I3C_USE_IBI
 	struct {
@@ -110,7 +119,7 @@ struct npcm_i3c_data {
 #endif
 
 #ifdef CONFIG_I3C_NPCM_DMA
-	struct pdma_dsct_reg dsct_sg[2] __aligned(4); /* use for dma, 4-bytes align */
+	struct pdma_dsct_reg dsct_sg[4] __aligned(4); /* use for dma, 4-bytes align */
 #endif
 };
 
@@ -353,7 +362,7 @@ struct pmc_reg {
 #define NPCM_I3C_MSTATUS_RXPEND        BIT(11)
 #define NPCM_I3C_MSTATUS_COMPLETE      BIT(10)
 #define NPCM_I3C_MSTATUS_MCTRLDONE     BIT(9)
-#define NPCM_I3C_MSTATUS_TGTSTART      BIT(8)
+#define NPCM_I3C_MSTATUS_SLVSTART      BIT(8)
 #define NPCM_I3C_MSTATUS_IBITYPE       GENMASK(7, 6)
 #define NPCM_I3C_MSTATUS_IBITYPE_NONE  0x0
 #define NPCM_I3C_MSTATUS_IBITYPE_IBI   0x1
@@ -387,7 +396,7 @@ struct pmc_reg {
 #define NPCM_I3C_MINTSET_RXPEND    BIT(11)
 #define NPCM_I3C_MINTSET_COMPLETE  BIT(10)
 #define NPCM_I3C_MINTSET_MCTRLDONE BIT(9)
-#define NPCM_I3C_MINTSET_TGTSTART  BIT(8)
+#define NPCM_I3C_MINTSET_SLVSTART  BIT(8)
 
 #define NPCM_I3C_MINTCLR_NOWMASTER BIT(19)
 #define NPCM_I3C_MINTCLR_ERRWARN   BIT(15)
@@ -396,7 +405,7 @@ struct pmc_reg {
 #define NPCM_I3C_MINTCLR_RXPEND    BIT(11)
 #define NPCM_I3C_MINTCLR_COMPLETE  BIT(10)
 #define NPCM_I3C_MINTCLR_MCTRLDONE BIT(9)
-#define NPCM_I3C_MINTCLR_TGTSTART  BIT(8)
+#define NPCM_I3C_MINTCLR_SLVSTART  BIT(8)
 
 #define NPCM_I3C_MINTMASKED_NOWMASTER BIT(19)
 #define NPCM_I3C_MINTMASKED_ERRWARN   BIT(15)
@@ -405,7 +414,7 @@ struct pmc_reg {
 #define NPCM_I3C_MINTMASKED_RXPEND    BIT(11)
 #define NPCM_I3C_MINTMASKED_COMPLETE  BIT(10)
 #define NPCM_I3C_MINTMASKED_MCTRLDONE BIT(9)
-#define NPCM_I3C_MINTMASKED_TGTSTART  BIT(8)
+#define NPCM_I3C_MINTMASKED_SLVSTART  BIT(8)
 
 #define NPCM_I3C_MERRWARN_TIMEOUT BIT(20)
 #define NPCM_I3C_MERRWARN_INVREQ  BIT(19)
@@ -502,7 +511,7 @@ struct pmc_reg {
 #define NPCM_I3C_STATUS_EVDET_REQ_NOT_SENT    0x1
 #define NPCM_I3C_STATUS_EVDET_REQ_SENT_NACKED 0x2
 #define NPCM_I3C_STATUS_EVDET_REQ_SENT_ACKED  0x3
-#define NPCM_I3C_STATUS_TGTRST                BIT(19) /* TODO: Reserved? */
+#define NPCM_I3C_STATUS_SLVSTART              BIT(19)
 #define NPCM_I3C_STATUS_EVENT                 BIT(18)
 #define NPCM_I3C_STATUS_CHANDLED              BIT(17)
 #define NPCM_I3C_STATUS_DDRMATCH              BIT(16)
@@ -557,7 +566,7 @@ struct pmc_reg {
 #define NPCM_I3C_INTCLR_MATCHED    BIT(9)
 #define NPCM_I3C_INTCLR_START      BIT(8)
 
-#define NPCM_I3C_INTMASKED_TGTRST     BIT(19) /* TODO: Reserved? */
+#define NPCM_I3C_INTMASKED_SLVSTART   BIT(19)
 #define NPCM_I3C_INTMASKED_EVENT      BIT(18)
 #define NPCM_I3C_INTMASKED_CHANDLED   BIT(17)
 #define NPCM_I3C_INTMASKED_DDRMATCHED BIT(16)
@@ -582,9 +591,15 @@ struct pmc_reg {
 #define NPCM_I3C_ERRWARN_URUN     BIT(1)
 #define NPCM_I3C_ERRWARN_ORUN     BIT(0)
 
-#define NPCM_I3C_DMACTRL_DMAWIDTH GENMASK(5, 4)
-#define NPCM_I3C_DMACTRL_DMATB    GENMASK(3, 2)
-#define NPCM_I3C_DMACTRL_DMAFB    GENMASK(1, 0)
+#define NPCM_I3C_DMACTRL_DMAWIDTH           GENMASK(5, 4)
+#define NPCM_I3C_DMACTRL_DMATB              GENMASK(3, 2)
+#define NPCM_I3C_DMACTRL_DMATB_DISABLE      0x0
+#define NPCM_I3C_DMACTRL_DMATB_EN_ONE_FRAME 0x1
+#define NPCM_I3C_DMACTRL_DMATB_EN_MANUAL    0x2
+#define NPCM_I3C_DMACTRL_DMAFB              GENMASK(1, 0)
+#define NPCM_I3C_DMACTRL_DMAFB_DISABLE      0x0
+#define NPCM_I3C_DMACTRL_DMAFB_EN_ONE_FRAME 0x1
+#define NPCM_I3C_DMACTRL_DMAFB_EN_MANUAL    0x2
 
 #define NPCM_I3C_DATACTRL_RXEMPTY BIT(31)
 #define NPCM_I3C_DATACTRL_TXFULL  BIT(30)

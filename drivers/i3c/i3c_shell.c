@@ -20,8 +20,7 @@ LOG_MODULE_REGISTER(i3c_shell, CONFIG_LOG_DEFAULT_LEVEL);
 #define ARGV_REG                     3
 
 /* Maximum bytes we can write or read at once */
-#define MAX_I3C_BYTES 16
-
+#define MAX_I3C_BYTES (16 * 8)
 struct i3c_ctrl {
 	const struct device *dev;
 #ifdef CONFIG_I3C_CONTROLLER

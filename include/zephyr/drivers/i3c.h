@@ -2015,19 +2015,31 @@ static inline int i3c_write_read(struct i3c_device_desc *target,
 {
 	struct i3c_msg msg[2];
 
-	msg[0].buf = (uint8_t *)write_buf;
-	msg[0].len = num_write;
-	msg[0].flags = I3C_MSG_WRITE;
-	msg[0].hdr_mode = 0;
-	msg[0].hdr_cmd_code = 0;
+	printk("number=%d\n", num_read);
 
-	msg[1].buf = (uint8_t *)read_buf;
-	msg[1].len = num_read;
-	msg[1].flags = I3C_MSG_RESTART | I3C_MSG_READ | I3C_MSG_STOP;
-	msg[1].hdr_mode = 0;
-	msg[1].hdr_cmd_code = 0;
+	if (1) {
+		msg[0].buf = (uint8_t *)write_buf;
+		msg[0].len = num_write;
+		msg[0].flags = I3C_MSG_WRITE;
+		msg[0].hdr_mode = 0;
+		msg[0].hdr_cmd_code = 0;
 
-	return i3c_transfer(target, msg, 2);
+		msg[1].buf = (uint8_t *)read_buf;
+		msg[1].len = num_read;
+		msg[1].flags = I3C_MSG_RESTART | I3C_MSG_READ | I3C_MSG_STOP;
+		msg[1].hdr_mode = 0;
+		msg[1].hdr_cmd_code = 0;
+
+		return i3c_transfer(target, msg, 2);
+	} else {
+		msg[0].buf = (uint8_t *)read_buf;
+		msg[0].len = num_read;
+		msg[0].flags = I3C_MSG_READ | I3C_MSG_STOP;
+		msg[0].hdr_mode = 0;
+		msg[0].hdr_cmd_code = 0;
+
+		return i3c_transfer(target, msg, 1);
+	}
 }
 
 /**

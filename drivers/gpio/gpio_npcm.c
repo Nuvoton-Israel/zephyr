@@ -138,6 +138,9 @@ static int gpio_npcm_pin_configure(const struct device *dev, gpio_pin_t pin, gpi
 	struct scfg_reg *inst_scfg = SCFG_INST();
 	uint32_t mask = BIT(pin);
 
+	LOG_DBG("GPIO(%x, %d) flags %x", HAL_PORT_INST(dev), pin, flags);
+	LOG_DBG("DEV: %p", dev);
+
 	/* Check unsupported "Open Source" mode is set */
 	if (((flags & GPIO_SINGLE_ENDED) != 0) && ((flags & GPIO_LINE_OPEN_DRAIN) == 0)) {
 		return -ENOTSUP;

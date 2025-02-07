@@ -960,7 +960,7 @@ union i3c_ccc_getcaps {
 		 * - Bit[7:0]: Reserved
 		 */
 		uint8_t getcaps[4];
-	} fmt1;
+	} fmt1 __aligned(4);
 
 	union {
 		/**
