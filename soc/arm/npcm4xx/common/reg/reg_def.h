@@ -420,36 +420,39 @@ struct adc_reg {
 	volatile uint16_t RESERVED0;
 	/* 0x02: DSADC control register0 */
 	volatile uint8_t  DSADCCTRL0;
-	volatile uint8_t  RESERVED1[11];
+	volatile uint8_t  RESERVED1;
+	/* 0x04: DSADC control register1 */
+	volatile uint8_t  DSADCCTRL1;
+	volatile uint8_t  RESERVED2[9];
 	/* 0x0E: Operation Mode select */
 	volatile uint16_t ADCTM;
-	volatile uint16_t RESERVED2;
+	volatile uint16_t RESERVED3;
 	/* 0x12: Offset setting for tdp */
 	volatile uint16_t ADCTDPO[3];
-	volatile uint16_t RESERVED3[4];
+	volatile uint16_t RESERVED4[4];
 	/* 0x20: DSADC Analog Control register 1 */
 	volatile uint8_t  ADCACTRL1;
-	volatile uint8_t  RESERVED4;
+	volatile uint8_t  RESERVED5;
 	/* 0x22: DSADC Analog Power Down Control */
 	volatile uint16_t ADCACTRL2;
-	volatile uint8_t  RESERVED5[2];
+	volatile uint8_t  RESERVED6[2];
 	/* 0x26: Voltage / Thermister mode select */
 	volatile uint8_t  DSADCCTRL6;
-	volatile uint8_t  RESERVED6;
+	volatile uint8_t  RESERVED7;
 	/* 0x28: Voltage / Thermister mode select */
 	volatile uint8_t  DSADCCTRL7;
-	volatile uint8_t  RESERVED7[3];
+	volatile uint8_t  RESERVED8[3];
 	/* 0x2C: Voltage / Thermister mode select */
 	volatile uint16_t DSADCCTRL8;
-	volatile uint8_t  RESERVED8[74];
+	volatile uint8_t  RESERVED9[74];
 	/* 0x78: DSADC Configuration */
 	volatile uint16_t DSADCCFG;
 	/* 0x7A: DSADC Channel select */
 	volatile uint8_t  DSADCCS;
-	volatile uint8_t  RESERVED9;
+	volatile uint8_t  RESERVED10;
 	/* 0x7C: DSADC global status */
 	volatile uint16_t DSADCSTS;
-	volatile uint16_t RESERVED10;
+	volatile uint16_t RESERVED11;
 	/* 0x80: Temperature Channel Data */
 	volatile uint16_t TCHNDAT;
 };
