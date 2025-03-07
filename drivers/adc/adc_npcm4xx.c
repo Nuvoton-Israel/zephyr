@@ -26,6 +26,9 @@ LOG_MODULE_REGISTER(adc_npcm4xx, CONFIG_ADC_LOG_LEVEL);
 /* ADC internal reference voltage (Unit:mV) */
 #define NPCM4XX_ADC_VREF_VOL 2048
 
+/* ADC clock */
+#define NPCM4XX_ADC_CLK MHZ(1)
+
 #define ADC_NPCM4XX_REG_BASE    ((struct adc_reg *)(DT_INST_REG_ADDR(0)))
 
 enum adc_channel_en {
@@ -59,6 +62,8 @@ enum adc_channel_en {
 struct adc_npcm4xx_config {
 	/* adc controller base address */
 	uintptr_t base;
+	/* adc clock */
+	struct npcm4xx_clk_cfg clk_cfg;
 };
 
 /* Driver data */
@@ -420,6 +425,7 @@ static int adc_npcm4xx_init(const struct device *dev);
 
 static const struct adc_npcm4xx_config adc_npcm4xx_cfg = {
 	.base = DT_INST_REG_ADDR(0),
+	.clk_cfg = NPCM4XX_DT_CLK_CFG_ITEM(0),
 };
 
 static struct adc_npcm4xx_data adc_npcm4xx_data = {
@@ -438,6 +444,24 @@ DEVICE_DT_INST_DEFINE(0,
 static int adc_npcm4xx_init(const struct device *dev)
 {
 	struct adc_npcm4xx_data *const data = ((struct adc_npcm4xx_data *)(dev)->data);
+	const struct adc_npcm4xx_config *const config = DRV_CONFIG(dev);
+	struct adc_reg *const adc_regs = ADC_NPCM4XX_REG_BASE;
+	const struct device *const clk_dev = device_get_binding(NPCM4XX_CLK_CTRL_NAME);
+	uint32_t apb1_rate;
+	uint8_t clk_div;
+	int ret;
+
+	/* Get clock rate */
+	ret = clock_control_get_rate(clk_dev, (clock_control_subsys_t *)&config->clk_cfg,
+				     &apb1_rate);
+	if (ret < 0) {
+		LOG_ERR("Failed to get clock rate (%d)", ret);
+		return ret;
+	}
+
+	/* Set ADC_CLK close to 1 MHz */
+	clk_div = (apb1_rate < MHZ(129)) ? (apb1_rate / NPCM4XX_ADC_CLK) : 1;
+	adc_regs->DSADCCTRL1 = (clk_div >= 1) ? (clk_div - 1) : 0;
 
 	/* Save ADC device in data */
 	data->adc_dev = dev;
