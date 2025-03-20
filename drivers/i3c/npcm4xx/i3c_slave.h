@@ -16,9 +16,6 @@
 uint32_t I3C_DO_NACK_SLVSTART(I3C_TASK_INFO_t *pTaskInfo);
 
 /* Operation */
-void I3C_Slave_Start_Request(uint32_t Parm);
-void I3C_Slave_End_Request(uint32_t Parm);
-
 I3C_ErrCode_Enum I3C_Slave_Prepare_Response(I3C_DEVICE_INFO_t *pDevice,
 	uint16_t wrLen, uint8_t *pWrBuf);
 I3C_ErrCode_Enum I3C_Slave_Update_Pending(I3C_DEVICE_INFO_t *pDevice, uint8_t mask);
@@ -28,7 +25,7 @@ I3C_ErrCode_Enum I3C_Slave_Check_IBIDIS(I3C_DEVICE_INFO_t *pDevice, bool *bRet);
 
 /* PDMA */
 I3C_ErrCode_Enum Setup_Slave_Write_DMA(I3C_DEVICE_INFO_t *pDevice);
-I3C_ErrCode_Enum Setup_Slave_IBI_DMA(I3C_DEVICE_INFO_t *pDevice);
+I3C_ErrCode_Enum Setup_Slave_IBI_DMA(I3C_DEVICE_INFO_t *pDevice, I3C_TASK_INFO_t *pTaskInfo);
 
 uint8_t I3C_Update_Dynamic_Address(uint32_t Parm);
 void I3C_Prepare_To_Read_Command(uint32_t Parm);

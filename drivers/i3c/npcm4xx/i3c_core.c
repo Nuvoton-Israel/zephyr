@@ -2913,3 +2913,74 @@ I3C_ErrCode_Enum I3C_Slave_Insert_Task_IBI(I3C_PORT_Enum port, uint16_t txbuf_si
 
 	return I3C_ERR_OK;
 }
+
+void __i3c_release_task(struct I3C_TASK_INFO *pTaskInfo)
+{
+	if (pTaskInfo->pTask->pFrameList) {
+		hal_I3C_MemFree(pTaskInfo->pTask->pFrameList);
+	}
+	if (pTaskInfo->pTask) {
+		hal_I3C_MemFree(pTaskInfo->pTask);
+	}
+	if (pTaskInfo) {
+		hal_I3C_MemFree(pTaskInfo);
+	}
+}
+
+struct I3C_TASK_INFO *__i3c_create_task_frame(
+	I3C_PORT_Enum port, I3C_TRANSFER_PROTOCOL_Enum protocol,
+	uint16_t timeout, uint8_t *tx_buf, uint8_t *rx_buf, uint16_t tx_len, uint16_t *rx_len,
+	uint32_t frame_baudrate, uint8_t frame_address, uint8_t frame_direction,
+	uint32_t frame_flag, uint32_t frame_type, uint8_t retry_count)
+{
+	uint8_t frame_count = 1; /* Fixed frame count for now. */
+
+	struct I3C_TASK_INFO *taskInfo = hal_I3C_MemAlloc(sizeof(*taskInfo));
+	if (!taskInfo) {
+		return NULL;
+	}
+
+	taskInfo->pTask = hal_I3C_MemAlloc(sizeof(struct I3C_TRANSFER_TASK));
+	if (!taskInfo->pTask) {
+		hal_I3C_MemFree(taskInfo);
+		return NULL;
+	}
+	struct I3C_TRANSFER_TASK *task = taskInfo->pTask;
+
+	task->pFrameList = hal_I3C_MemAlloc(sizeof(struct I3C_TRANSFER_FRAME) * frame_count);
+	if (!task->pFrameList) {
+		hal_I3C_MemFree(task);
+		hal_I3C_MemFree(taskInfo);
+		return NULL;
+	}
+
+	/* Set common task info values */
+	taskInfo->Port = port;
+	taskInfo->SwTimeout = timeout;
+	taskInfo->MasterRequest = (protocol == I3C_TRANSFER_PROTOCOL_MASTER_REQUEST);
+
+	/* Initialize transfer task fields */
+	task->pTaskInfo = taskInfo;
+	task->protocol = protocol;
+	task->frame_count = frame_count;
+	task->frame_idx = 0;
+	task->pRdLen = rx_len;
+	task->pRdBuf = rx_buf;
+
+	/* Get pointer to first frame */
+	struct I3C_TRANSFER_FRAME *frame = task->pFrameList;
+
+	/* Set frame's fields */
+	frame[0].flag = frame_flag;
+	frame[0].type = frame_type;
+	frame[0].baudrate = frame_baudrate;
+	frame[0].address = frame_address;
+	frame[0].direction = frame_direction;
+	frame[0].access_idx = 0;
+	frame[0].access_buf = tx_buf;
+	frame[0].access_len = tx_len;
+	frame[0].retry_count = retry_count;
+	frame[0].pNextFrame = NULL;
+
+	return taskInfo;
+}

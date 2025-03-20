@@ -203,10 +203,17 @@ I3C_ErrCode_Enum hal_I3C_Stop_Slave_TX(I3C_DEVICE_INFO_t *pDevice);
 
 I3C_ErrCode_Enum hal_I3C_Start_IBI(I3C_TASK_INFO_t *pTaskInfo);
 I3C_ErrCode_Enum hal_I3C_Start_Master_Request(I3C_TASK_INFO_t *pTaskInfo);
-I3C_ErrCode_Enum hal_I3C_Start_HotJoin(I3C_TASK_INFO_t *pTaskInfo);
+I3C_ErrCode_Enum hal_I3C_Start_HotJoin(I3C_TASK_INFO_t *pTaskInfo, struct i3c_npcm4xx_obj *obj);
 
 void *hal_I3C_MemAlloc(uint32_t Size);
 void hal_I3C_MemFree(void *pv);
+
+struct I3C_TASK_INFO *
+__i3c_create_task_frame(I3C_PORT_Enum port, I3C_TRANSFER_PROTOCOL_Enum protocol, uint16_t timeout,
+			uint8_t *tx_buf, uint8_t *rx_buf, uint16_t tx_len, uint16_t *rx_len,
+			uint32_t frame_baudrate, uint8_t frame_address, uint8_t frame_direction,
+			uint32_t frame_flag, uint32_t frame_type, uint8_t retry_count);
+void __i3c_release_task(struct I3C_TASK_INFO *pTaskInfo);
 
 #ifdef __cplusplus
 }

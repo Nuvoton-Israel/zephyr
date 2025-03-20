@@ -105,7 +105,6 @@ struct k_work_q npcm4xx_i3c_work_q[I3C_PORT_MAX];
 
 struct k_work work_stop[I3C_PORT_MAX];
 struct k_work work_next[I3C_PORT_MAX];
-struct k_work work_send_ibi[I3C_PORT_MAX];
 struct k_work work_entdaa[I3C_PORT_MAX];
 
 static uint32_t i3c_npcm4xx_master_send_done(void *pCallbackData,
@@ -170,45 +169,6 @@ void work_next_fun(struct k_work *item)
 		return;
 
 	I3C_Master_Run_Next_Frame((uint32_t)pTask);
-}
-
-void work_send_ibi_fun(struct k_work *item)
-{
-	uint8_t i;
-	I3C_BUS_INFO_t *pBus;
-	I3C_DEVICE_INFO_t *pDeviceSlv;
-	I3C_TRANSFER_TASK_t *pTask;
-	I3C_TASK_INFO_t *pTaskInfo;
-
-	for (i = 0; i < I3C_PORT_MAX; i++) {
-		if (item == &work_send_ibi[i])
-			break;
-	}
-
-	if (i == I3C_PORT_MAX)
-		return;
-
-	pBus = Get_Bus_From_Port(i);
-	if (pBus == NULL)
-		return;
-
-	if (pBus->pCurrentTask != NULL) {
-		k_work_submit_to_queue(&npcm4xx_i3c_work_q[i], item);
-		return;
-	}
-
-	pDeviceSlv = I3C_Get_INODE(i);
-
-	pTask = pDeviceSlv->pTaskListHead;
-	if (pTask == NULL) {
-		return;
-	}
-
-	pTask = pDeviceSlv->pTaskListHead;
-	pBus->pCurrentTask = pTask; /* task with higher priority will insert in the front */
-
-	pTaskInfo = pTask->pTaskInfo;
-	I3C_Slave_Start_Request((uint32_t)pTaskInfo);
 }
 
 void work_entdaa_fun(struct k_work *item)
@@ -300,6 +260,101 @@ void work_entdaa_fun(struct k_work *item)
 	k_mutex_unlock(&pDevice->lock);
 
 	hal_I3C_MemFree(xfer);
+}
+
+static uint8_t *pec_append(const struct device *dev, uint8_t *ptr, uint16_t len);
+I3C_ErrCode_Enum hal_I3C_Stop_SlaveEvent(struct I3C_TASK_INFO *pTaskInfo);
+
+struct I3C_TASK_INFO *send_ibi(const struct device *dev, uint8_t req_type,
+			       struct i3c_ibi_payload *ibi_notify)
+{
+	struct i3c_npcm4xx_config *config = DEV_CFG(dev);
+	struct i3c_npcm4xx_obj *obj = DEV_DATA(dev);
+	uint8_t port = config->inst_id;
+	struct I3C_BUS_INFO *pBus = Get_Bus_From_Port(port);
+	struct I3C_TASK_INFO *pTaskInfo = NULL;
+	uint8_t tx_buf[8] = { 0 };
+	uint16_t tx_len = 0;
+
+	if (pBus == NULL) {
+		LOG_ERR("Failed to get bus");
+		return NULL;
+	}
+
+	switch (req_type) {
+	case I3C_TRANSFER_PROTOCOL_HOT_JOIN:
+		pTaskInfo =
+			__i3c_create_task_frame(port, I3C_TRANSFER_PROTOCOL_HOT_JOIN,
+						TIMEOUT_TYPICAL, NULL, NULL, 0, 0,
+						config->i3c_scl_hz, 0, I3C_TRANSFER_DIR_READ,
+						(I3C_TRANSFER_NORMAL | I3C_TRANSFER_RETRY_ENABLE),
+						I3C_TRANSFER_TYPE_SDR, 3);
+		if (pTaskInfo != NULL) {
+			hal_I3C_Start_HotJoin(pTaskInfo, obj);
+		}
+		break;
+
+	case I3C_TRANSFER_PROTOCOL_IBI:
+		if (ibi_notify == NULL) {
+			LOG_ERR("IBI payload is NULL");
+			return NULL;
+		}
+		/* Set up transmission buffer:
+		  * - The first byte is always the mandatory data byte.
+		  * - If PEC appending is enabled, adjust length and call pec_append().
+		  */
+		tx_buf[0] = ibi_notify->buf[0];
+		if (config->ibi_append_pec) {
+			/* The returned pointer is not used further,
+			  * but pec_append() performs required PEC calculations.
+			  */
+			pec_append(dev, ibi_notify->buf, ibi_notify->size);
+			tx_len = 2;
+		} else {
+			tx_len = 1;
+		}
+		if (hal_I3C_run_ASYN0(port)) {
+			tx_len += 3;
+		}
+		pTaskInfo =
+			__i3c_create_task_frame(port, I3C_TRANSFER_PROTOCOL_IBI, TIMEOUT_TYPICAL,
+						tx_buf, NULL, tx_len, 0, config->i3c_scl_hz,
+						I3C_BROADCAST_ADDR, I3C_TRANSFER_DIR_WRITE,
+						(I3C_TRANSFER_NORMAL | I3C_TRANSFER_RETRY_ENABLE),
+						I3C_TRANSFER_TYPE_SDR, 3);
+		if (pTaskInfo != NULL) {
+			hal_I3C_Start_IBI(pTaskInfo);
+		}
+		break;
+
+	case I3C_TRANSFER_PROTOCOL_MASTER_REQUEST:
+		pTaskInfo =
+			__i3c_create_task_frame(port, I3C_TRANSFER_PROTOCOL_MASTER_REQUEST,
+						TIMEOUT_TYPICAL, NULL, NULL, 0, 0,
+						config->i3c_scl_hz, 0, I3C_TRANSFER_DIR_WRITE,
+						(I3C_TRANSFER_NORMAL | I3C_TRANSFER_RETRY_ENABLE),
+						I3C_TRANSFER_TYPE_SDR, 3);
+		if (pTaskInfo != NULL) {
+			hal_I3C_Start_Master_Request(pTaskInfo);
+		}
+		break;
+
+	default:
+		LOG_ERR("Unsupported IBI request type");
+		return NULL;
+	}
+
+	if (pTaskInfo == NULL) {
+		LOG_ERR("Failed to create task");
+		__i3c_release_task(pTaskInfo);
+		return NULL;
+	}
+
+	/*
+	 * Return the task info to the caller; the allocated memory will be freed
+	 * by the EVENT in ISR.
+	 */
+	return pTaskInfo;
 }
 
 /* declare 16 pdma descriptors to handle master/slave tx
@@ -1467,20 +1522,24 @@ I3C_ErrCode_Enum hal_I3C_Start_IBI(I3C_TASK_INFO_t *pTaskInfo)
 	I3C_TRANSFER_FRAME_t *pFrame;
 	uint32_t ctrl;
 
-	if (pTaskInfo == NULL)
+	if (pTaskInfo == NULL) {
 		return I3C_ERR_PARAMETER_INVALID;
+	}
 
 	port = pTaskInfo->Port;
-	if (port >= I3C_PORT_MAX)
+	if (port >= I3C_PORT_MAX) {
 		return I3C_ERR_PARAMETER_INVALID;
+	}
 
 	pDevice = I3C_Get_INODE(port);
 	if ((pDevice->mode != I3C_DEVICE_MODE_SLAVE_ONLY) &&
-		((pDevice->mode != I3C_DEVICE_MODE_SECONDARY_MASTER)))
+	    ((pDevice->mode != I3C_DEVICE_MODE_SECONDARY_MASTER))) {
 		return I3C_ERR_PARAMETER_INVALID;
+	}
 
 	pTask = pTaskInfo->pTask;
 	pFrame = &pTask->pFrameList[pTask->frame_idx];
+	pDevice->pTaskListHead = pTask;
 
 	if (I3C_GET_REG_CTRL(port) & I3C_CTRL_EVENT_MASK) {
 		LOG_WRN("Generarte IBI but CTRL in Progress: 0x%x\n", I3C_GET_REG_CTRL(port));
@@ -1497,17 +1556,17 @@ I3C_ErrCode_Enum hal_I3C_Start_IBI(I3C_TASK_INFO_t *pTaskInfo)
 
 		/* Extended IBI data */
 		if (((pFrame->access_len - pFrame->access_idx) == 0) ||
-			((pFrame->access_len - pFrame->access_idx) > 7)) {
+		    ((pFrame->access_len - pFrame->access_idx) > 7)) {
 			ctrl |= I3C_CTRL_EXTDATA(0);
 			I3C_SET_REG_IBIEXT1(port, I3C_IBIEXT1_MAX(0));
-			Setup_Slave_IBI_DMA(pDevice);
+			Setup_Slave_IBI_DMA(pDevice, pTaskInfo);
 		} else {
 			ctrl |= I3C_CTRL_EXTDATA(1);
 
 			/* MAX = data len, CNT = 0 -> use TX FIFO */
 			I3C_SET_REG_IBIEXT1(
 				port, I3C_IBIEXT1_MAX(pFrame->access_len - pFrame->access_idx));
-			Setup_Slave_IBI_DMA(pDevice);
+			Setup_Slave_IBI_DMA(pDevice, pTaskInfo);
 		}
 	}
 
@@ -1525,17 +1584,20 @@ I3C_ErrCode_Enum hal_I3C_Start_Master_Request(I3C_TASK_INFO_t *pTaskInfo)
 	uint32_t ctrl;
 	uint32_t key;
 
-	if (pTaskInfo == NULL)
+	if (pTaskInfo == NULL) {
 		return I3C_ERR_PARAMETER_INVALID;
+	}
 
 	port = pTaskInfo->Port;
-	if (port >= I3C_PORT_MAX)
+	if (port >= I3C_PORT_MAX) {
 		return I3C_ERR_PARAMETER_INVALID;
+	}
 
 	pDevice = I3C_Get_INODE(port);
 	if ((pDevice->mode != I3C_DEVICE_MODE_SLAVE_ONLY) &&
-		((pDevice->mode != I3C_DEVICE_MODE_SECONDARY_MASTER)))
+	    ((pDevice->mode != I3C_DEVICE_MODE_SECONDARY_MASTER))) {
 		return I3C_ERR_PARAMETER_INVALID;
+	}
 
 	if (I3C_GET_REG_CTRL(port) & I3C_CTRL_EVENT_MASK) {
 		LOG_WRN("Generarte Master REQ but CTRL in Progress: 0x%x\n",
@@ -1562,13 +1624,12 @@ I3C_ErrCode_Enum hal_I3C_Start_Master_Request(I3C_TASK_INFO_t *pTaskInfo)
 	return I3C_ERR_OK;
 }
 
-I3C_ErrCode_Enum hal_I3C_Start_HotJoin(I3C_TASK_INFO_t *pTaskInfo)
+I3C_ErrCode_Enum hal_I3C_Start_HotJoin(I3C_TASK_INFO_t *pTaskInfo, struct i3c_npcm4xx_obj *obj)
 {
 	I3C_PORT_Enum port;
 	I3C_DEVICE_INFO_t *pDevice;
 	I3C_TRANSFER_TASK_t *pTask;
 	I3C_ErrCode_Enum ret = I3C_ERR_OK;
-	struct i3c_npcm4xx_obj *obj = NULL;
 	uint32_t ctrl;
 	uint8_t retry;
 	uint8_t check_count;
@@ -1587,17 +1648,13 @@ I3C_ErrCode_Enum hal_I3C_Start_HotJoin(I3C_TASK_INFO_t *pTaskInfo)
 		goto hj_exit;
 	}
 
-	obj = gObj[port];
-
 	pTask = pTaskInfo->pTask;
 
 	/* check dynamic address already present or not */
 	if (I3C_Update_Dynamic_Address(port)) {
 		LOG_WRN("HotJoin: DA present before generate Hot-Join\n");
-		if (pTask) {
-			I3C_Slave_End_Request((uint32_t)pTask);
-		}
 
+		hal_I3C_Stop_SlaveEvent(pTaskInfo);
 		ret = I3C_ERR_OK;
 		goto hj_exit;
 	}
@@ -1605,21 +1662,21 @@ I3C_ErrCode_Enum hal_I3C_Start_HotJoin(I3C_TASK_INFO_t *pTaskInfo)
 	/* check daa is under progress or not */
 	if (I3C_GET_REG_STATUS(port) & I3C_STATUS_STDAA_MASK) {
 		LOG_WRN("HotJoin: STDAA work in progress.\n");
-		if (pTask) {
-			I3C_Slave_End_Request((uint32_t)pTask);
-		}
 
+		hal_I3C_Stop_SlaveEvent(pTaskInfo);
 		ret = I3C_ERR_OK;
 		goto hj_exit;
 	}
 
 	pDevice = I3C_Get_INODE(port);
 	if ((pDevice->mode != I3C_DEVICE_MODE_SLAVE_ONLY) &&
-		((pDevice->mode != I3C_DEVICE_MODE_SECONDARY_MASTER))) {
+	    ((pDevice->mode != I3C_DEVICE_MODE_SECONDARY_MASTER))) {
 		LOG_ERR("HotJoin: Only support slave or secondary master\n");
 		ret = I3C_ERR_PARAMETER_INVALID;
 		goto hj_exit;
 	}
+
+	pDevice->pTaskListHead = pTask;
 
 	if (I3C_GET_REG_CTRL(port) & I3C_CTRL_EVENT_MASK) {
 		LOG_WRN("Generarte HJ but CTRL in Progress: 0x%x\n", I3C_GET_REG_CTRL(port));
@@ -1654,10 +1711,8 @@ hj_retry:
 	/* if daa already done, exit hot-join progress */
 	if (I3C_Update_Dynamic_Address(port)) {
 		LOG_WRN("HotJoin: Bus BUS idle and DA present\n");
-		if (pTask) {
-			I3C_Slave_End_Request((uint32_t)pTask);
-		}
 
+		hal_I3C_Stop_SlaveEvent(pTaskInfo);
 		ret = I3C_ERR_OK;
 		goto hj_exit;
 	}
@@ -1689,10 +1744,7 @@ hj_retry:
 		/* Disable generate event */
 		I3C_SET_REG_CTRL(port, I3C_CTRL_EVENT_None);
 
-		if (pTask) {
-			I3C_Slave_End_Request((uint32_t)pTask);
-		}
-
+		hal_I3C_Stop_SlaveEvent(pTaskInfo);
 		ret = I3C_ERR_OK;
 		goto hj_exit;
 	}
@@ -1705,10 +1757,8 @@ hj_retry:
 
 	if (retry >= NPCM4XX_I3C_HJ_RETRY_MAX) {
 		LOG_ERR("HotJoin: Send event failed\n");
-		if (pTask) {
-			I3C_Slave_End_Request((uint32_t)pTask);
-		}
 
+		hal_I3C_Stop_SlaveEvent(pTaskInfo);
 		ret = I3C_ERR_BUS_ERROR;
 		goto hj_exit;
 	} else {
@@ -2231,31 +2281,25 @@ int i3c_npcm4xx_slave_set_static_addr(const struct device *dev, uint8_t static_a
 /*
  * slave send mdb
  */
-int i3c_npcm4xx_slave_put_read_data(const struct device *dev, struct i3c_slave_payload *data,
-					struct i3c_ibi_payload *ibi_notify)
+int i3c_npcm4xx_slave_put_read_data(const struct device *dev,
+				    struct i3c_slave_payload *data,
+				    struct i3c_ibi_payload *ibi_notify)
 {
-	struct i3c_npcm4xx_config *config;
-	struct i3c_npcm4xx_obj *obj;
-	I3C_TASK_INFO_t *pTaskInfo;
-	I3C_TRANSFER_TASK_t *pTask;
-	I3C_PORT_Enum port;
+	struct i3c_npcm4xx_config *config = DEV_CFG(dev);
+	struct i3c_npcm4xx_obj *obj = DEV_DATA(dev);
+	I3C_PORT_Enum port = config->inst_id;
+	struct I3C_DEVICE_INFO *pDevice = I3C_Get_INODE(port);
+	struct I3C_TASK_INFO *pTaskInfo;
 	uint32_t event_en;
-	int ret;
-	uint8_t *xfer_buf;
-	I3C_DEVICE_INFO_t *pDevice;
-	int iRet = 0;
+	int ret = 0;
+
+	// uint8_t *xfer_buf;
 
 	__ASSERT_NO_MSG(data);
 	__ASSERT_NO_MSG(data->buf);
 	__ASSERT_NO_MSG(data->size);
 
-	config = DEV_CFG(dev);
-	port = config->inst_id;
-	pDevice = I3C_Get_INODE(port);
-
 	k_mutex_lock(&pDevice->lock, K_FOREVER);
-
-	obj = DEV_DATA(dev);
 
 	if (config->priv_xfer_pec) {
 	/*
@@ -2270,7 +2314,7 @@ int i3c_npcm4xx_slave_put_read_data(const struct device *dev, struct i3c_slave_p
 	 *	LOG_DBG("pec = %x", pec_v);
 	 *	xfer_buf = (uint8_t *)&data->buf[0];
 	 *	xfer_buf[data->size] = pec_v;
-	 *	i3c_npcm4xx_wr_tx_fifo(obj, data->buf, data->size + 1);
+	 *	i3c_npcm4xx_wr_tx_fifo(data, data->buf, data->size + 1);
 	 */
 	} else {
 		i3c_npcm4xx_wr_tx_fifo(obj, data->buf, data->size);
@@ -2296,48 +2340,31 @@ int i3c_npcm4xx_slave_put_read_data(const struct device *dev, struct i3c_slave_p
 		/* init ibi complete sem */
 		k_sem_init(&pDevice->ibi_complete, 0, 1);
 
-		/* osEventFlagsClear(obj->ibi_event, ~osFlagsError); */
-
-		uint16_t txlen;
-		uint16_t rxlen = 0;
-		uint8_t TxBuf[2];
-		I3C_TRANSFER_PROTOCOL_Enum protocol = I3C_TRANSFER_PROTOCOL_IBI;
-		uint32_t timeout = TIMEOUT_TYPICAL;
-
-		txlen = (uint16_t)ibi_notify->size; /* ibi_notify->size >= 0 */
-		TxBuf[0] = ibi_notify->buf[0]; /* MDB */
-
-		if (config->ibi_append_pec) {
-			xfer_buf = pec_append(dev, ibi_notify->buf, ibi_notify->size);
-			txlen = 2;
-			/* i3c_npcm4xx_wr_tx_fifo(obj, xfer_buf, ibi_notify->size + 1); */
-			/* k_free(xfer_buf); */
-		} else {
-			txlen = 1;
-			/* i3c_npcm4xx_wr_tx_fifo(obj, ibi_notify->buf, ibi_notify->size); */
-		}
-
 		/* let slave drive SLVSTART until bus idle */
-		pTaskInfo = I3C_Slave_Create_Task(protocol, txlen, &txlen, &rxlen, TxBuf, NULL,
-						  timeout, NULL, port, NOT_HIF);
-		k_work_submit_to_queue(&npcm4xx_i3c_work_q[port], &work_send_ibi[port]);
+		pTaskInfo = send_ibi(dev, I3C_TRANSFER_PROTOCOL_IBI, ibi_notify);
 
 		/* wait ibi master read complete done */
-		iRet = k_sem_take(&pDevice->ibi_complete, K_MSEC(100));
+		ret = k_sem_take(&pDevice->ibi_complete, K_MSEC(100));
 
-		if (iRet != 0) {
-			LOG_ERR("wait master read timeout %d", iRet);
-			pTask = pTaskInfo->pTask;
+		if (ret != 0) {
 			/* cancel slave event */
 			hal_I3C_Stop_SlaveEvent(pTaskInfo);
-			/* remove ibi task from queue */
-			I3C_Slave_End_Request((uint32_t)pTask);
+
 			/* stop TX and DMA */
 			hal_I3C_Stop_Slave_TX(pDevice);
+
 			/* release memory resource */
 			I3C_Slave_Finish_Response(pDevice);
+
 			k_mutex_unlock(&pDevice->lock);
-			return iRet;
+			return ret;
+		}
+
+		uint16_t txDataLen = 0;
+		hal_I3C_Slave_Query_TxLen(pDevice->port, &txDataLen);
+		if (txDataLen == 0) {
+			/* call tx send complete hook */
+			I3C_Slave_Finish_Response(pDevice);
 		}
 	}
 
@@ -2385,8 +2412,7 @@ int i3c_npcm4xx_slave_hj_req(const struct device *dev)
 			config->rst_reason = NPCM4XX_RESET_REASON_DEBUGGER_RST;
 		} else {
 			LOG_WRN("Direct Hot-Join\n");
-			I3C_Slave_Insert_Task_HotJoin(port);
-			k_work_submit_to_queue(&npcm4xx_i3c_work_q[port], &work_send_ibi[port]);
+			send_ibi(dev, I3C_TRANSFER_PROTOCOL_HOT_JOIN, NULL);
 			config->hj_req = I3C_HOT_JOIN_STATE_Queue;
 		}
 	} else {
@@ -3417,45 +3443,149 @@ void I3C_Master_ISR(uint8_t I3C_IF)
 	EXIT_MASTER_ISR();
 }
 
-void I3C_Slave_ISR(uint8_t I3C_IF)
+/* Helper to clear stop status and matched flag */
+static void clear_stop_status(I3C_PORT_Enum port, struct I3C_DEVICE_INFO *pDevice)
 {
-	I3C_DEVICE_INFO_t *pDevice;
-	I3C_TASK_INFO_t *pTaskInfo = NULL;
-	I3C_TRANSFER_TASK_t *pTask;
-	I3C_TRANSFER_FRAME_t *pFrame;
-	struct i3c_npcm4xx_obj *obj;
-	uint32_t intmasked;
-	uint32_t status;
-	uint32_t ctrl;
-	uint8_t evdet;
-	uint32_t errwarn;
-	bool bMATCHSS;
-	uint8_t addr;
-	uint32_t sconfig;
+	I3C_SET_REG_STATUS(port, I3C_STATUS_STOP_MASK);
+	if (I3C_GET_REG_STATUS(port) & I3C_STATUS_MATCHED_MASK) {
+		I3C_SET_REG_STATUS(port, I3C_STATUS_MATCHED_MASK);
+	}
+}
 
-	ENTER_SLAVE_ISR();
+/* Helper to handle potential “re-entry” when the bus is not idle */
+static void handle_Reentry_if_not_idle(I3C_PORT_Enum port, uint32_t intmasked)
+{
+	if (!hal_I3C_Is_Slave_Idle(port)) {
+		if (I3C_GET_REG_STATUS(port) & I3C_STATUS_START_MASK) {
+			LOG_DBG("[RE-ENTRY] FORCE CLEAR START in STOP INT, intmasked=0x%x status=0x%x",
+				intmasked, I3C_GET_REG_STATUS(port));
+			I3C_SET_REG_STATUS(port, I3C_STATUS_START_MASK);
+		}
+		if (I3C_GET_REG_STATUS(port) & I3C_STATUS_STOP_MASK) {
+			LOG_ERR("[RE-ENTRY] RECV SECOND STOP in STOP INT, intmasked=0x%x status=0x%x",
+				intmasked, I3C_GET_REG_STATUS(port));
+			I3C_SET_REG_STATUS(port, I3C_STATUS_STOP_MASK);
+		}
+	}
+}
 
-	intmasked = I3C_GET_REG_INTMASKED(I3C_IF);
-	if (intmasked == 0) {
-		EXIT_SLAVE_ISR();
+/* Helper to process EVENT interrupt */
+static void handle_event_interrupt(const struct device *dev, uint32_t status)
+{
+	struct i3c_npcm4xx_config *config = DEV_CFG(dev);
+	struct i3c_npcm4xx_obj *obj = DEV_DATA(dev);
+	uint8_t port = config->inst_id;
+	struct I3C_DEVICE_INFO *pDevice = obj->pDevice;
+	struct I3C_TASK_INFO *pTaskInfo;
+	uint8_t evdet = (uint8_t)((status & I3C_STATUS_EVDET_MASK) >> I3C_STATUS_EVDET_SHIFT);
+
+	/* Check if task list head is available */
+	if (pDevice->pTaskListHead == NULL) {
+		LOG_ERR("pTaskListHead is NULL\n");
 		return;
 	}
 
-	status = I3C_GET_REG_STATUS(I3C_IF);
-	bMATCHSS = (I3C_GET_REG_CONFIG(I3C_IF) & I3C_CONFIG_MATCHSS_MASK) ? true : false;
+	/* Validate task info */
+	pTaskInfo = pDevice->pTaskListHead[0].pTaskInfo;
+	if (pTaskInfo == NULL) {
+		LOG_ERR("pTaskInfo is NULL\n");
+		pDevice->pTaskListHead = NULL;
+		return;
+	}
 
-	pDevice = I3C_Get_INODE(I3C_IF);
+	/* Stop slave event regardless of evdet type */
+	hal_I3C_Stop_SlaveEvent(pTaskInfo);
 
-	obj = gObj[I3C_IF];
+	/* For events other than SEND_ACKED or SEND_NACKED, clear the master request */
+	if ((evdet != I3C_STATUS_EVDET_SEND_ACKED) && (evdet != I3C_STATUS_EVDET_SEND_NACKED)) {
+		I3C_SET_REG_CTRL(port, I3C_MCTRL_REQUEST_NONE);
+	}
 
-	if (bMATCHSS == false) {
-		if (obj->config->hj_req == I3C_HOT_JOIN_STATE_Request) {
-			if (intmasked & I3C_INTMASKED_STOP_MASK) {
-				I3C_Slave_Insert_Task_HotJoin(I3C_IF);
-				k_work_submit_to_queue(&npcm4xx_i3c_work_q[I3C_IF],
-							   &work_send_ibi[I3C_IF]);
-				obj->config->hj_req = I3C_HOT_JOIN_STATE_Queue;
-			}
+	__i3c_release_task(pTaskInfo);
+	pDevice->pTaskListHead = NULL;
+}
+
+/* Helper to process dynamic address change interrupt */
+static void handle_DACHG_interrupt(I3C_PORT_Enum port, struct i3c_npcm4xx_obj *obj)
+{
+	uint8_t addr = I3C_Update_Dynamic_Address((uint32_t)port);
+	uint32_t sconfig = I3C_GET_REG_CONFIG(port);
+
+	if (addr) {
+		obj->sir_allowed_by_sw = 1;
+		LOG_WRN("dyn addr = %X\n", addr);
+		if (!(sconfig & I3C_CONFIG_MATCHSS_MASK)) {
+			sconfig |= I3C_CONFIG_MATCHSS_MASK;
+			I3C_SET_REG_CONFIG(port, sconfig);
+		}
+	} else {
+		obj->sir_allowed_by_sw = 0;
+		LOG_WRN("reset dyn addr\n");
+		if (sconfig & I3C_CONFIG_MATCHSS_MASK) {
+			sconfig &= ~I3C_CONFIG_MATCHSS_MASK;
+			I3C_SET_REG_CONFIG(port, sconfig);
+		}
+	}
+	I3C_SET_REG_STATUS(port, I3C_STATUS_DACHG_MASK);
+}
+
+/* Helper to process START interrupt */
+static void handle_start_interrupt(I3C_PORT_Enum port)
+{
+	if (I3C_GET_REG_STATUS(port) & I3C_STATUS_START_MASK) {
+		I3C_SET_REG_STATUS(port, I3C_STATUS_START_MASK);
+	}
+}
+
+/* Helper function to handle CCC Command auto response */
+static int handle_CCC_command(I3C_PORT_Enum port, struct I3C_DEVICE_INFO *pDevice, uint32_t status,
+			      uint32_t ctrl)
+{
+	I3C_ErrCode_Enum result = I3C_ERR_NACK_SLVSTART;
+
+	/* Process auto-response based on the event type */
+	if ((ctrl & I3C_CTRL_EVENT_MASK) == I3C_CTRL_EVENT_IBI) {
+		if (status & I3C_STATUS_IBIDIS_MASK) {
+			result = I3C_ERR_OK;
+		}
+	} else if ((ctrl & I3C_CTRL_EVENT_MASK) == I3C_CTRL_EVENT_MstReq) {
+		if (status & I3C_STATUS_MRDIS_MASK) {
+			result = I3C_ERR_OK;
+		}
+	} else if ((ctrl & I3C_CTRL_EVENT_MASK) == I3C_CTRL_EVENT_HotJoin) {
+		if (status & I3C_STATUS_HJDIS_MASK) {
+			result = I3C_ERR_OK;
+		}
+	}
+
+	return result;
+}
+
+void I3C_Slave_ISR(const struct device *dev)
+{
+	struct i3c_npcm4xx_config *config = DEV_CFG(dev);
+	struct i3c_npcm4xx_obj *obj = DEV_DATA(dev);
+	I3C_PORT_Enum port = config->inst_id;
+	struct I3C_DEVICE_INFO *pDevice = I3C_Get_INODE(port);
+	uint32_t intmasked = I3C_GET_REG_INTMASKED(port);
+	uint32_t status = I3C_GET_REG_STATUS(port);
+	uint8_t evdet;
+	bool bMATCHSS = !!(I3C_GET_REG_CONFIG(port) & I3C_CONFIG_MATCHSS_MASK);
+	uint32_t ctrl;
+	int ret;
+
+	ENTER_SLAVE_ISR();
+
+	if (intmasked == 0) {
+		goto exit;
+	}
+
+	/* Handle Hot-Join state and matched status */
+	if (!bMATCHSS) {
+		if (obj->config->hj_req == I3C_HOT_JOIN_STATE_Request &&
+		    (intmasked & I3C_INTMASKED_STOP_MASK)) {
+			send_ibi(dev, I3C_TRANSFER_PROTOCOL_HOT_JOIN, NULL);
+			obj->config->hj_req = I3C_HOT_JOIN_STATE_Queue;
 		}
 
 		if (status & I3C_STATUS_MATCHED_MASK) {
@@ -3465,224 +3595,126 @@ void I3C_Slave_ISR(uint8_t I3C_IF)
 	} else {
 		if (obj->config->hj_req != I3C_HOT_JOIN_STATE_None) {
 			LOG_WRN("MATCHSS set. DA=0x%x\n",
-				I3C_Update_Dynamic_Address((uint32_t)I3C_IF));
+				I3C_Update_Dynamic_Address((uint32_t)port));
 			obj->config->hj_req = I3C_HOT_JOIN_STATE_None;
 		}
 	}
 
-	/* Speedup to clear MATCHED flag in interrupt to avoid SDA driven from stop to start too quickly */
+	/* Process STOP interrupt */
 	if (intmasked & I3C_INTMASKED_STOP_MASK) {
-		I3C_SET_REG_STATUS(I3C_IF, I3C_STATUS_STOP_MASK);
+		clear_stop_status(port, pDevice);
 
-		/* Clear address matched for SDR */
-		if (I3C_GET_REG_STATUS(I3C_IF) & I3C_STATUS_MATCHED_MASK) {
-			I3C_SET_REG_STATUS(I3C_IF, I3C_STATUS_MATCHED_MASK);
-		}
-
-		/* when bMATCHSS enabled, HW only set start/stop flag if MATCHED(address) as true */
 		if (bMATCHSS) {
-			/* Received stop interrupt from HW but currently bus status is start or stop,
-			 * the status means "RE-ENTRY".
-			 */
-			if (hal_I3C_Is_Slave_Idle(I3C_IF) != true) {
-				/* Received stop interrupt but current status is start, clear it. */
-				if (I3C_GET_REG_STATUS(I3C_IF) & I3C_STATUS_START_MASK) {
-					LOG_DBG("[RE-ENTRY] FORCE CLEAR START in STOP INT, intmasked=0x%x status=0x%x",
-						intmasked, I3C_GET_REG_STATUS(I3C_IF));
-					I3C_SET_REG_STATUS(I3C_IF, I3C_STATUS_START_MASK);
-				}
-
-				/* Received stop interrupt but current status is stop, clear it. CPU running too slow? */
-				if (I3C_GET_REG_STATUS(I3C_IF) & I3C_STATUS_STOP_MASK) {
-					LOG_ERR("[RE-ENTRY] RECV SECOND STOP in STOP INT, intmasked=0x%x status=0x%x",
-						intmasked, I3C_GET_REG_STATUS(I3C_IF));
-					I3C_SET_REG_STATUS(I3C_IF, I3C_STATUS_STOP_MASK);
-				}
-			}
+			handle_Reentry_if_not_idle(port, intmasked);
 		}
 	}
 
-	/* Target send IBI, Hot-Join or Master Request done */
+	/* Process EVENT interrupt */
 	if (intmasked & I3C_INTMASKED_EVENT_MASK) {
-		evdet = (uint8_t)((status & I3C_STATUS_EVDET_MASK) >> I3C_STATUS_EVDET_SHIFT);
-		I3C_SET_REG_STATUS(I3C_IF, I3C_STATUS_EVENT_MASK);
-		pTask = pDevice->pTaskListHead;
-
-		if (pTask) {
-			pTaskInfo = pTask->pTaskInfo;
-			if (pTaskInfo == NULL) {
-				LOG_ERR("INTEVENT but pTaskInfo NULL");
-			}
-		} else {
-			LOG_ERR("INTEVENT but pTask null");
-		}
-
-		if (pTaskInfo) {
-			/* Target request IBI, Hot-Join and Master Request ACKED */
-			if (evdet == 0x03) {
-				/* Ack Hot-Join --> status = 0x341000 */
-				pTaskInfo->result = I3C_ERR_OK;
-				I3C_Slave_End_Request((uint32_t)pTask);
-			}
-
-			/* Target request IBI, Hot-Join and Master Request NACKED */
-			if (evdet == 0x02) {
-				pFrame = &pTask->pFrameList[pTask->frame_idx];
-				if ((pFrame->flag & I3C_TRANSFER_RETRY_ENABLE) &&
-					(pFrame->retry_count >= 1)) {
-					pFrame->retry_count--;
-					I3C_Slave_Start_Request((uint32_t)pTaskInfo);
-				}
-			} else {
-				I3C_SET_REG_CTRL(I3C_IF, I3C_MCTRL_REQUEST_NONE);
-				pTaskInfo->result = I3C_ERR_NACK;
-				I3C_Slave_End_Request((uint32_t)pTask);
-			}
-		}
+		handle_event_interrupt(dev, status);
+		I3C_SET_REG_STATUS(port, I3C_STATUS_EVENT_MASK);
 
 		intmasked &= ~I3C_INTMASKED_EVENT_MASK;
 		if (!intmasked) {
-			EXIT_SLAVE_ISR();
-			return;
+			goto exit;
 		}
 	}
 
+	/* Process Dynamic Address Change interrupt */
 	if (intmasked & I3C_INTMASKED_DACHG_MASK) {
-		/* LOG_INF("dynamic address changed\n"); */
-		addr = I3C_Update_Dynamic_Address((uint32_t)I3C_IF);
-		sconfig = I3C_GET_REG_CONFIG(I3C_IF);
-		if (addr) {
-			obj->sir_allowed_by_sw = 1;
-			LOG_WRN("dyn addr = %X\n", addr);
-			if (!(sconfig & I3C_CONFIG_MATCHSS_MASK)) {
-				sconfig |= I3C_CONFIG_MATCHSS_MASK;
-				I3C_SET_REG_CONFIG(I3C_IF, sconfig);
-			}
-		} else {
-			obj->sir_allowed_by_sw = 0;
-			LOG_WRN("reset dyn addr\n");
-			if (sconfig & I3C_CONFIG_MATCHSS_MASK) {
-				sconfig &= ~I3C_CONFIG_MATCHSS_MASK;
-				I3C_SET_REG_CONFIG(I3C_IF, sconfig);
-			}
-		}
-
-		I3C_SET_REG_STATUS(I3C_IF, I3C_STATUS_DACHG_MASK);
+		handle_DACHG_interrupt(port, obj);
 
 		intmasked &= ~I3C_INTMASKED_DACHG_MASK;
 		if (!intmasked) {
-			EXIT_SLAVE_ISR();
-			return;
+			goto exit;
 		}
 	}
 
+	/* Process START interrupt */
 	if (intmasked & I3C_INTMASKED_START_MASK) {
-		if (I3C_GET_REG_STATUS(I3C_IF) & I3C_STATUS_START_MASK) {
-			I3C_SET_REG_STATUS(I3C_IF, I3C_STATUS_START_MASK);
-		}
+		handle_start_interrupt(port);
 
 		intmasked &= ~I3C_INTMASKED_START_MASK;
 		if (!intmasked) {
-			EXIT_SLAVE_ISR();
-			return;
+			goto exit;
 		}
 	}
 
+	/* Process vendor CCC interrupt */
 	if (intmasked & I3C_INTMASKED_CCC_MASK) {
-		/* must handle vendor CCC here, STOP will not be triggerred when MATCHSS == 1 */
-		I3C_Slave_Handle_DMA((uint32_t)pDevice);
-
-		intmasked = I3C_GET_REG_INTMASKED(I3C_IF);
-		if (!intmasked) {
-			EXIT_SLAVE_ISR();
-			return;
-		}
-	}
-
-	if (bMATCHSS && (intmasked & I3C_INTMASKED_CHANDLED_MASK)) {
-		/* CCC Command, auto */
-		I3C_SET_REG_STATUS(I3C_IF, I3C_STATUS_CHANDLED_MASK);
-
-		/* must handle nack SLVSTART here if MATCHSS = 1 */
-		/* If master send disec after SLVSTART, the slave task should be removed.
-		 * If master doesn't send disec, HW will retry automatically.
-		 * So, the task should not be removed
+		/*
+		 * Must handle vendor CCC here, others are handled in STOP.
+		 * STOP will not be triggerred when MATCHSS == 1.
 		 */
+		I3C_Slave_Handle_DMA((uint32_t)dev);
 
-		ctrl = I3C_GET_REG_CTRL(I3C_IF);
-		if (ctrl & I3C_CTRL_EVENT_MASK) {
-			evdet = (uint8_t)((status & I3C_STATUS_EVDET_MASK) >>
-					  I3C_STATUS_EVDET_SHIFT);
+		intmasked = I3C_GET_REG_INTMASKED(port);
+		if (!intmasked) {
+			goto exit;
+		}
+	}
 
-			if (evdet == 0x02) {
-				/* IBI ?, NACK */
-				/* Master Request ?, NACK */
-				/* Hot-Join, NACK SLVSTART and follow DISEC with RESTART */
-				pTask = pDevice->pTaskListHead;
+	/* Process CCC Command auto-response when MATCHSS is enabled */
+	if (intmasked & I3C_INTMASKED_CHANDLED_MASK) {
+		if (bMATCHSS) {
+			/* CCC Command, auto */
+			I3C_SET_REG_STATUS(port, I3C_STATUS_CHANDLED_MASK);
 
-				if (pTask == NULL) {
-					LOG_WRN("Invalid Task !\n");
-					EXIT_SLAVE_ISR();
-					return;
+			/* must handle nack SLVSTART here if MATCHSS = 1 */
+			/* If master send DISEC after SLVSTART, the slave task should be removed.
+	 		 * Otherwise, HW will retry automatically and the slave task remain.
+	 		 */
+
+			ctrl = I3C_GET_REG_CTRL(port);
+			if (ctrl & I3C_CTRL_EVENT_MASK) {
+				evdet = (uint8_t)((status & I3C_STATUS_EVDET_MASK) >>
+						  I3C_STATUS_EVDET_SHIFT);
+
+				if (evdet == I3C_STATUS_EVDET_SEND_NACKED) {
+					/* IBI ?, NACK */
+					/* Master Request ?, NACK */
+					/* Hot-Join, NACK SLVSTART and follow DISEC with RESTART */
+					ret = handle_CCC_command(port, pDevice, status, ctrl);
+					if (ret != 0) {
+						LOG_WRN("CCC error=%d\n", ret);
+						goto exit;
+					}
 				}
-
-				pTaskInfo = pTask->pTaskInfo;
-				pTaskInfo->result = I3C_ERR_NACK_SLVSTART;
-
-				if ((ctrl & I3C_CTRL_EVENT_MASK) == I3C_CTRL_EVENT_IBI) {
-					if (status & I3C_STATUS_IBIDIS_MASK) {
-						pTaskInfo->result = I3C_ERR_OK;
-					}
-				} else if ((ctrl & I3C_CTRL_EVENT_MASK) == I3C_CTRL_EVENT_MstReq) {
-					if (status & I3C_STATUS_MRDIS_MASK) {
-						pTaskInfo->result = I3C_ERR_OK;
-					}
-				} else if ((ctrl & I3C_CTRL_EVENT_MASK) == I3C_CTRL_EVENT_HotJoin) {
-					if (status & I3C_STATUS_HJDIS_MASK) {
-						pTaskInfo->result = I3C_ERR_OK;
-					}
-				}
-
-				I3C_Slave_End_Request((uint32_t)pTask);
 			}
+		} else {
+			I3C_SET_REG_STATUS(port, I3C_STATUS_CHANDLED_MASK);
 		}
 
 		intmasked &= ~I3C_INTMASKED_CHANDLED_MASK;
 		if (!intmasked) {
-			EXIT_SLAVE_ISR();
-			return;
-		}
-	} else if (intmasked & I3C_INTMASKED_CHANDLED_MASK) {
-		I3C_SET_REG_STATUS(I3C_IF, I3C_STATUS_CHANDLED_MASK);
-
-		intmasked &= ~I3C_INTMASKED_CHANDLED_MASK;
-		if (!intmasked) {
-			EXIT_SLAVE_ISR();
-			return;
+			goto exit;
 		}
 	}
 
+	/* Process error warning interrupts */
 	if (intmasked & I3C_INTMASKED_ERRWARN_MASK) {
-		errwarn = I3C_GET_REG_ERRWARN(I3C_IF);
-
+		uint32_t errwarn = I3C_GET_REG_ERRWARN(port);
 		LOG_WRN("Slave ERRWARN:0x%x\n", errwarn);
-
-		I3C_SET_REG_ERRWARN(I3C_IF, errwarn);
+		I3C_SET_REG_ERRWARN(port, errwarn);
+		intmasked &= ~I3C_INTMASKED_ERRWARN_MASK;
+		if (!intmasked) {
+			goto exit;
+		}
 	}
 
+	/* Process a final STOP interrupt block if needed */
 	if (intmasked & I3C_INTMASKED_STOP_MASK) {
 		if (bMATCHSS) {
-			if (hal_I3C_Is_Slave_Idle(I3C_IF) != true) {
-				if (I3C_GET_REG_STATUS(I3C_IF) & I3C_STATUS_MATCHED_MASK) {
-					LOG_WRN("[RE-ENTRY] MATCHED AGAIN, DATA MAY LOST");
-				}
+			if (!hal_I3C_Is_Slave_Idle(port) &&
+			    (I3C_GET_REG_STATUS(port) & I3C_STATUS_MATCHED_MASK)) {
+				LOG_WRN("[RE-ENTRY] MATCHED AGAIN, DATA MAY LOST");
 			}
 
-			/* handle target data */
-			I3C_Slave_Handle_DMA((uint32_t)pDevice);
+			I3C_Slave_Handle_DMA((uint32_t)dev);
 		}
 	}
 
+exit:
 	EXIT_SLAVE_ISR();
 }
 
@@ -3706,9 +3738,9 @@ static void handle_vendor_ccc(I3C_PORT_Enum port, uint8_t idx)
 	I3C_SET_REG_STATUS(port, I3C_GET_REG_STATUS(port) | I3C_STATUS_CCC_MASK);
 }
 
-static void process_received_data(I3C_PORT_Enum port, uint8_t idx)
+static void process_received_data(const struct device *dev, I3C_PORT_Enum port, uint8_t idx)
 {
-	struct i3c_npcm4xx_obj *obj = gObj[port];
+	struct i3c_npcm4xx_obj *obj = DEV_DATA(dev);
 	struct i3c_slave_payload *payload = NULL;
 	bool bRet = false;
 	int ret = 0;
@@ -3722,10 +3754,10 @@ static void process_received_data(I3C_PORT_Enum port, uint8_t idx)
 		payload = obj->slave_data.callbacks->write_requested(obj->slave_data.dev);
 		payload->size = slvRxOffset[port + (I3C_PORT_MAX * idx)];
 
-		/*i3c_aspeed_rd_rx_fifo(obj, payload->buf, payload->size);*/
 		bRet = true;
 		if (obj->config->priv_xfer_pec) {
-			ret = pec_valid(obj->dev, (uint8_t *)&slvRxBuf[port + (I3C_PORT_MAX * idx)],
+			ret = pec_valid(obj->dev,
+					(uint8_t *)&slvRxBuf[port + (I3C_PORT_MAX * idx)],
 					slvRxOffset[port + (I3C_PORT_MAX * idx)]);
 			if (ret) {
 				LOG_WRN("PEC error\n");
@@ -3738,14 +3770,16 @@ static void process_received_data(I3C_PORT_Enum port, uint8_t idx)
 	}
 
 	if ((obj->slave_data.callbacks->write_done != NULL) && (payload->size != 0)) {
+		/* Call write_done callback */
 		obj->slave_data.callbacks->write_done(obj->slave_data.dev);
 	}
 }
 
-static void handle_slave_receive_data(I3C_PORT_Enum port, uint8_t pdma_ch)
+static void handle_slave_receive_data(const struct device *dev, I3C_PORT_Enum port, uint8_t pdma_ch)
 {
 	uint8_t idx = slvRxId[port]; /* Update receive data length */
 
+	/* Check Rx DMA is finished */
 	if (PDMA->TDSTS & BIT(PDMA_OFFSET + pdma_ch)) {
 		/* PDMA Rx Task Done */
 		PDMA->TDSTS = BIT(PDMA_OFFSET + pdma_ch);
@@ -3774,13 +3808,19 @@ static void handle_slave_receive_data(I3C_PORT_Enum port, uint8_t pdma_ch)
 	if (slvRxOffset[port + (I3C_PORT_MAX * idx)]) {
 		/* Start Rx DMA here to prevent data loss */
 		stop_rx_dma(port, pdma_ch);
-		I3C_Prepare_To_Read_Command((uint32_t)port);
+
+		/* Flush FIFO */
+		I3C_SET_REG_DATACTRL(port, I3C_GET_REG_DATACTRL(port) | I3C_DATACTRL_FLUSHFB_MASK);
+
 
 		if (I3C_GET_REG_STATUS(port) & I3C_STATUS_CCC_MASK) {
 			handle_vendor_ccc(port, idx);
 		} else {
-			process_received_data(port, idx);
+			process_received_data(dev, port, idx);
 		}
+
+		/* Start Rx DMA, wait for next read */
+		I3C_Prepare_To_Read_Command((uint32_t)port);
 	}
 }
 
@@ -3805,7 +3845,9 @@ static void handle_slave_tx_data_sent(I3C_DEVICE_INFO_t *pDevice)
 
 void I3C_Slave_Handle_DMA(uint32_t Parm)
 {
-	I3C_DEVICE_INFO_t *pDevice = (I3C_DEVICE_INFO_t *)Parm;	
+	const struct device *dev = (const struct device *)Parm;
+	struct i3c_npcm4xx_obj *obj = DEV_DATA(dev);
+	struct I3C_DEVICE_INFO *pDevice = obj->pDevice;
 	I3C_PORT_Enum port = pDevice->port;
 	uint8_t pdma_ch = Get_PDMA_Channel(port, I3C_TRANSFER_DIR_READ);
 
@@ -3818,7 +3860,7 @@ void I3C_Slave_Handle_DMA(uint32_t Parm)
 	 * 3. vendor CCC, not implement yet
 	 */
 	if (is_slave_receive_data(port, pdma_ch)) {
-		handle_slave_receive_data(port, pdma_ch);
+		handle_slave_receive_data(dev, port, pdma_ch);
 	}
 
 	/* Slave TX data has send ? */
@@ -3894,7 +3936,7 @@ static void i3c_npcm4xx_isr(const struct device *dev)
 		   I3C_CONFIG_SLVENA_SLAVE_ON) {
 		key = k_spin_lock(&obj->lock);
 
-		I3C_Slave_ISR(port);
+		I3C_Slave_ISR(dev);
 
 		k_spin_unlock(&obj->lock, key);
 	}

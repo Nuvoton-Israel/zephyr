@@ -21,51 +21,6 @@ I3C_REG_ITEM_t *pSlaveReg[I3C_PORT_MAX] = {
 
 /*------------------------------------------------------------------------------*/
 /**
- * @brief                           Callback for I3C slave
- * @param [in]      TaskInfo        Pointer to the running task
- * @param [in]      ErrDetail       task result
- * @return                          final task result
- */
-/*------------------------------------------------------------------------------*/
-static uint32_t I3C_Slave_Callback(uint32_t TaskInfo, uint32_t ErrDetail)
-{
-	I3C_TASK_INFO_t *pTaskInfo;
-	I3C_DEVICE_INFO_t *pDevice;
-	I3C_BUS_INFO_t *pBus;
-	uint32_t ret;
-
-	if (TaskInfo == 0) {
-		return I3C_ERR_PARAMETER_INVALID;
-	}
-
-	pTaskInfo = (I3C_TASK_INFO_t *)TaskInfo;
-
-	if (ErrDetail == I3C_ERR_HW_NOT_SUPPORT) {
-	} else if (ErrDetail == I3C_ERR_NACK) {
-		/* Master nack the slave task */
-	} else if (ErrDetail == I3C_ERR_NACK_SLVSTART) {
-		return I3C_DO_NACK_SLVSTART(pTaskInfo);
-	} else if (ErrDetail == I3C_ERR_OK) {
-		if (pTaskInfo->pCallback != NULL) {
-		}
-	}
-
-	pDevice = I3C_Get_INODE(pTaskInfo->Port);
-
-	if (pDevice->pOwner == NULL) {
-		return I3C_ERR_PARAMETER_INVALID;
-	}
-
-	pBus = pDevice->pOwner;
-
-	ret = pTaskInfo->result;
-	I3C_Complete_Task(pTaskInfo);
-	pBus->pCurrentTask = NULL;
-	return ret;
-}
-
-/*------------------------------------------------------------------------------*/
-/**
  * @brief                           Callback if master nack any slave request
  * @param [in]      TaskInfo        Pointer to the running task
  * @return                          result
@@ -91,60 +46,6 @@ uint32_t I3C_DO_NACK_SLVSTART(I3C_TASK_INFO_t *pTaskInfo)
 	pTaskInfo->result = I3C_ERR_OK;
 
 	return I3C_ERR_NACK_SLVSTART;
-}
-
-/*------------------------------------------------------------------------------*/
-/**
- * @brief                           Start to run slave's task
- * @param [in]      Parm            Pointer to taskinfo
- * @return                          none
- */
-/*------------------------------------------------------------------------------*/
-void I3C_Slave_Start_Request(uint32_t Parm)
-{
-	I3C_TASK_INFO_t *pTaskInfo;
-	I3C_TRANSFER_TASK_t *pTask;
-
-	if (Parm == 0) {
-		return;
-	}
-
-	pTaskInfo = (I3C_TASK_INFO_t *)Parm;
-
-	if (pTaskInfo->pTask == NULL) {
-		return;
-	}
-
-	pTask = pTaskInfo->pTask;
-
-	if (pTask->protocol == I3C_TRANSFER_PROTOCOL_IBI) {
-		hal_I3C_Start_IBI(pTaskInfo);
-	} else if (pTask->protocol == I3C_TRANSFER_PROTOCOL_MASTER_REQUEST) {
-		hal_I3C_Start_Master_Request(pTaskInfo);
-	} else if (pTask->protocol == I3C_TRANSFER_PROTOCOL_HOT_JOIN) {
-		hal_I3C_Start_HotJoin(pTaskInfo);
-	}
-}
-
-/*------------------------------------------------------------------------------*/
-/**
- * @brief                           Finish slave task
- * @param [in]      Parm            Pointer to task
- * @return                          none
- */
-/*------------------------------------------------------------------------------*/
-void I3C_Slave_End_Request(uint32_t Parm)
-{
-	I3C_TRANSFER_TASK_t *pTask;
-	I3C_TASK_INFO_t *pTaskInfo;
-
-	if (Parm == 0) {
-		return;
-	}
-
-	pTask = (I3C_TRANSFER_TASK_t *)Parm;
-	pTaskInfo = pTask->pTaskInfo;
-	I3C_Slave_Callback((uint32_t)pTaskInfo, pTaskInfo->result);
 }
 
 /*------------------------------------------------------------------------------*/
@@ -321,9 +222,9 @@ I3C_ErrCode_Enum Setup_Slave_Write_DMA(I3C_DEVICE_INFO_t *pDevice)
  * @return                          none
  */
 /*------------------------------------------------------------------------------*/
-I3C_ErrCode_Enum Setup_Slave_IBI_DMA(I3C_DEVICE_INFO_t *pDevice)
+I3C_ErrCode_Enum Setup_Slave_IBI_DMA(I3C_DEVICE_INFO_t *pDevice, I3C_TASK_INFO_t *pTaskInfo)
 {
-	I3C_TRANSFER_TASK_t *pTask;
+	I3C_TRANSFER_TASK_t *pTask = pTaskInfo->pTask;
 	I3C_TRANSFER_FRAME_t *pFrame;
 
 	if (pDevice == NULL) {
@@ -335,9 +236,6 @@ I3C_ErrCode_Enum Setup_Slave_IBI_DMA(I3C_DEVICE_INFO_t *pDevice)
 	if (pDevice->pTaskListHead == NULL) {
 		return I3C_ERR_TASK_INVALID;
 	}
-
-	pTask = pDevice->pTaskListHead;
-	pTask = pDevice->pTaskListHead;
 
 	if (pTask->frame_idx >= pTask->frame_count) {
 		return I3C_ERR_PARAMETER_INVALID;
