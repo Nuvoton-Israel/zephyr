@@ -94,6 +94,10 @@ struct i3c_npcm4xx_config {
 	/* uint16_t manufacture-id; PID[5:4] */
 	uint16_t part_id; /* PID[3:2] */
 	uint16_t vendor_def_id; /* PID[1:0] */
+	/* Interrupt configuration function. */
+	void (*irq_config_func)(const struct device *dev);
+	/* Work queue configuration function. */
+	void (*work_queue_config_func)(I3C_PORT_Enum port);
 
 	uint16_t pid_extra_info;
 	int ibi_append_pec;
@@ -195,6 +199,32 @@ enum I3C_REG_OFFSET {
 	OFFSET_IBIEXT1 = 0x140,
 	OFFSET_IBIEXT2 = 0x144,
 	OFFSET_ID = 0x1FC,
+};
+
+/* I3C speed */
+enum I3C_TRANSFER_SPEED {
+	I3C_SPEED_I2C_1MHZ,
+	I3C_SPEED_I2C_400KHZ,
+	I3C_SPEED_I2C_DEFAULT,
+	I3C_SPEED_SDR_12p5MHZ,
+	I3C_SPEED_SDR_8MHZ,
+	I3C_SPEED_SDR_6MHZ,
+	I3C_SPEED_SDR_4MHZ,
+	I3C_SPEED_SDR_2MHZ,
+	I3C_SPEED_COUNT
+};
+
+enum I3C_TRANSFER_SRC_CLK {
+	I3C_SRC_CLK_96MHZ,
+	I3C_SRC_CLK_48MHZ,
+	I3C_SRC_CLK_MAX
+};
+
+struct i3c_speed {
+	uint32_t ppbaud;
+	uint32_t pplow;
+	uint32_t odbaud;
+	uint32_t i2cbaud;
 };
 
 /* MCONFIG */

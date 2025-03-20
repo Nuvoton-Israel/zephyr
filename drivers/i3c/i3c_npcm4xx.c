@@ -35,31 +35,29 @@ struct i3c_npcm4xx_obj *gObj[I3C_PORT_MAX];
 #define NPCM4XX_I3C_WORK_QUEUE_PRIORITY -2
 
 /* current set 10ms * 5 * 3 => 0.15 seconds */
-#define NPCM4XX_I3C_HJ_RETRY_MAX	3
-#define NPCM4XX_I3C_HJ_CHECK_MAX	5
-#define NPCM4XX_I3C_HJ_UDELAY		10000
+#define NPCM4XX_I3C_HJ_RETRY_MAX 3
+#define NPCM4XX_I3C_HJ_CHECK_MAX 5
+#define NPCM4XX_I3C_HJ_UDELAY 10000
 
-#define I3C_NPCM4XX_CCC_TIMEOUT		K_MSEC(100)
-#define I3C_NPCM4XX_XFER_TIMEOUT	K_MSEC(100)
+#define I3C_NPCM4XX_CCC_TIMEOUT K_MSEC(100)
+#define I3C_NPCM4XX_XFER_TIMEOUT K_MSEC(100)
 
-#if DT_NODE_HAS_STATUS(DT_NODELABEL(i3c0), okay)
-K_THREAD_STACK_DEFINE(npcm4xx_i3c_stack_area0, NPCM4XX_I3C_WORK_QUEUE_STACK_SIZE);
-#endif
-#if DT_NODE_HAS_STATUS(DT_NODELABEL(i3c1), okay)
-K_THREAD_STACK_DEFINE(npcm4xx_i3c_stack_area1, NPCM4XX_I3C_WORK_QUEUE_STACK_SIZE);
-#endif
-#if DT_NODE_HAS_STATUS(DT_NODELABEL(i3c2), okay)
-K_THREAD_STACK_DEFINE(npcm4xx_i3c_stack_area2, NPCM4XX_I3C_WORK_QUEUE_STACK_SIZE);
-#endif
-#if DT_NODE_HAS_STATUS(DT_NODELABEL(i3c3), okay)
-K_THREAD_STACK_DEFINE(npcm4xx_i3c_stack_area3, NPCM4XX_I3C_WORK_QUEUE_STACK_SIZE);
-#endif
-#if DT_NODE_HAS_STATUS(DT_NODELABEL(i3c4), okay)
-K_THREAD_STACK_DEFINE(npcm4xx_i3c_stack_area4, NPCM4XX_I3C_WORK_QUEUE_STACK_SIZE);
-#endif
-#if DT_NODE_HAS_STATUS(DT_NODELABEL(i3c5), okay)
-K_THREAD_STACK_DEFINE(npcm4xx_i3c_stack_area5, NPCM4XX_I3C_WORK_QUEUE_STACK_SIZE);
-#endif
+#define I3C_MINTCLR_MASK                                                                           \
+	(I3C_MINTCLR_NOWMASTER_MASK | I3C_MINTCLR_ERRWARN_MASK | I3C_MINTCLR_IBIWON_MASK |         \
+	 I3C_MINTCLR_TXNOTFULL_MASK | I3C_MINTCLR_RXPEND_MASK | I3C_MINTCLR_COMPLETE_MASK |        \
+	 I3C_MINTCLR_MCTRLDONE_MASK | I3C_MINTCLR_SLVSTART_MASK)
+#define I3C_MINTSET_MASK                                                                           \
+	(I3C_MINTSET_NOWMASTER_MASK | I3C_MINTSET_ERRWARN_MASK | I3C_MINTSET_IBIWON_MASK |         \
+	 I3C_MINTSET_COMPLETE_MASK | I3C_MINTSET_SLVSTART_MASK)
+#define I3C_INTCLR_MASK                                                                            \
+	(I3C_INTCLR_EVENT_MASK | I3C_INTCLR_CHANDLED_MASK | I3C_INTCLR_DDRMATCHED_MASK |           \
+	 I3C_INTCLR_ERRWARN_MASK | I3C_INTCLR_CCC_MASK | I3C_INTCLR_DACHG_MASK |                   \
+	 I3C_INTCLR_TXNOTFULL_MASK | I3C_INTCLR_RXPEND_MASK | I3C_INTCLR_STOP_MASK |               \
+	 I3C_INTCLR_MATCHED_MASK | I3C_INTCLR_START_MASK)
+#define I3C_INTSET_MASK                                                                            \
+	(I3C_INTSET_CHANDLED_MASK | I3C_INTSET_DDRMATCHED_MASK | I3C_INTSET_ERRWARN_MASK |         \
+	 I3C_INTSET_CCC_MASK | I3C_INTSET_DACHG_MASK | I3C_INTSET_STOP_MASK |                      \
+	 I3C_INTSET_START_MASK | I3C_INTSET_EVENT_MASK)
 
 #define ENTER_MASTER_ISR()      { \
 	/* GPIO_Set_Data(GPIOC, 4, GPIO_DATA_LOW); */ \
@@ -79,6 +77,30 @@ K_THREAD_STACK_DEFINE(npcm4xx_i3c_stack_area5, NPCM4XX_I3C_WORK_QUEUE_STACK_SIZE
 	/* GPIOC4 goes H */ \
 	/* RegSetBit(M8(0x40081000 + (0x0C * 0x2000L)), BIT(4)); */ }
 
+static const struct i3c_speed i3c_speeds[I3C_SRC_CLK_MAX][I3C_SPEED_COUNT] = {
+	/* ppbaud, pplow, odbaud, i2cband */
+	[I3C_SRC_CLK_96MHZ] = {
+		{3, 0, 12, 0}, /* 926 - 922 KHz */
+		{9, 0, 12, 0}, /* 371 - 369 KHz */
+		{15, 0, 30, 0}, /* 98 - 96 KHz */
+		{2, 2, 15, 0}, /* 12.5MHz */
+		{2, 6, 15, 0}, /* 8MHz */
+		{2, 10, 15, 0}, /* 6MHz */
+		{5, 12, 7, 0}, /* 4MHz */
+		{15, 15, 2, 0}, /* 2MHz */
+	},
+	[I3C_SRC_CLK_48MHZ] = {
+		{2, 0, 8, 0}, /* 878 - 880 KHz */
+		{9, 0, 6, 0}, /* 340 - 338 KHz */
+		{2, 0, 80, 0}, /* 98 - 97 KHz */
+		{0, 2, 23, 0}, /* 12.5MHz */
+		{0, 4, 23, 0}, /* 8MHz */
+		{1, 4, 11, 0}, /* 6MHz */
+		{0, 10, 23, 0}, /* 4MHz */
+		{4, 14, 4, 0}, /* 2MHz */
+	}
+};
+
 struct k_work_q npcm4xx_i3c_work_q[I3C_PORT_MAX];
 
 struct k_work work_stop[I3C_PORT_MAX];
@@ -86,7 +108,8 @@ struct k_work work_next[I3C_PORT_MAX];
 struct k_work work_send_ibi[I3C_PORT_MAX];
 struct k_work work_entdaa[I3C_PORT_MAX];
 
-static uint32_t i3c_npcm4xx_master_send_done(void *pCallbackData, struct I3C_CallBackResult *CallBackResult);
+static uint32_t i3c_npcm4xx_master_send_done(void *pCallbackData,
+						 struct I3C_CallBackResult *CallBackResult);
 static void i3c_npcm4xx_start_xfer(struct i3c_npcm4xx_obj *obj, struct i3c_npcm4xx_xfer *xfer);
 
 void work_stop_fun(struct k_work *item)
@@ -169,7 +192,7 @@ void work_send_ibi_fun(struct k_work *item)
 	if (pBus == NULL)
 		return;
 
-	if (pBus->pCurrentTask != NULL)	{
+	if (pBus->pCurrentTask != NULL) {
 		k_work_submit_to_queue(&npcm4xx_i3c_work_q[i], item);
 		return;
 	}
@@ -238,7 +261,8 @@ void work_entdaa_fun(struct k_work *item)
 	k_mutex_lock(&pDevice->lock, K_FOREVER);
 
 	result = I3C_Master_Insert_Task_ENTDAA(&rxlen, RxBuf_expected, Baudrate, TIMEOUT_TYPICAL,
-			pCallback, (void *)xfer, i, I3C_TASK_POLICY_APPEND_LAST, IS_HIF);
+						   pCallback, (void *)xfer, i,
+						   I3C_TASK_POLICY_APPEND_LAST, IS_HIF);
 
 	if (result != I3C_ERR_OK) {
 		LOG_ERR("Workqueue create ENTDAA task failed");
@@ -305,87 +329,51 @@ static void i3c_setup_dma_channel(uint8_t hw_id, int dma_channel)
 	uint32_t pdma_offset = 0;
 	uint32_t pdma_value = 0;
 
-	if (dma_channel < 4)
-		pdma_value = PDMA->REQSEL0_3;
-	else if (dma_channel < 8)
-		pdma_value = PDMA->REQSEL4_7;
-	else if (dma_channel < 12)
-		pdma_value = PDMA->REQSEL8_11;
-	else if (dma_channel < 16)
-		pdma_value = PDMA->REQSEL12_15;
-	else
+	if (dma_channel >= PDMA_CH_MAX) {
 		return;
+	}
 
+	pdma_value = PDMA->REQSEL[dma_channel / 4];
 	pdma_offset = dma_channel % 4;
 	pdma_value = pdma_value & ~(0xFF << (8 * pdma_offset));
 	pdma_value = pdma_value | (hw_id << (8 * pdma_offset));
-
-	if (dma_channel < 4)
-		PDMA->REQSEL0_3 = pdma_value;
-	else if (dma_channel < 8)
-		PDMA->REQSEL4_7 = pdma_value;
-	else if (dma_channel < 12)
-		PDMA->REQSEL8_11 = pdma_value;
-	else if (dma_channel < 16)
-		PDMA->REQSEL12_15 = pdma_value;
-	else
-		return;
+	PDMA->REQSEL[dma_channel / 4] = pdma_value;
 }
 
 static void i3c_setup_dma_configure(I3C_PORT_Enum port, int tx_dma_channel, int rx_dma_channel)
 {
-	switch (port) {
-	case I3C1_IF:
-		i3c_setup_dma_channel(PDMA_I3C1_TX, tx_dma_channel);
-		i3c_setup_dma_channel(PDMA_I3C1_RX, rx_dma_channel);
-		break;
-	case I3C2_IF:
-		i3c_setup_dma_channel(PDMA_I3C2_TX, tx_dma_channel);
-		i3c_setup_dma_channel(PDMA_I3C2_RX, rx_dma_channel);
-		break;
-	case I3C3_IF:
-		i3c_setup_dma_channel(PDMA_I3C3_TX, tx_dma_channel);
-		i3c_setup_dma_channel(PDMA_I3C3_RX, rx_dma_channel);
-		break;
-	case I3C4_IF:
-		i3c_setup_dma_channel(PDMA_I3C4_TX, tx_dma_channel);
-		i3c_setup_dma_channel(PDMA_I3C4_RX, rx_dma_channel);
-		break;
-	case I3C5_IF:
-		i3c_setup_dma_channel(PDMA_I3C5_TX, tx_dma_channel);
-		i3c_setup_dma_channel(PDMA_I3C5_RX, rx_dma_channel);
-		break;
-	case I3C6_IF:
-		i3c_setup_dma_channel(PDMA_I3C6_TX, tx_dma_channel);
-		i3c_setup_dma_channel(PDMA_I3C6_RX, rx_dma_channel);
-		break;
-	default:
-		break;
-	}
+	i3c_setup_dma_channel((port * 2) + PDMA_I3C1_TX, tx_dma_channel);
+	i3c_setup_dma_channel((port * 2) + PDMA_I3C1_RX, rx_dma_channel);
 }
 
 /*
  * Customize Register layout
  */
-#define I3C_REGS_COUNT_PORT	2
+#define I3C_REGS_COUNT_PORT 2
 
-#define CMDIdx_MSG               0x01
-#define CMD_BUF_LEN_MSG          64
+#define CMDIdx_MSG 0x01
+#define CMD_BUF_LEN_MSG 64
 
-#define CMDIdx_ID                0x0F
-#define CMD_BUF_LEN_ID           1
+#define CMDIdx_ID 0x0F
+#define CMD_BUF_LEN_ID 1
 
 uint8_t I3C_REGs_BUF_CMD_MSG[CMD_BUF_LEN_MSG];
-uint8_t I3C_REGs_BUF_CMD_ID[CMD_BUF_LEN_ID] = {
-	0x6C
-};
+uint8_t I3C_REGs_BUF_CMD_ID[CMD_BUF_LEN_ID] = { 0x6C };
 
 /* Used to define slave's register table */
-I3C_REG_ITEM_t I3C_REGs_PORT_SLAVE[I3C_REGS_COUNT_PORT] = { {
-	.cmd.cmd8 = CMDIdx_MSG, .len = CMD_BUF_LEN_MSG, .buf = I3C_REGs_BUF_CMD_MSG,
-	.attr.width = 0, .attr.read = true, .attr.write = true }, {
-	.cmd.cmd8 = CMDIdx_ID, .len = CMD_BUF_LEN_ID, .buf = I3C_REGs_BUF_CMD_ID,
-	.attr.width = 0, .attr.read = true, .attr.write = false },
+I3C_REG_ITEM_t I3C_REGs_PORT_SLAVE[I3C_REGS_COUNT_PORT] = {
+	{ .cmd.cmd8 = CMDIdx_MSG,
+	  .len = CMD_BUF_LEN_MSG,
+	  .buf = I3C_REGs_BUF_CMD_MSG,
+	  .attr.width = 0,
+	  .attr.read = true,
+	  .attr.write = true },
+	{ .cmd.cmd8 = CMDIdx_ID,
+	  .len = CMD_BUF_LEN_ID,
+	  .buf = I3C_REGs_BUF_CMD_ID,
+	  .attr.width = 0,
+	  .attr.read = true,
+	  .attr.write = false },
 };
 
 void hal_I3C_Config_Internal_Device(I3C_PORT_Enum port, I3C_DEVICE_INFO_t *pDevice)
@@ -425,7 +413,7 @@ I3C_ErrCode_Enum hal_I3C_Config_Device(I3C_DEVICE_INFO_t *pDevice)
 
 	/* SKEW = 0, HKEEP = 3 */
 	mconfig = ((I3C_GET_REG_MCONFIG(port) & 0xF1FFFF7B) |
-		I3C_MCONFIG_HKEEP(I3C_MCONFIG_HKEEP_EXTBOTH));
+		   I3C_MCONFIG_HKEEP(I3C_MCONFIG_HKEEP_EXTBOTH));
 	sconfig = I3C_GET_REG_CONFIG(port) & 0xFE7F071F;
 
 	if (pDevice->mode == I3C_DEVICE_MODE_DISABLE) {
@@ -436,10 +424,10 @@ I3C_ErrCode_Enum hal_I3C_Config_Device(I3C_DEVICE_INFO_t *pDevice)
 	}
 
 	I3C_SET_REG_MDATACTRL(port, I3C_GET_REG_MDATACTRL(port) | I3C_MDATACTRL_FLUSHTB_MASK |
-		I3C_MDATACTRL_FLUSHFB_MASK);
+						I3C_MDATACTRL_FLUSHFB_MASK);
 
 	I3C_SET_REG_DATACTRL(port, I3C_GET_REG_DATACTRL(port) | I3C_DATACTRL_FLUSHTB_MASK |
-		I3C_DATACTRL_FLUSHFB_MASK);
+					   I3C_DATACTRL_FLUSHFB_MASK);
 
 	I3C_SET_REG_MSTATUS(port, 0xFFFFFFFFul);
 	I3C_SET_REG_STATUS(port, 0xFFFFFFFFul);
@@ -448,8 +436,7 @@ I3C_ErrCode_Enum hal_I3C_Config_Device(I3C_DEVICE_INFO_t *pDevice)
 		I3C_SET_REG_MDMACTRL(port, I3C_MDMACTRL_DMAWIDTH(1));
 		I3C_SET_REG_DMACTRL(port, I3C_DMACTRL_DMAWIDTH(1));
 
-		PDMA->CHCTL |= BIT(PDMA_OFFSET + port)
-			| BIT(PDMA_OFFSET + I3C_PORT_MAX + port);
+		PDMA->CHCTL |= BIT(PDMA_OFFSET + port) | BIT(PDMA_OFFSET + I3C_PORT_MAX + port);
 
 		if (pDevice->dma_tx_channel >= PDMA_CH_MAX)
 			return I3C_ERR_PARAMETER_INVALID;
@@ -460,7 +447,7 @@ I3C_ErrCode_Enum hal_I3C_Config_Device(I3C_DEVICE_INFO_t *pDevice)
 		i3c_setup_dma_configure(port, pDevice->dma_tx_channel, pDevice->dma_rx_channel);
 
 		PDMA->INTEN = 0;
-		PDMA->SCATBA = (uint32_t) I3C_SCATTER_GATHER_TABLE.SCAT_DSCT;
+		PDMA->SCATBA = (uint32_t)I3C_SCATTER_GATHER_TABLE.SCAT_DSCT;
 	}
 
 	hal_I3C_set_MAXRD(port, pDevice->max_rd_len);
@@ -510,8 +497,9 @@ I3C_ErrCode_Enum hal_I3C_Config_Device(I3C_DEVICE_INFO_t *pDevice)
 		/* sconfig |= I3C_CONFIG_BAMATCH(0x7F); */
 
 		/* if support ASYNC-0, update TCCLOCK */
-		I3C_SET_REG_TCCLOCK(port, I3C_TCCLOCK_FREQ(2 * (obj->apb3_rate /
-			I3C_1MHz_VAL_CONST)) | I3C_TCCLOCK_ACCURACY(30));
+		I3C_SET_REG_TCCLOCK(port,
+					I3C_TCCLOCK_FREQ(2 * (obj->apb3_rate / I3C_1MHz_VAL_CONST)) |
+						I3C_TCCLOCK_ACCURACY(30));
 	}
 
 	/* HDRCMD, always enable HDRCMD to detect command process too slow */
@@ -551,60 +539,73 @@ I3C_ErrCode_Enum hal_I3C_Config_Device(I3C_DEVICE_INFO_t *pDevice)
 		I3C_SET_REG_PARTNO(port, pDevice->partNumber);
 	}
 
-
-	I3C_SET_REG_IDEXT(port, I3C_GET_REG_IDEXT(port) &
-		~(I3C_IDEXT_BCR_MASK | I3C_IDEXT_DCR_MASK));
-	I3C_SET_REG_IDEXT(port, I3C_GET_REG_IDEXT(port) |
-		(I3C_IDEXT_BCR(pDevice->bcr) | I3C_IDEXT_DCR(pDevice->dcr)));
-
-	I3C_SET_REG_MINTCLR(port, I3C_MINTCLR_NOWMASTER_MASK | I3C_MINTCLR_ERRWARN_MASK |
-		I3C_MINTCLR_IBIWON_MASK | I3C_MINTCLR_TXNOTFULL_MASK | I3C_MINTCLR_RXPEND_MASK |
-		I3C_MINTCLR_COMPLETE_MASK | I3C_MINTCLR_MCTRLDONE_MASK |
-		I3C_MINTCLR_SLVSTART_MASK);
-
-	I3C_SET_REG_MINTSET(port, I3C_MINTSET_NOWMASTER_MASK | I3C_MINTSET_ERRWARN_MASK |
-		I3C_MINTSET_IBIWON_MASK | I3C_MINTSET_COMPLETE_MASK | I3C_MINTSET_SLVSTART_MASK);
-
-	I3C_SET_REG_INTCLR(port, I3C_INTCLR_EVENT_MASK | I3C_INTCLR_CHANDLED_MASK |
-		I3C_INTCLR_DDRMATCHED_MASK | I3C_INTCLR_ERRWARN_MASK | I3C_INTCLR_CCC_MASK |
-		I3C_INTCLR_DACHG_MASK | I3C_INTCLR_TXNOTFULL_MASK | I3C_INTCLR_RXPEND_MASK |
-		I3C_INTCLR_STOP_MASK | I3C_INTCLR_MATCHED_MASK | I3C_INTCLR_START_MASK);
-
-	I3C_SET_REG_INTSET(port, I3C_INTSET_CHANDLED_MASK | I3C_INTSET_DDRMATCHED_MASK |
-		I3C_INTSET_ERRWARN_MASK | I3C_INTSET_CCC_MASK | I3C_INTSET_DACHG_MASK |
-		I3C_INTSET_STOP_MASK | I3C_INTSET_START_MASK | I3C_INTSET_EVENT_MASK);
+	I3C_SET_REG_IDEXT(port,
+			  I3C_GET_REG_IDEXT(port) & ~(I3C_IDEXT_BCR_MASK | I3C_IDEXT_DCR_MASK));
+	I3C_SET_REG_IDEXT(port, I3C_GET_REG_IDEXT(port) | (I3C_IDEXT_BCR(pDevice->bcr) |
+							   I3C_IDEXT_DCR(pDevice->dcr)));
+	I3C_SET_REG_MINTCLR(port, I3C_MINTCLR_MASK);
+	I3C_SET_REG_MINTSET(port, I3C_MINTSET_MASK);
+	I3C_SET_REG_INTCLR(port, I3C_INTCLR_MASK);
+	I3C_SET_REG_INTSET(port, I3C_INTSET_MASK);
 
 	if (pDevice->mode == I3C_DEVICE_MODE_CURRENT_MASTER) {
 		I3C_SET_REG_MDYNADDR(port, (pDevice->dynamicAddr << I3C_MDYNADDR_DADDR_SHIFT) |
-			I3C_MDYNADDR_DAVALID_MASK);
-		I3C_SET_REG_CONFIG(port, sconfig |
-			I3C_CONFIG_SLVENA(I3C_CONFIG_SLVENA_SLAVE_OFF));
-		I3C_SET_REG_MCONFIG(port, mconfig |
-			I3C_MCONFIG_MSTENA(I3C_MCONFIG_MSTENA_MASTER_ON));
+						   I3C_MDYNADDR_DAVALID_MASK);
+		I3C_SET_REG_CONFIG(port, sconfig | I3C_CONFIG_SLVENA(I3C_CONFIG_SLVENA_SLAVE_OFF));
+		I3C_SET_REG_MCONFIG(port,
+					mconfig | I3C_MCONFIG_MSTENA(I3C_MCONFIG_MSTENA_MASTER_ON));
 	} else if (pDevice->mode == I3C_DEVICE_MODE_SLAVE_ONLY) {
-		I3C_SET_REG_MCONFIG(port, mconfig |
-			I3C_MCONFIG_MSTENA(I3C_MCONFIG_MSTENA_MASTER_OFF));
+		I3C_SET_REG_MCONFIG(port,
+					mconfig | I3C_MCONFIG_MSTENA(I3C_MCONFIG_MSTENA_MASTER_OFF));
 
 		I3C_SET_REG_CONFIG(port, sconfig);
 		sconfig |= I3C_CONFIG_SLVENA(I3C_CONFIG_SLVENA_SLAVE_ON);
 		I3C_SET_REG_CONFIG(port, sconfig);
 
-
 	} else if (pDevice->mode == I3C_DEVICE_MODE_SECONDARY_MASTER) {
-		I3C_SET_REG_MCONFIG(port, mconfig |
-			I3C_MCONFIG_MSTENA(I3C_MCONFIG_MSTENA_MASTER_CAPABLE));
+		I3C_SET_REG_MCONFIG(
+			port, mconfig | I3C_MCONFIG_MSTENA(I3C_MCONFIG_MSTENA_MASTER_CAPABLE));
 
 		I3C_SET_REG_CONFIG(port, sconfig);
 		sconfig |= I3C_CONFIG_SLVENA(I3C_CONFIG_SLVENA_SLAVE_ON);
 		I3C_SET_REG_CONFIG(port, sconfig);
 	}
 
-	if ((pDevice->mode == I3C_DEVICE_MODE_SLAVE_ONLY)
-		|| (pDevice->mode == I3C_DEVICE_MODE_SECONDARY_MASTER)) {
-		I3C_Prepare_To_Read_Command((uint32_t) port);
+	if ((pDevice->mode == I3C_DEVICE_MODE_SLAVE_ONLY) ||
+		(pDevice->mode == I3C_DEVICE_MODE_SECONDARY_MASTER)) {
+		I3C_Prepare_To_Read_Command((uint32_t)port);
 	}
 
 	return result;
+}
+
+static int hal_I3C_GetSpeedIndex(I3C_TRANSFER_FRAME_t *pFrame)
+{
+	if (pFrame->type == I3C_TRANSFER_TYPE_I2C) {
+		switch (pFrame->baudrate) {
+		case I3C_TRANSFER_SPEED_I2C_1MHZ:
+			return I3C_SPEED_I2C_1MHZ;
+		case I3C_TRANSFER_SPEED_I2C_400KHZ:
+			return I3C_SPEED_I2C_400KHZ;
+		default:
+			return I3C_SPEED_I2C_DEFAULT;
+		}
+	} else {
+		switch (pFrame->baudrate) {
+		case I3C_TRANSFER_SPEED_SDR_12p5MHZ:
+			return I3C_SPEED_SDR_12p5MHZ;
+		case I3C_TRANSFER_SPEED_SDR_8MHZ:
+			return I3C_SPEED_SDR_8MHZ;
+		case I3C_TRANSFER_SPEED_SDR_6MHZ:
+			return I3C_SPEED_SDR_6MHZ;
+		case I3C_TRANSFER_SPEED_SDR_4MHZ:
+			return I3C_SPEED_SDR_4MHZ;
+		case I3C_TRANSFER_SPEED_SDR_2MHZ:
+			return I3C_SPEED_SDR_2MHZ;
+		default:
+			return I3C_SPEED_SDR_12p5MHZ;
+		}
+	}
 }
 
 /*
@@ -625,17 +626,16 @@ void I3C_SetXferRate(I3C_TASK_INFO_t *pTaskInfo)
 	uint32_t ODBAUD;
 	uint32_t I2CBAUD;
 	uint32_t ODHPP = 1;
-	uint32_t apb3_rate;
-	I3C_DEVICE_INFO_t *pMasterDevice;
-
+	int rate_idx;
+	int speed_idx;
 	uint32_t mconfig;
+	I3C_DEVICE_INFO_t *pMasterDevice;
 	I3C_TRANSFER_TASK_t *pTask;
 	I3C_TRANSFER_FRAME_t *pFrame;
 
-	if (pTaskInfo == NULL)
+	if (pTaskInfo == NULL) {
 		return;
-
-	apb3_rate = gObj[pTaskInfo->Port]->apb3_rate;
+	}
 
 	mconfig = I3C_GET_REG_MCONFIG(pTaskInfo->Port);
 
@@ -644,146 +644,40 @@ void I3C_SetXferRate(I3C_TASK_INFO_t *pTaskInfo)
 	ODBAUD = (mconfig & I3C_MCONFIG_ODBAUD_MASK) >> I3C_MCONFIG_ODBAUD_SHIFT;
 	I2CBAUD = (mconfig & I3C_MCONFIG_I2CBAUD_MASK) >> I3C_MCONFIG_I2CBAUD_SHIFT;
 
-	mconfig &= ~(I3C_MCONFIG_I2CBAUD_MASK | I3C_MCONFIG_ODHPP_MASK | I3C_MCONFIG_ODBAUD_MASK
-		| I3C_MCONFIG_PPLOW_MASK | I3C_MCONFIG_PPBAUD_MASK);
+	mconfig &= ~(I3C_MCONFIG_I2CBAUD_MASK | I3C_MCONFIG_ODHPP_MASK | I3C_MCONFIG_ODBAUD_MASK |
+			 I3C_MCONFIG_PPLOW_MASK | I3C_MCONFIG_PPBAUD_MASK);
 
 	pMasterDevice = I3C_Get_INODE(pTaskInfo->Port);
-
 	pTask = pTaskInfo->pTask;
-	if (pTask->frame_idx != 0)
+
+	if (pTask->frame_idx != 0) {
 		return;
+	}
 
 	pFrame = &(pTask->pFrameList[pTask->frame_idx]);
 
-	// update by frame setting
+	/* Update by frame setting */
 	if ((pTask->frame_idx == 0) && ((pFrame->flag & I3C_TRANSFER_REPEAT_START) == 0) &&
-			(pFrame->type != I3C_TRANSFER_TYPE_I2C) && (pFrame->address == 0x7E)) {
+		(pFrame->type != I3C_TRANSFER_TYPE_I2C) && (pFrame->address == 0x7E)) {
 		ODHPP = 0;
 	}
 
-	if (pFrame->type == I3C_TRANSFER_TYPE_I2C) {
-		switch(pFrame->baudrate) {
-			case I3C_TRANSFER_SPEED_I2C_1MHZ:
-				if (apb3_rate == 96000000) { // 926 - 922 KHz
-					PPBAUD = 3;
-					PPLOW = 0;
-					ODBAUD = 12;
-					I2CBAUD = 0;
-				} else if (apb3_rate == 48000000) { // 878 - 880 KHz
-					PPBAUD = 2;
-					PPLOW = 0;
-					ODBAUD = 8;
-					I2CBAUD = 0;
-				}
-				break;
-			case I3C_TRANSFER_SPEED_I2C_400KHZ:
-				if (apb3_rate == 96000000) { // 371 - 369 KHz
-					PPBAUD = 9;
-					PPLOW = 0;
-					ODBAUD = 12;
-					I2CBAUD = 0;
-				} else if (apb3_rate == 48000000) { // 340 - 338 KHz
-					PPBAUD = 9;
-					PPLOW = 0;
-					ODBAUD = 6;
-					I2CBAUD = 0;
-				}
-				break;
-			default:
-				if (apb3_rate == 96000000) { // 98 - 96 KHz
-					PPBAUD = 15;
-					PPLOW = 0;
-					ODBAUD = 30;
-					I2CBAUD = 0;
-				} else if (apb3_rate == 48000000) { // 98 - 97 KHz
-					PPBAUD = 2;
-					PPLOW = 0;
-					ODBAUD = 80;
-					I2CBAUD = 0;
-				}
-				break;
-		}
-	}
-	else
-	{
-		switch(pFrame->baudrate) {
-			case I3C_TRANSFER_SPEED_SDR_12p5MHZ:
-				// I3C PP=12.5MHz, OD Freq = 1MHz if ODHPP = 0
-				if (apb3_rate == 96000000) {
-					PPBAUD = 2;
-					PPLOW = 2;
-					ODBAUD = 15;
-				} else if (apb3_rate == 48000000) {
-					PPBAUD = 0;
-					PPLOW = 2;
-					ODBAUD = 23;
-				}
-				break;
-			case I3C_TRANSFER_SPEED_SDR_8MHZ:
-				// I3C PP=8MHz, OD Freq = 1MHz if ODHPP = 0
-				if (apb3_rate == 96000000) {
-					PPBAUD = 2;
-					PPLOW = 6;
-					ODBAUD = 15;
-				} else if (apb3_rate == 48000000) {
-					PPBAUD = 0;
-					PPLOW = 4;
-					ODBAUD = 23;
-				}
-				break;
-			case I3C_TRANSFER_SPEED_SDR_6MHZ:
-				// I3C PP=6MHz, OD Freq = 1MHz if ODHPP = 0
-				if (apb3_rate == 96000000) {
-					PPBAUD = 2;
-					PPLOW = 10;
-					ODBAUD = 15;
-				} else if (apb3_rate == 48000000) {
-					PPBAUD = 1;
-					PPLOW = 4;
-					ODBAUD = 11;
-				}
-				break;
-			case I3C_TRANSFER_SPEED_SDR_4MHZ:
-				// I3C PP=4MHz, OD Freq = 1MHz if ODHPP = 0
-				if (apb3_rate == 96000000) {
-					PPBAUD = 5;
-					PPLOW = 12;
-					ODBAUD = 7;
-                                } else if (apb3_rate == 48000000) {
-					PPBAUD = 0;
-					PPLOW = 10;
-					ODBAUD = 23;
-                                }
-				break;
-			case I3C_TRANSFER_SPEED_SDR_2MHZ:
-				// I3C PP=2MHz, OD Freq = 1MHz if ODHPP = 0
-				if (apb3_rate == 96000000) {
-					PPBAUD = 15;
-					PPLOW = 15;
-					ODBAUD = 2;
-				} else if (apb3_rate == 48000000) {
-					PPBAUD = 4;
-					PPLOW = 14;
-					ODBAUD = 4;
-				}
-				break;
-			default:
-				if (apb3_rate == 96000000) {
-					PPBAUD = 15;
-					PPLOW = 15;
-					ODBAUD = 5;
-				} else if (apb3_rate == 48000000) {
-					PPBAUD = 15;
-					PPLOW = 15;
-					ODBAUD = 1;
-				}
-				break;
-		}
+	rate_idx = (gObj[pTaskInfo->Port]->apb3_rate == MHZ(96)) ? I3C_SRC_CLK_96MHZ :
+		   (gObj[pTaskInfo->Port]->apb3_rate == MHZ(48)) ? I3C_SRC_CLK_48MHZ :
+								   I3C_SRC_CLK_MAX;
+
+	if (rate_idx != I3C_SRC_CLK_MAX) {
+		speed_idx = hal_I3C_GetSpeedIndex(pFrame);
+
+		PPBAUD = i3c_speeds[rate_idx][speed_idx].ppbaud;
+		PPLOW = i3c_speeds[rate_idx][speed_idx].pplow;
+		ODBAUD = i3c_speeds[rate_idx][speed_idx].odbaud;
+		I2CBAUD = i3c_speeds[rate_idx][speed_idx].i2cbaud;
 	}
 
-	mconfig |= I3C_MCONFIG_I2CBAUD(I2CBAUD) | I3C_MCONFIG_ODHPP(ODHPP)
-		| I3C_MCONFIG_ODBAUD(ODBAUD) | I3C_MCONFIG_PPLOW(PPLOW)
-		| I3C_MCONFIG_PPBAUD(PPBAUD);
+	mconfig |= I3C_MCONFIG_I2CBAUD(I2CBAUD) | I3C_MCONFIG_ODHPP(ODHPP) |
+		   I3C_MCONFIG_ODBAUD(ODBAUD) | I3C_MCONFIG_PPLOW(PPLOW) |
+		   I3C_MCONFIG_PPBAUD(PPBAUD);
 	I3C_SET_REG_MCONFIG(pTaskInfo->Port, mconfig);
 }
 
@@ -884,23 +778,24 @@ void hal_I3C_set_mstatus(I3C_PORT_Enum port, uint32_t val)
 I3C_IBITYPE_Enum hal_I3C_get_ibiType(I3C_PORT_Enum port)
 {
 	uint32_t mstatus = I3C_GET_REG_MSTATUS(port);
-	uint8_t ibi_type = (uint8_t)(
-		(mstatus & I3C_MSTATUS_IBITYPE_MASK) >> I3C_MSTATUS_IBITYPE_SHIFT);
+	uint8_t ibi_type =
+		(uint8_t)((mstatus & I3C_MSTATUS_IBITYPE_MASK) >> I3C_MSTATUS_IBITYPE_SHIFT);
 	return ibi_type;
 }
 
 uint8_t hal_I3C_get_ibiAddr(I3C_PORT_Enum port)
 {
 	uint32_t mstatus = I3C_GET_REG_MSTATUS(port);
-	uint8_t ibi_addr = (uint8_t)(
-		(mstatus & I3C_MSTATUS_IBIADDR_MASK) >> I3C_MSTATUS_IBIADDR_SHIFT);
+	uint8_t ibi_addr =
+		(uint8_t)((mstatus & I3C_MSTATUS_IBIADDR_MASK) >> I3C_MSTATUS_IBIADDR_SHIFT);
 	return ibi_addr;
 }
 
 bool hal_I3C_Is_Master_Idle(I3C_PORT_Enum port)
 {
 	return ((I3C_GET_REG_MSTATUS(port) & I3C_MSTATUS_STATE_MASK) == I3C_MSTATUS_STATE_IDLE) ?
-		true : false;
+			   true :
+			   false;
 }
 
 bool hal_I3C_Is_Slave_Idle(I3C_PORT_Enum port)
@@ -915,7 +810,8 @@ bool hal_I3C_Is_Slave_Idle(I3C_PORT_Enum port)
 bool hal_I3C_Is_Master_DAA(I3C_PORT_Enum port)
 {
 	return ((I3C_GET_REG_MSTATUS(port) & I3C_MSTATUS_STATE_MASK) == I3C_MSTATUS_STATE_DAA) ?
-		true : false;
+			   true :
+			   false;
 }
 
 bool hal_I3C_Is_Slave_DAA(I3C_PORT_Enum port)
@@ -930,7 +826,8 @@ bool hal_I3C_Is_Slave_DAA(I3C_PORT_Enum port)
 bool hal_I3C_Is_Master_SLVSTART(I3C_PORT_Enum port)
 {
 	return ((I3C_GET_REG_MSTATUS(port) & I3C_MSTATUS_STATE_MASK) == I3C_MSTATUS_STATE_SLVREQ) ?
-		true : false;
+			   true :
+			   false;
 }
 
 bool hal_I3C_Is_Slave_SLVSTART(I3C_PORT_Enum port)
@@ -945,7 +842,8 @@ bool hal_I3C_Is_Slave_SLVSTART(I3C_PORT_Enum port)
 bool hal_I3C_Is_Master_NORMAL(I3C_PORT_Enum port)
 {
 	return ((I3C_GET_REG_MSTATUS(port) & I3C_MSTATUS_STATE_MASK) == I3C_MSTATUS_STATE_NORMACT) ?
-		true : false;
+			   true :
+			   false;
 }
 
 void hal_I3C_Nack_IBI(I3C_PORT_Enum port)
@@ -1005,8 +903,8 @@ void hal_I3C_Disable_Master_DMA(I3C_PORT_Enum port)
 	uint32_t key;
 
 	key = irq_lock();
-	I3C_SET_REG_MDMACTRL(port, I3C_GET_REG_MDMACTRL(port) & ~(I3C_MDMACTRL_DMAFB_MASK |
-				I3C_MDMACTRL_DMATB_MASK));
+	I3C_SET_REG_MDMACTRL(port, I3C_GET_REG_MDMACTRL(port) &
+					   ~(I3C_MDMACTRL_DMAFB_MASK | I3C_MDMACTRL_DMATB_MASK));
 	pdma_ch = Get_PDMA_Channel(port, I3C_TRANSFER_DIR_READ);
 	PDMA->CHCTL &= ~BIT(PDMA_OFFSET + pdma_ch);
 	pdma_ch = Get_PDMA_Channel(port, I3C_TRANSFER_DIR_WRITE);
@@ -1035,231 +933,206 @@ void hal_I3C_WriteByte(I3C_PORT_Enum port, uint8_t val)
 	I3C_SET_REG_MWDATABE(port, val);
 }
 
-bool hal_I3C_DMA_Write(I3C_PORT_Enum port, I3C_DEVICE_MODE_Enum mode, uint8_t *txBuf, uint16_t txLen)
+static void stop_rx_dma(I3C_PORT_Enum port, uint8_t pdma_ch)
 {
-	uint8_t pdma_ch;
-	uint32_t Temp;
-	uint32_t key;
+	I3C_SET_REG_DMACTRL(port, I3C_GET_REG_DMACTRL(port) & ~I3C_DMACTRL_DMAFB_MASK);
+	PDMA->CHCTL &= ~BIT(PDMA_OFFSET + pdma_ch);
+}
 
-	if (txLen == 0)
-		return true;
-	if (port >= I3C_PORT_MAX)
-		return false;
-	if ((mode != I3C_DEVICE_MODE_CURRENT_MASTER) && (mode != I3C_DEVICE_MODE_SLAVE_ONLY) &&
-		(mode != I3C_DEVICE_MODE_SECONDARY_MASTER)) {
-		return false;
-	}
+/* Configure the DMA channel for I3C transfer */
+static void configure_dma_channel(uint8_t pdma_ch, uint32_t port, bool is_master, bool is_write)
+{
+	/* Disable the DMA channel */
+	PDMA->CHCTL &= ~BIT(PDMA_OFFSET + pdma_ch);
 
-	pdma_ch = Get_PDMA_Channel(port, I3C_TRANSFER_DIR_WRITE);
-
-	key = irq_lock();
-
-	if (mode == I3C_DEVICE_MODE_CURRENT_MASTER) {
-		if (txLen == 1) {
-			/* case 1: Write Data Len = 1 and Tx FIFO not full */
-			if (I3C_GET_REG_MSTATUS(port) & I3C_MSTATUS_TXNOTFULL_MASK) {
-				I3C_SET_REG_MWDATABE(port, *txBuf);
-				irq_unlock(key);
-				return true;
-			}
-
-			/* case 2: Write Data Len = 1, use Basic Mode */
-			PDMA->CHCTL &= ~BIT(PDMA_OFFSET + pdma_ch);
+	/* Configure the DMA control register based on master/slave and read/write mode */
+	if (is_master) {
+		if (is_write) {
 			I3C_SET_REG_MDMACTRL(port,
-				I3C_GET_REG_MDMACTRL(port) & ~I3C_MDMACTRL_DMATB_MASK);
-
-			/* can't flush Tx FIFO data for DDR */
-			/* 2-2. Start DMA */
-			PDMA->CHCTL |= BIT(PDMA_OFFSET + pdma_ch);
-			PDMA->TDSTS = BIT(PDMA_OFFSET + pdma_ch);
-
-			PDMA_TxBuf_END[pdma_ch] = txBuf[0];
-
-			PDMA->DSCT[PDMA_OFFSET + pdma_ch].CTL = (((uint32_t) 0)
-				<< PDMA_DSCT_CTL_TXCNT_Pos) | PDMA_SAR_INC | PDMA_DAR_FIX |
-				PDMA_WIDTH_32 | PDMA_OP_BASIC | PDMA_REQ_SINGLE;
-			PDMA->DSCT[PDMA_OFFSET + pdma_ch].ENDSA =
-				(uint32_t)&PDMA_TxBuf_END[pdma_ch];
-			PDMA->DSCT[PDMA_OFFSET + pdma_ch].ENDDA =
-				(uint32_t)&(((struct i3c_reg *) I3C_BASE_ADDR(port))->MWDATABE);
+						 I3C_GET_REG_MDMACTRL(port) & ~I3C_MDMACTRL_DMATB_MASK);
 		} else {
-			/* case 3: Write Data Buffer > 1, use Scatter Gather Mode */
-			PDMA->CHCTL &= ~BIT(PDMA_OFFSET + pdma_ch);
 			I3C_SET_REG_MDMACTRL(port,
-				I3C_GET_REG_MDMACTRL(port) & ~I3C_MDMACTRL_DMATB_MASK);
-
-			/* can't flush Tx FIFO data for DDR */
-			PDMA->CHCTL |= BIT(PDMA_OFFSET + pdma_ch);
-			PDMA->TDSTS = BIT(PDMA_OFFSET + pdma_ch);
-
-			PDMA->DSCT[PDMA_OFFSET + pdma_ch].CTL = PDMA_OP_SCATTER;
-			PDMA->DSCT[PDMA_OFFSET + pdma_ch].NEXT = (uint32_t)&I3C_DSCT[pdma_ch * 2];
-
-			I3C_DSCT[pdma_ch * 2].CTL = (((uint32_t) txLen - 2)
-				<< PDMA_DSCT_CTL_TXCNT_Pos) | PDMA_SAR_INC | PDMA_DAR_FIX |
-				PDMA_WIDTH_8 | PDMA_OP_SCATTER | PDMA_REQ_SINGLE;
-			I3C_DSCT[pdma_ch * 2].ENDSA = (uint32_t)&txBuf[0];
-
-			I3C_DSCT[pdma_ch * 2].ENDDA =
-				(uint32_t)&(((struct i3c_reg *)I3C_BASE_ADDR(port))->MWDATAB1);
-			I3C_DSCT[pdma_ch * 2].NEXT = (uint32_t)&I3C_DSCT[pdma_ch * 2 + 1];
-
-			PDMA_TxBuf_END[pdma_ch] = txBuf[txLen - 1];
-			I3C_DSCT[pdma_ch * 2 + 1].CTL = (((uint32_t)0) << PDMA_DSCT_CTL_TXCNT_Pos) |
-				PDMA_SAR_INC | PDMA_DAR_FIX | PDMA_WIDTH_32 | PDMA_OP_BASIC |
-				PDMA_REQ_SINGLE;
-			I3C_DSCT[pdma_ch * 2 + 1].ENDSA = (uint32_t)&PDMA_TxBuf_END[pdma_ch];
-			I3C_DSCT[pdma_ch * 2 + 1].ENDDA =
-				(uint32_t)&(((struct i3c_reg *) I3C_BASE_ADDR(port))->MWDATABE);
+						 I3C_GET_REG_MDMACTRL(port) & ~I3C_MDMACTRL_DMAFB_MASK);
 		}
-
-		I3C_SET_REG_MDMACTRL(port, I3C_GET_REG_MDMACTRL(port) | I3C_MDMACTRL_DMATB(2));
-		irq_unlock(key);
-		return true;
+	} else {
+		if (is_write) {
+			I3C_SET_REG_DMACTRL(port,
+						I3C_GET_REG_DMACTRL(port) & ~I3C_DMACTRL_DMATB_MASK);
+		} else {
+			I3C_SET_REG_DMACTRL(port,
+						I3C_GET_REG_DMACTRL(port) & ~I3C_DMACTRL_DMAFB_MASK);
+		}
 	}
 
-	/* Prepare for Master read slave's register, or Slave send IBI data */
+	/* Enable the DMA channel and clear the transfer done status */
+	PDMA->CHCTL |= BIT(PDMA_OFFSET + pdma_ch);
+	PDMA->TDSTS = BIT(PDMA_OFFSET + pdma_ch);
+}
+
+/* Configure the DMA for basic mode transfer */
+static void configure_basic_mode(uint8_t pdma_ch, uint8_t *txBuf, uint32_t port, bool is_master)
+{
+	/* Configure the DMA channel */
+	configure_dma_channel(pdma_ch, port, is_master, true);
+
+	/* Set the end buffer for the DMA transfer */
+	PDMA_TxBuf_END[pdma_ch] = txBuf[0];
+
+	/* Configure the DMA descriptor for basic mode */
+	PDMA->DSCT[PDMA_OFFSET + pdma_ch].CTL =
+		PDMA_SAR_INC | PDMA_DAR_FIX | PDMA_WIDTH_32 | PDMA_OP_BASIC | PDMA_REQ_SINGLE;
+	PDMA->DSCT[PDMA_OFFSET + pdma_ch].ENDSA = (uint32_t)&PDMA_TxBuf_END[pdma_ch];
+	PDMA->DSCT[PDMA_OFFSET + pdma_ch].ENDDA =
+		(uint32_t) & (((struct i3c_reg *)I3C_BASE_ADDR(port))->WDATABE);
+}
+
+/* Configure the DMA for scatter-gather mode transfer */
+static void configure_scatter_gather_mode(uint8_t pdma_ch, uint8_t *txBuf, uint16_t txLen,
+					  uint32_t port, bool is_master)
+{
+	/* Configure the DMA channel */
+	configure_dma_channel(pdma_ch, port, is_master, true);
+
+	/* Configure the DMA descriptor for scatter-gather mode */
+	PDMA->DSCT[PDMA_OFFSET + pdma_ch].CTL = PDMA_OP_SCATTER;
+	PDMA->DSCT[PDMA_OFFSET + pdma_ch].NEXT = (uint32_t)&I3C_DSCT[pdma_ch * 2];
+
+	/* Configure the first scatter-gather descriptor */
+	I3C_DSCT[pdma_ch * 2].CTL = (((uint32_t)txLen - 2) << PDMA_DSCT_CTL_TXCNT_Pos) |
+					PDMA_SAR_INC | PDMA_DAR_FIX | PDMA_WIDTH_8 | PDMA_OP_SCATTER |
+					PDMA_REQ_SINGLE;
+	I3C_DSCT[pdma_ch * 2].ENDSA = (uint32_t)&txBuf[0];
+	I3C_DSCT[pdma_ch * 2].ENDDA =
+		(uint32_t) & (((struct i3c_reg *)I3C_BASE_ADDR(port))->WDATAB1);
+	I3C_DSCT[pdma_ch * 2].NEXT = (uint32_t)&I3C_DSCT[pdma_ch * 2 + 1];
+
+	/* Configure the second scatter-gather descriptor */
+	PDMA_TxBuf_END[pdma_ch] = txBuf[txLen - 1];
+	I3C_DSCT[pdma_ch * 2 + 1].CTL =
+		PDMA_SAR_INC | PDMA_DAR_FIX | PDMA_WIDTH_32 | PDMA_OP_BASIC | PDMA_REQ_SINGLE;
+	I3C_DSCT[pdma_ch * 2 + 1].ENDSA = (uint32_t)&PDMA_TxBuf_END[pdma_ch];
+	I3C_DSCT[pdma_ch * 2 + 1].ENDDA =
+		(uint32_t) & (((struct i3c_reg *)I3C_BASE_ADDR(port))->WDATABE);
+}
+
+/* Perform a DMA write transfer */
+bool hal_I3C_DMA_Write(I3C_PORT_Enum port, I3C_DEVICE_MODE_Enum mode, uint8_t *txBuf,
+			   uint16_t txLen)
+{
+	/* Validate the input parameters */
+	if (txLen == 0 || port >= I3C_PORT_MAX ||
+		(mode != I3C_DEVICE_MODE_CURRENT_MASTER && mode != I3C_DEVICE_MODE_SLAVE_ONLY &&
+		 mode != I3C_DEVICE_MODE_SECONDARY_MASTER)) {
+		return false;
+	}
+
+	/* Get the DMA channel for the write transfer */
+	uint8_t pdma_ch = Get_PDMA_Channel(port, I3C_TRANSFER_DIR_WRITE);
+	uint32_t key = irq_lock();
+	bool is_master = (mode == I3C_DEVICE_MODE_CURRENT_MASTER);
+
+	/* Configure the DMA based on the transfer length */
 	if (txLen == 1) {
-		if (I3C_GET_REG_STATUS(port) & I3C_STATUS_TXNOTFULL_MASK) {
+		/* If only one byte, write directly to the data register */
+		if (is_master && (I3C_GET_REG_MSTATUS(port) & I3C_MSTATUS_TXNOTFULL_MASK)) {
+			I3C_SET_REG_MWDATABE(port, *txBuf);
+			irq_unlock(key);
+			return true;
+		} else if (!is_master && (I3C_GET_REG_STATUS(port) & I3C_STATUS_TXNOTFULL_MASK)) {
 			I3C_SET_REG_WDATABE(port, *txBuf);
 			irq_unlock(key);
 			return true;
 		}
-
-		PDMA->CHCTL &= ~BIT(PDMA_OFFSET + pdma_ch);
-		I3C_SET_REG_DMACTRL(port, I3C_GET_REG_DMACTRL(port) & ~I3C_DMACTRL_DMATB_MASK);
-
-		Temp = I3C_GET_REG_DATACTRL(port);
-		if (Temp & I3C_DATACTRL_TXCOUNT_MASK) {
-			LOG_WRN("[SWrite] txcount = %d", (Temp & I3C_DATACTRL_TXCOUNT_MASK) >> I3C_DATACTRL_TXCOUNT_SHIFT);
-			I3C_SET_REG_DATACTRL(port, I3C_GET_REG_DATACTRL(port) | I3C_DATACTRL_FLUSHTB_MASK);
-		}
-
-		PDMA->CHCTL |= BIT(PDMA_OFFSET + pdma_ch);
-		PDMA->TDSTS = BIT(PDMA_OFFSET + pdma_ch);
-
-		PDMA_TxBuf_END[pdma_ch] = txBuf[0];
-
-		PDMA->DSCT[PDMA_OFFSET + pdma_ch].CTL = (((uint32_t)0) << PDMA_DSCT_CTL_TXCNT_Pos)
-				| PDMA_SAR_INC | PDMA_DAR_FIX | PDMA_WIDTH_32 | PDMA_OP_BASIC
-				| PDMA_REQ_SINGLE;
-		PDMA->DSCT[PDMA_OFFSET + pdma_ch].ENDSA = (uint32_t)&PDMA_TxBuf_END[pdma_ch];
-		PDMA->DSCT[PDMA_OFFSET + pdma_ch].ENDDA =
-			(uint32_t) &(((struct i3c_reg *)I3C_BASE_ADDR(port))->WDATABE);
+		configure_basic_mode(pdma_ch, txBuf, port, is_master);
 	} else {
-		PDMA->CHCTL &= ~BIT(PDMA_OFFSET + pdma_ch);
-		I3C_SET_REG_DMACTRL(port, I3C_GET_REG_DMACTRL(port) & ~I3C_DMACTRL_DMATB_MASK);
-
-		Temp = I3C_GET_REG_DATACTRL(port);
-		if (Temp & I3C_DATACTRL_TXCOUNT_MASK) {
-			LOG_WRN("[SWrite] txcount = %d", (Temp & I3C_DATACTRL_TXCOUNT_MASK) >> I3C_DATACTRL_TXCOUNT_SHIFT);
-			I3C_SET_REG_DATACTRL(port, I3C_GET_REG_DATACTRL(port) | I3C_DATACTRL_FLUSHTB_MASK);
-		}
-
-		PDMA->CHCTL |= BIT(PDMA_OFFSET + pdma_ch);
-		PDMA->TDSTS = BIT(PDMA_OFFSET + pdma_ch);
-
-		PDMA->DSCT[PDMA_OFFSET + pdma_ch].CTL = PDMA_OP_SCATTER;
-		PDMA->DSCT[PDMA_OFFSET + pdma_ch].NEXT = (uint32_t)&I3C_DSCT[pdma_ch * 2];
-
-		I3C_DSCT[pdma_ch * 2].CTL = (((uint32_t) txLen - 2) << PDMA_DSCT_CTL_TXCNT_Pos) |
-			PDMA_SAR_INC | PDMA_DAR_FIX | PDMA_WIDTH_8 | PDMA_OP_SCATTER |
-			PDMA_REQ_SINGLE;
-		I3C_DSCT[pdma_ch * 2].ENDSA = (uint32_t)&txBuf[0];
-		I3C_DSCT[pdma_ch * 2].ENDDA =
-			(uint32_t)&(((struct i3c_reg *)I3C_BASE_ADDR(port))->WDATAB1);
-		I3C_DSCT[pdma_ch * 2].NEXT = (uint32_t)&I3C_DSCT[pdma_ch * 2 + 1];
-
-		PDMA_TxBuf_END[pdma_ch] = txBuf[txLen - 1];
-
-		I3C_DSCT[pdma_ch * 2 + 1].CTL = (((uint32_t)0) << PDMA_DSCT_CTL_TXCNT_Pos) |
-			PDMA_SAR_INC | PDMA_DAR_FIX | PDMA_WIDTH_32 | PDMA_OP_BASIC |
-			PDMA_REQ_SINGLE;
-		I3C_DSCT[pdma_ch * 2 + 1].ENDSA = (uint32_t)&PDMA_TxBuf_END[pdma_ch];
-		I3C_DSCT[pdma_ch * 2 + 1].ENDDA =
-			(uint32_t)&(((struct i3c_reg *)I3C_BASE_ADDR(port))->WDATABE);
+		configure_scatter_gather_mode(pdma_ch, txBuf, txLen, port, is_master);
 	}
 
-	I3C_SET_REG_DMACTRL(port, I3C_GET_REG_DMACTRL(port) | I3C_DMACTRL_DMATB(2));
+	/* Enable the DMA transfer */
+	if (is_master) {
+		I3C_SET_REG_MDMACTRL(port, I3C_GET_REG_MDMACTRL(port) | I3C_MDMACTRL_DMATB(2));
+	} else {
+		I3C_SET_REG_DMACTRL(port, I3C_GET_REG_DMACTRL(port) | I3C_DMACTRL_DMATB(2));
+	}
+
 	irq_unlock(key);
 	return true;
 }
 
-bool hal_I3C_DMA_Read(I3C_PORT_Enum port, I3C_DEVICE_MODE_Enum mode, uint8_t *rxBuf, uint16_t rxLen)
+/* Setup the DMA for read transfer */
+static void setup_pdma_read(uint8_t pdma_ch, uint16_t rxLen, uint32_t endsa, uint32_t endda)
 {
-	uint8_t pdma_ch;
-	uint32_t Temp;
-	uint32_t key;
-
-	if (rxLen == 0)
-		return true;
-	if (port >= I3C_PORT_MAX)
-		return false;
-	if ((mode != I3C_DEVICE_MODE_CURRENT_MASTER) && (mode != I3C_DEVICE_MODE_SLAVE_ONLY) &&
-		(mode != I3C_DEVICE_MODE_SECONDARY_MASTER)) {
-		return false;
-	}
-
-	pdma_ch = Get_PDMA_Channel(port, I3C_TRANSFER_DIR_READ);
-
-	key = irq_lock();
-
-	PDMA->CHCTL &= ~BIT(PDMA_OFFSET + pdma_ch);
-
-	if (mode == I3C_DEVICE_MODE_CURRENT_MASTER) {
-		I3C_SET_REG_MDMACTRL(port, I3C_GET_REG_MDMACTRL(port) & ~I3C_MDMACTRL_DMAFB_MASK);
-
-		Temp = I3C_GET_REG_MDATACTRL(port);
-
-		if (Temp & I3C_MDATACTRL_RXCOUNT_MASK) {
-			LOG_WRN("[MRead] rxcount = %d", (Temp & I3C_MDATACTRL_RXCOUNT_MASK) >> I3C_MDATACTRL_RXCOUNT_SHIFT);
-			/* I3C_SET_REG_MDATACTRL(port, I3C_GET_REG_MDATACTRL(port) | I3C_MDATACTRL_FLUSHFB_MASK); */
-		}
-
-		if (Temp & I3C_MDATACTRL_TXCOUNT_MASK) {
-			LOG_DBG("[MRead] txcount = %d", (Temp & I3C_MDATACTRL_TXCOUNT_MASK) >> I3C_MDATACTRL_TXCOUNT_SHIFT);
-		}
-
-		PDMA->CHCTL |= BIT(PDMA_OFFSET + pdma_ch);
-		PDMA->TDSTS = BIT(PDMA_OFFSET + pdma_ch);
-
-		PDMA->DSCT[PDMA_OFFSET + pdma_ch].CTL =
-			(((uint32_t)rxLen - 1) << PDMA_DSCT_CTL_TXCNT_Pos) | PDMA_SAR_FIX |
-				PDMA_DAR_INC | PDMA_WIDTH_8 | PDMA_OP_BASIC | PDMA_REQ_SINGLE;
-		PDMA->DSCT[PDMA_OFFSET + pdma_ch].ENDSA =
-			(uint32_t)&(((struct i3c_reg *)I3C_BASE_ADDR(port))->MRDATAB);
-		PDMA->DSCT[PDMA_OFFSET + pdma_ch].ENDDA = (uint32_t)&rxBuf[0];
-
-		I3C_SET_REG_MDMACTRL(port, I3C_GET_REG_MDMACTRL(port) | I3C_MDMACTRL_DMAFB(2));
-		irq_unlock(key);
-		return true;
-	}
-
-	I3C_SET_REG_DMACTRL(port, I3C_GET_REG_DMACTRL(port) & ~I3C_DMACTRL_DMAFB_MASK);
-
-	/* Try not flush Rx fifo, to prevent data loss */
-	Temp = I3C_GET_REG_DATACTRL(port);
-
-	if (Temp & I3C_DATACTRL_RXCOUNT_MASK) {
-		LOG_WRN("[SRead] rxcount = %d", (Temp & I3C_DATACTRL_RXCOUNT_MASK) >> I3C_DATACTRL_RXCOUNT_SHIFT);
-		/* I3C_SET_REG_DATACTRL(port, I3C_GET_REG_DATACTRL(port) | I3C_DATACTRL_FLUSHFB_MASK); */
-	}
-
-	if (Temp & I3C_DATACTRL_TXCOUNT_MASK) {
-		LOG_DBG("[SRead] txcount = %d", (Temp & I3C_DATACTRL_TXCOUNT_MASK) >> I3C_DATACTRL_TXCOUNT_SHIFT);
-	}
-
+	/* Enable the DMA channel and clear the transfer done status */
 	PDMA->CHCTL |= BIT(PDMA_OFFSET + pdma_ch);
 	PDMA->TDSTS = BIT(PDMA_OFFSET + pdma_ch);
 
-	PDMA->DSCT[PDMA_OFFSET + pdma_ch].CTL =
-		(((uint32_t)rxLen - 1) << PDMA_DSCT_CTL_TXCNT_Pos) | PDMA_SAR_FIX | PDMA_DAR_INC |
-			PDMA_WIDTH_8 | PDMA_OP_BASIC | PDMA_REQ_SINGLE;
-	PDMA->DSCT[PDMA_OFFSET + pdma_ch].ENDSA =
-		(uint32_t)&(((struct i3c_reg *)I3C_BASE_ADDR(port))->RDATAB);
-	PDMA->DSCT[PDMA_OFFSET + pdma_ch].ENDDA = (uint32_t)&rxBuf[0];
+	/* Configure the DMA descriptor for read transfer */
+	PDMA->DSCT[PDMA_OFFSET + pdma_ch].CTL = (((uint32_t)rxLen - 1) << PDMA_DSCT_CTL_TXCNT_Pos) |
+						PDMA_SAR_FIX | PDMA_DAR_INC | PDMA_WIDTH_8 |
+						PDMA_OP_BASIC | PDMA_REQ_SINGLE;
+	PDMA->DSCT[PDMA_OFFSET + pdma_ch].ENDSA = endsa;
+	PDMA->DSCT[PDMA_OFFSET + pdma_ch].ENDDA = endda;
+}
 
-	I3C_SET_REG_DMACTRL(port, I3C_GET_REG_DMACTRL(port) | I3C_DMACTRL_DMAFB(2));
+/* Handle the DMA read mode based on master/slave mode */
+static void handle_dma_read_mode(I3C_PORT_Enum port, uint8_t pdma_ch, uint16_t rxLen,
+				 uint8_t *rxBuf, bool is_master)
+{
+	uint32_t temp;
+	if (is_master) {
+		/* Check the master data control register for RX and TX counts */
+		temp = I3C_GET_REG_MDATACTRL(port);
+		if (temp & I3C_MDATACTRL_RXCOUNT_MASK) {
+			LOG_WRN("[MRead] rxcount = %d",
+				(temp & I3C_MDATACTRL_RXCOUNT_MASK) >> I3C_MDATACTRL_RXCOUNT_SHIFT);
+		}
+		if (temp & I3C_MDATACTRL_TXCOUNT_MASK) {
+			LOG_DBG("[MRead] txcount = %d",
+				(temp & I3C_MDATACTRL_TXCOUNT_MASK) >> I3C_MDATACTRL_TXCOUNT_SHIFT);
+		}
+		/* Setup the DMA for read transfer */
+		setup_pdma_read(pdma_ch, rxLen,
+				(uint32_t) & (((struct i3c_reg *)I3C_BASE_ADDR(port))->MRDATAB),
+				(uint32_t)&rxBuf[0]);
+		I3C_SET_REG_MDMACTRL(port, I3C_GET_REG_MDMACTRL(port) | I3C_MDMACTRL_DMAFB(2));
+	} else {
+		/* Check the slave data control register for RX and TX counts */
+		temp = I3C_GET_REG_DATACTRL(port);
+		if (temp & I3C_DATACTRL_RXCOUNT_MASK) {
+			LOG_WRN("[SRead] rxcount = %d",
+				(temp & I3C_DATACTRL_RXCOUNT_MASK) >> I3C_DATACTRL_RXCOUNT_SHIFT);
+		}
+		if (temp & I3C_DATACTRL_TXCOUNT_MASK) {
+			LOG_DBG("[SRead] txcount = %d",
+				(temp & I3C_DATACTRL_TXCOUNT_MASK) >> I3C_DATACTRL_TXCOUNT_SHIFT);
+		}
+		/* Setup the DMA for read transfer */
+		setup_pdma_read(pdma_ch, rxLen,
+				(uint32_t) & (((struct i3c_reg *)I3C_BASE_ADDR(port))->RDATAB),
+				(uint32_t)&rxBuf[0]);
+		I3C_SET_REG_DMACTRL(port, I3C_GET_REG_DMACTRL(port) | I3C_DMACTRL_DMAFB(2));
+	}
+}
+
+/* Perform a DMA read transfer */
+bool hal_I3C_DMA_Read(I3C_PORT_Enum port, I3C_DEVICE_MODE_Enum mode, uint8_t *rxBuf, uint16_t rxLen)
+{
+	/* Validate the input parameters */
+	if (rxLen == 0 || port >= I3C_PORT_MAX ||
+		(mode != I3C_DEVICE_MODE_CURRENT_MASTER && mode != I3C_DEVICE_MODE_SLAVE_ONLY &&
+		 mode != I3C_DEVICE_MODE_SECONDARY_MASTER)) {
+		return false;
+	}
+
+	/* Get the DMA channel for the read transfer */
+	uint8_t pdma_ch = Get_PDMA_Channel(port, I3C_TRANSFER_DIR_READ);
+	uint32_t key = irq_lock();
+	bool is_master = (mode == I3C_DEVICE_MODE_CURRENT_MASTER);
+
+	/* Configure the DMA channel and handle the read mode */
+	configure_dma_channel(pdma_ch, port, is_master, false);
+	handle_dma_read_mode(port, pdma_ch, rxLen, rxBuf, is_master);
+
 	irq_unlock(key);
 	return true;
 }
@@ -1290,7 +1163,7 @@ uint16_t hal_i3c_get_capability_Tx_Fifo_Len(I3C_PORT_Enum port)
 	uint8_t tx_fifo_len_setting;
 
 	tx_fifo_len_setting = (I3C_GET_REG_CAPABILITIES(port) & I3C_CAPABILITIES_FIFOTX_MASK) >>
-		I3C_CAPABILITIES_FIFOTX_SHIFT;
+				  I3C_CAPABILITIES_FIFOTX_SHIFT;
 
 	if (tx_fifo_len_setting == 1)
 		return 4;
@@ -1306,7 +1179,7 @@ uint16_t hal_i3c_get_capability_Rx_Fifo_Len(I3C_PORT_Enum port)
 	uint8_t rx_fifo_len_setting;
 
 	rx_fifo_len_setting = (I3C_GET_REG_CAPABILITIES(port) & I3C_CAPABILITIES_FIFORX_MASK) >>
-		I3C_CAPABILITIES_FIFORX_SHIFT;
+				  I3C_CAPABILITIES_FIFORX_SHIFT;
 
 	if (rx_fifo_len_setting == 1)
 		return 4;
@@ -1320,43 +1193,43 @@ uint16_t hal_i3c_get_capability_Rx_Fifo_Len(I3C_PORT_Enum port)
 bool hal_i3c_get_capability_support_DMA(I3C_PORT_Enum port)
 {
 	return (I3C_GET_REG_CAPABILITIES(port) & I3C_CAPABILITIES_DMA_MASK) >>
-		I3C_CAPABILITIES_DMA_SHIFT;
+		   I3C_CAPABILITIES_DMA_SHIFT;
 }
 
 bool hal_i3c_get_capability_support_INT(I3C_PORT_Enum port)
 {
 	return (I3C_GET_REG_CAPABILITIES(port) & I3C_CAPABILITIES_INT_MASK) >>
-		I3C_CAPABILITIES_INT_SHIFT;
+		   I3C_CAPABILITIES_INT_SHIFT;
 }
 
 bool hal_i3c_get_capability_support_DDR(I3C_PORT_Enum port)
 {
 	return (I3C_GET_REG_CAPABILITIES(port) & I3C_CAPABILITIES_HDRSUPP_MASK) >>
-		I3C_CAPABILITIES_HDRSUPP_SHIFT;
+		   I3C_CAPABILITIES_HDRSUPP_SHIFT;
 }
 
 bool hal_i3c_get_capability_support_ASYNC0(I3C_PORT_Enum port)
 {
 	return (I3C_GET_REG_CAPABILITIES(port) & I3C_CAPABILITIES_TIMECTRL_MASK) >>
-		I3C_CAPABILITIES_TIMECTRL_SHIFT;
+		   I3C_CAPABILITIES_TIMECTRL_SHIFT;
 }
 
 bool hal_i3c_get_capability_support_IBI(I3C_PORT_Enum port)
 {
 	return (I3C_GET_REG_CAPABILITIES(port) & I3C_CAPABILITIES_IBI_SUPP_MASK) >>
-		I3C_CAPABILITIES_IBI_SUPP_SHIFT;
+		   I3C_CAPABILITIES_IBI_SUPP_SHIFT;
 }
 
 bool hal_i3c_get_capability_support_Master_Request(I3C_PORT_Enum port)
 {
 	return (I3C_GET_REG_CAPABILITIES(port) & I3C_CAPABILITIES_MASTER_REQUEST_SUPP_MASK) >>
-		I3C_CAPABILITIES_MASTER_REQUEST_SUPP_SHIFT;
+		   I3C_CAPABILITIES_MASTER_REQUEST_SUPP_SHIFT;
 }
 
 bool hal_i3c_get_capability_support_Hot_Join(I3C_PORT_Enum port)
 {
 	return (I3C_GET_REG_CAPABILITIES(port) & I3C_CAPABILITIES_HOTJOIN_SUPP_MASK) >>
-		I3C_CAPABILITIES_HOTJOIN_SUPP_SHIFT;
+		   I3C_CAPABILITIES_HOTJOIN_SUPP_SHIFT;
 }
 
 bool hal_i3c_get_capability_support_Offline(I3C_PORT_Enum port)
@@ -1434,8 +1307,8 @@ I3C_ErrCode_Enum hal_I3C_Process_Task(I3C_TASK_INFO_t *pTaskInfo)
 		I3C_MCTRL_TYPE(pFrame->type) | I3C_MCTRL_IBIRESP(3);
 
 	I3C_SET_REG_MSTATUS(pTaskInfo->Port, I3C_MSTATUS_MCTRLDONE_MASK);
-	I3C_SET_REG_MINTSET(pTaskInfo->Port, I3C_GET_REG_MINTSET(pTaskInfo->Port) |
-		I3C_MINTSET_MCTRLDONE_MASK);
+	I3C_SET_REG_MINTSET(pTaskInfo->Port,
+				I3C_GET_REG_MINTSET(pTaskInfo->Port) | I3C_MINTSET_MCTRLDONE_MASK);
 
 	if (protocol == I3C_TRANSFER_PROTOCOL_ENTDAA) {
 		mctrl |= I3C_MCTRL_REQUEST(I3C_MCTRL_REQUEST_DO_ENTDAA);
@@ -1475,7 +1348,8 @@ I3C_ErrCode_Enum hal_I3C_Process_Task(I3C_TASK_INFO_t *pTaskInfo)
 
 	I3C_SET_REG_MCTRL(pTaskInfo->Port, mctrl);
 
-	while ((I3C_GET_REG_MSTATUS(pTaskInfo->Port) & I3C_MSTATUS_MCTRLDONE_MASK) == 0);
+	while ((I3C_GET_REG_MSTATUS(pTaskInfo->Port) & I3C_MSTATUS_MCTRLDONE_MASK) == 0)
+		;
 
 	irq_unlock(key);
 
@@ -1513,7 +1387,8 @@ I3C_ErrCode_Enum hal_I3C_Stop(I3C_PORT_Enum port)
 	I3C_SET_REG_MCTRL(port, mctrl);
 
 	/* We disable mctrldone interrupt, wait mctrl done after emit stop */
-	while ((I3C_GET_REG_MSTATUS(port) & I3C_MSTATUS_MCTRLDONE_MASK) == 0);
+	while ((I3C_GET_REG_MSTATUS(port) & I3C_MSTATUS_MCTRLDONE_MASK) == 0)
+		;
 
 	irq_unlock(key);
 
@@ -1542,7 +1417,8 @@ static void i3c_npcm4xx_reset(I3C_PORT_Enum port)
 	pmc_base->SW_RST1 = (sw_rst | BIT(port));
 
 	/* after reset done, partno become zero */
-	while(I3C_GET_REG_PARTNO(port));
+	while (I3C_GET_REG_PARTNO(port))
+		;
 
 	/* restore reset value */
 	pmc_base->SW_RST1 = sw_rst;
@@ -1570,7 +1446,7 @@ I3C_ErrCode_Enum hal_I3C_Stop_SlaveEvent(I3C_TASK_INFO_t *pTaskInfo)
 
 	pDevice = I3C_Get_INODE(port);
 	if ((pDevice->mode != I3C_DEVICE_MODE_SLAVE_ONLY) &&
-			((pDevice->mode != I3C_DEVICE_MODE_SECONDARY_MASTER)))
+		((pDevice->mode != I3C_DEVICE_MODE_SECONDARY_MASTER)))
 		return I3C_ERR_PARAMETER_INVALID;
 
 	ctrl = I3C_GET_REG_CTRL(port);
@@ -1607,8 +1483,7 @@ I3C_ErrCode_Enum hal_I3C_Start_IBI(I3C_TASK_INFO_t *pTaskInfo)
 	pFrame = &pTask->pFrameList[pTask->frame_idx];
 
 	if (I3C_GET_REG_CTRL(port) & I3C_CTRL_EVENT_MASK) {
-		LOG_WRN("Generarte IBI but CTRL in Progress: 0x%x\n",
-				I3C_GET_REG_CTRL(port));
+		LOG_WRN("Generarte IBI but CTRL in Progress: 0x%x\n", I3C_GET_REG_CTRL(port));
 		hal_I3C_Stop_SlaveEvent(pTaskInfo);
 	}
 
@@ -1630,8 +1505,8 @@ I3C_ErrCode_Enum hal_I3C_Start_IBI(I3C_TASK_INFO_t *pTaskInfo)
 			ctrl |= I3C_CTRL_EXTDATA(1);
 
 			/* MAX = data len, CNT = 0 -> use TX FIFO */
-			I3C_SET_REG_IBIEXT1(port,
-				I3C_IBIEXT1_MAX(pFrame->access_len - pFrame->access_idx));
+			I3C_SET_REG_IBIEXT1(
+				port, I3C_IBIEXT1_MAX(pFrame->access_len - pFrame->access_idx));
 			Setup_Slave_IBI_DMA(pDevice);
 		}
 	}
@@ -1664,7 +1539,7 @@ I3C_ErrCode_Enum hal_I3C_Start_Master_Request(I3C_TASK_INFO_t *pTaskInfo)
 
 	if (I3C_GET_REG_CTRL(port) & I3C_CTRL_EVENT_MASK) {
 		LOG_WRN("Generarte Master REQ but CTRL in Progress: 0x%x\n",
-				I3C_GET_REG_CTRL(port));
+			I3C_GET_REG_CTRL(port));
 		hal_I3C_Stop_SlaveEvent(pTaskInfo);
 	}
 
@@ -1747,8 +1622,7 @@ I3C_ErrCode_Enum hal_I3C_Start_HotJoin(I3C_TASK_INFO_t *pTaskInfo)
 	}
 
 	if (I3C_GET_REG_CTRL(port) & I3C_CTRL_EVENT_MASK) {
-		LOG_WRN("Generarte HJ but CTRL in Progress: 0x%x\n",
-				I3C_GET_REG_CTRL(port));
+		LOG_WRN("Generarte HJ but CTRL in Progress: 0x%x\n", I3C_GET_REG_CTRL(port));
 		hal_I3C_Stop_SlaveEvent(pTaskInfo);
 	}
 
@@ -1769,12 +1643,13 @@ I3C_ErrCode_Enum hal_I3C_Start_HotJoin(I3C_TASK_INFO_t *pTaskInfo)
 	ctrl |= I3C_CTRL_EVENT(I3C_CTRL_EVENT_HotJoin);
 
 	/* initial retry and check count */
-        retry = 0x0;
-        check_count = 0x0;
+	retry = 0x0;
+	check_count = 0x0;
 
 hj_retry:
 	/* wait util bus idle */
-	while(I3C_GET_REG_STATUS(port) & I3C_STATUS_STNOTSTOP_MASK);
+	while (I3C_GET_REG_STATUS(port) & I3C_STATUS_STNOTSTOP_MASK)
+		;
 
 	/* if daa already done, exit hot-join progress */
 	if (I3C_Update_Dynamic_Address(port)) {
@@ -1794,8 +1669,7 @@ hj_retry:
 	do {
 		k_busy_wait(NPCM4XX_I3C_HJ_UDELAY);
 
-		if ((I3C_GET_REG_CTRL(port) & I3C_CTRL_EVENT_MASK) ==
-				I3C_CTRL_EVENT_None) {
+		if ((I3C_GET_REG_CTRL(port) & I3C_CTRL_EVENT_MASK) == I3C_CTRL_EVENT_None) {
 			LOG_WRN("HotJoin: Send successful\n");
 			ret = I3C_ERR_OK;
 			goto hj_exit;
@@ -1806,11 +1680,11 @@ hj_retry:
 		if (check_count >= NPCM4XX_I3C_HJ_CHECK_MAX)
 			break;
 
-	} while(true);
+	} while (true);
 
 	if (I3C_Update_Dynamic_Address(port)) {
 		LOG_WRN("HotJoin: Try to generate event but DA=0x%x present\n",
-				I3C_Update_Dynamic_Address(port));
+			I3C_Update_Dynamic_Address(port));
 
 		/* Disable generate event */
 		I3C_SET_REG_CTRL(port, I3C_CTRL_EVENT_None);
@@ -1866,7 +1740,7 @@ I3C_ErrCode_Enum hal_I3C_Slave_TX_Free(I3C_PORT_Enum port)
 		return I3C_ERR_PARAMETER_INVALID;
 
 	txDataLen = (I3C_GET_REG_DATACTRL(port) & I3C_DATACTRL_TXCOUNT_MASK) >>
-		I3C_DATACTRL_TXCOUNT_SHIFT;
+			I3C_DATACTRL_TXCOUNT_SHIFT;
 	return (txDataLen == 0) ? I3C_ERR_OK : I3C_ERR_PENDING;
 }
 
@@ -1889,7 +1763,7 @@ I3C_ErrCode_Enum hal_I3C_Slave_Query_TxLen(I3C_PORT_Enum port, uint16_t *txLen)
 	/* Slave TX data has send ? DMA will move response data to FIFO automatically */
 	/* Response data still in Tx FIFO ? */
 	txDataLen = (I3C_GET_REG_DATACTRL(port) & I3C_DATACTRL_TXCOUNT_MASK) >>
-		I3C_DATACTRL_TXCOUNT_SHIFT;
+			I3C_DATACTRL_TXCOUNT_SHIFT;
 
 	*txLen = txDataLen;
 	return I3C_ERR_OK;
@@ -2072,7 +1946,7 @@ int i3c_npcm4xx_master_attach_device(const struct device *dev, struct i3c_dev_de
 
 	struct i3c_npcm4xx_dev_priv *priv;
 	int i, pos;
-	uint8_t convert_pid[8] = {0};
+	uint8_t convert_pid[8] = { 0 };
 	I3C_BUS_INFO_t *pBus = NULL;
 	I3C_DEVICE_INFO_t *pDevice = NULL;
 	I3C_DEVICE_INFO_SHORT_t *pDevInfo = NULL;
@@ -2101,8 +1975,9 @@ int i3c_npcm4xx_master_attach_device(const struct device *dev, struct i3c_dev_de
 	 */
 	sys_put_be64(slave->info.pid, convert_pid);
 
-	pDevInfo = NewDevInfo(pBus, slave, attr, slave->info.static_addr, slave->info.assigned_dynamic_addr,
-			(uint8_t *)&convert_pid[2], slave->info.bcr, slave->info.dcr);
+	pDevInfo = NewDevInfo(pBus, slave, attr, slave->info.static_addr,
+				  slave->info.assigned_dynamic_addr, (uint8_t *)&convert_pid[2],
+				  slave->info.bcr, slave->info.dcr);
 
 	if (pDevInfo == NULL) {
 		return -ENOMEM;
@@ -2149,7 +2024,8 @@ int i3c_npcm4xx_master_attach_device(const struct device *dev, struct i3c_dev_de
 		slave->bus = dev;
 
 		/* allocate private data of the device */
-		priv = (struct i3c_npcm4xx_dev_priv *)hal_I3C_MemAlloc(sizeof(struct i3c_npcm4xx_dev_priv));
+		priv = (struct i3c_npcm4xx_dev_priv *)hal_I3C_MemAlloc(
+			sizeof(struct i3c_npcm4xx_dev_priv));
 		if (priv == NULL) {
 			RemoveDevInfo(pBus, pDevInfo);
 			return -ENOMEM;
@@ -2182,7 +2058,7 @@ int i3c_npcm4xx_master_detach_device(const struct device *dev, struct i3c_dev_de
 	I3C_BUS_INFO_t *pBus = NULL;
 	I3C_PORT_Enum port;
 	int pos;
-	uint8_t convert_pid[8] = {0};
+	uint8_t convert_pid[8] = { 0 };
 
 	config = obj->config;
 	port = config->inst_id;
@@ -2221,7 +2097,7 @@ int i3c_npcm4xx_master_detach_device(const struct device *dev, struct i3c_dev_de
 	obj->dev_addr_tbl[pos] = 0;
 
 	hal_I3C_MemFree(slave->priv_data);
-	obj->dev_descs[pos] = (struct i3c_dev_desc *) NULL;
+	obj->dev_descs[pos] = (struct i3c_dev_desc *)NULL;
 
 	return 0;
 }
@@ -2267,7 +2143,6 @@ int i3c_npcm4xx_master_enable_ibi(struct i3c_dev_desc *i3cdev)
 	/* if (obj->hw_feature.ibi_pec_force_enable) dat.fields.ibi_pec_en = 1; */
 	/* dat.fields.sir_reject = 0; */
 	/* sys_write32(dat.value, dat_addr); */
-
 
 	/* update IBIRULES to receive MDB within 100us */
 	/* at most 5 slave devices */
@@ -2328,7 +2203,7 @@ int i3c_npcm4xx_slave_register(const struct device *dev, struct i3c_slave_setup 
 	obj = DEV_DATA(dev);
 
 	__ASSERT(slave_data->max_payload_len <= I3C_PAYLOAD_SIZE_MAX,
-		"msg_size should less than %d.\n", I3C_PAYLOAD_SIZE_MAX);
+		 "msg_size should less than %d.\n", I3C_PAYLOAD_SIZE_MAX);
 
 	obj->slave_data.max_payload_len = slave_data->max_payload_len;
 	obj->slave_data.callbacks = slave_data->callbacks;
@@ -2338,7 +2213,7 @@ int i3c_npcm4xx_slave_register(const struct device *dev, struct i3c_slave_setup 
 
 int i3c_npcm4xx_slave_set_static_addr(const struct device *dev, uint8_t static_addr)
 {
-        struct i3c_npcm4xx_config *config = DEV_CFG(dev);
+	struct i3c_npcm4xx_config *config = DEV_CFG(dev);
 	I3C_PORT_Enum port = config->inst_id;
 	I3C_DEVICE_INFO_t *pDevice;
 	uint32_t sconfig;
@@ -2357,7 +2232,7 @@ int i3c_npcm4xx_slave_set_static_addr(const struct device *dev, uint8_t static_a
  * slave send mdb
  */
 int i3c_npcm4xx_slave_put_read_data(const struct device *dev, struct i3c_slave_payload *data,
-	struct i3c_ibi_payload *ibi_notify)
+					struct i3c_ibi_payload *ibi_notify)
 {
 	struct i3c_npcm4xx_config *config;
 	struct i3c_npcm4xx_obj *obj;
@@ -2429,8 +2304,8 @@ int i3c_npcm4xx_slave_put_read_data(const struct device *dev, struct i3c_slave_p
 		I3C_TRANSFER_PROTOCOL_Enum protocol = I3C_TRANSFER_PROTOCOL_IBI;
 		uint32_t timeout = TIMEOUT_TYPICAL;
 
-		txlen = (uint16_t)ibi_notify->size;	 /* ibi_notify->size >= 0 */
-		TxBuf[0] = ibi_notify->buf[0];       /* MDB */
+		txlen = (uint16_t)ibi_notify->size; /* ibi_notify->size >= 0 */
+		TxBuf[0] = ibi_notify->buf[0]; /* MDB */
 
 		if (config->ibi_append_pec) {
 			xfer_buf = pec_append(dev, ibi_notify->buf, ibi_notify->size);
@@ -2444,7 +2319,7 @@ int i3c_npcm4xx_slave_put_read_data(const struct device *dev, struct i3c_slave_p
 
 		/* let slave drive SLVSTART until bus idle */
 		pTaskInfo = I3C_Slave_Create_Task(protocol, txlen, &txlen, &rxlen, TxBuf, NULL,
-			timeout, NULL, port, NOT_HIF);
+						  timeout, NULL, port, NOT_HIF);
 		k_work_submit_to_queue(&npcm4xx_i3c_work_q[port], &work_send_ibi[port]);
 
 		/* wait ibi master read complete done */
@@ -2495,7 +2370,7 @@ int i3c_npcm4xx_slave_hj_req(const struct device *dev)
 
 	port = config->inst_id;
 
-	addr = I3C_Update_Dynamic_Address((uint32_t) port);
+	addr = I3C_Update_Dynamic_Address((uint32_t)port);
 
 	if (addr) {
 		LOG_ERR("Dynamic address present = 0x%x\n", addr);
@@ -2571,8 +2446,7 @@ int i3c_npcm4xx_set_pid_extra_info(const struct device *dev, uint16_t extra_info
 	pDevice = &gI3c_dev_node_internal[port];
 	pDevice->partNumber = partno;
 
-	pDevice->pid[4] = ((port & 0x0F) << 4) |
-		((uint8_t)(extra_info >> 8) & 0x0F);
+	pDevice->pid[4] = ((port & 0x0F) << 4) | ((uint8_t)(extra_info >> 8) & 0x0F);
 	pDevice->pid[5] = (uint8_t)extra_info;
 
 	return 0;
@@ -2614,7 +2488,8 @@ static void i3c_npcm4xx_master_rx_ibi(struct i3c_npcm4xx_obj *obj)
 	priv->ibi.callbacks->write_done(priv->ibi.context);
 }
 
-static uint32_t i3c_npcm4xx_master_send_done(void *pCallbackData, struct I3C_CallBackResult *CallBackResult)
+static uint32_t i3c_npcm4xx_master_send_done(void *pCallbackData,
+						 struct I3C_CallBackResult *CallBackResult)
 {
 	struct i3c_npcm4xx_xfer *xfer;
 	k_spinlock_key_t key;
@@ -2624,7 +2499,7 @@ static uint32_t i3c_npcm4xx_master_send_done(void *pCallbackData, struct I3C_Cal
 		return -EINVAL;
 	}
 
-	xfer = (struct i3c_npcm4xx_xfer *) pCallbackData;
+	xfer = (struct i3c_npcm4xx_xfer *)pCallbackData;
 
 	key = k_spin_lock(&xfer->lock);
 
@@ -2716,8 +2591,9 @@ int i3c_npcm4xx_master_send_ccc(const struct device *dev, struct i3c_ccc_cmd *cc
 			TxLen = 2;
 			TxBuf[0] = ccc->addr;
 			memcpy(&TxBuf[1], ccc->payload.data, 1);
-			result = I3C_Master_Insert_Task_CCCw(CCC, 1, TxLen, TxBuf, Baudrate, Timeout,
-				pCallback, (void *)xfer, PortId, Policy, bHIF);
+			result = I3C_Master_Insert_Task_CCCw(CCC, 1, TxLen, TxBuf, Baudrate,
+								 Timeout, pCallback, (void *)xfer,
+								 PortId, Policy, bHIF);
 		} else if (CCC == CCC_DIRECT_RSTDAA) {
 			if (ccc->payload.length != 0) {
 				k_mutex_unlock(&pDevice->lock);
@@ -2726,8 +2602,9 @@ int i3c_npcm4xx_master_send_ccc(const struct device *dev, struct i3c_ccc_cmd *cc
 
 			TxLen = 1;
 			TxBuf[0] = ccc->addr;
-			result = I3C_Master_Insert_Task_CCCw(CCC, 1, TxLen, TxBuf, Baudrate, Timeout,
-				pCallback, (void *)xfer, PortId, Policy, bHIF);
+			result = I3C_Master_Insert_Task_CCCw(CCC, 1, TxLen, TxBuf, Baudrate,
+								 Timeout, pCallback, (void *)xfer,
+								 PortId, Policy, bHIF);
 		} else if (CCC == CCC_DIRECT_SETMWL) {
 			if (ccc->payload.length != 2) {
 				k_mutex_unlock(&pDevice->lock);
@@ -2741,8 +2618,9 @@ int i3c_npcm4xx_master_send_ccc(const struct device *dev, struct i3c_ccc_cmd *cc
 			TxLen = 3;
 			TxBuf[0] = ccc->addr;
 			memcpy(&TxBuf[1], ccc->payload.data, 2);
-			result = I3C_Master_Insert_Task_CCCw(CCC, 1, TxLen, TxBuf, Baudrate, Timeout,
-				pCallback, (void *)xfer, PortId, Policy, bHIF);
+			result = I3C_Master_Insert_Task_CCCw(CCC, 1, TxLen, TxBuf, Baudrate,
+								 Timeout, pCallback, (void *)xfer,
+								 PortId, Policy, bHIF);
 		} else if (CCC == CCC_DIRECT_SETMRL) {
 			if ((ccc->payload.length != 2) && (ccc->payload.length != 3)) {
 				k_mutex_unlock(&pDevice->lock);
@@ -2756,8 +2634,9 @@ int i3c_npcm4xx_master_send_ccc(const struct device *dev, struct i3c_ccc_cmd *cc
 			TxLen = ccc->payload.length + 1;
 			TxBuf[0] = ccc->addr;
 			memcpy(&TxBuf[1], ccc->payload.data, ccc->payload.length);
-			result = I3C_Master_Insert_Task_CCCw(CCC, 1, TxLen, TxBuf, Baudrate, Timeout,
-				pCallback, (void *)xfer, PortId, Policy, bHIF);
+			result = I3C_Master_Insert_Task_CCCw(CCC, 1, TxLen, TxBuf, Baudrate,
+								 Timeout, pCallback, (void *)xfer,
+								 PortId, Policy, bHIF);
 		} else if (CCC == CCC_DIRECT_SETDASA) {
 			if (ccc->payload.length != 1) {
 				k_mutex_unlock(&pDevice->lock);
@@ -2771,44 +2650,50 @@ int i3c_npcm4xx_master_send_ccc(const struct device *dev, struct i3c_ccc_cmd *cc
 			TxLen = 2;
 			TxBuf[0] = ccc->addr;
 			memcpy(&TxBuf[1], ccc->payload.data, ccc->payload.length);
-			result = I3C_Master_Insert_Task_CCCw(CCC, 1, TxLen, TxBuf, Baudrate, Timeout,
-				pCallback, (void *)xfer, PortId, Policy, bHIF);
+			result = I3C_Master_Insert_Task_CCCw(CCC, 1, TxLen, TxBuf, Baudrate,
+								 Timeout, pCallback, (void *)xfer,
+								 PortId, Policy, bHIF);
 		} else if (CCC == CCC_DIRECT_GETMWL) {
 			TxLen = 1;
 			RxLen = 2;
 			TxBuf[0] = ccc->addr;
 			RxBuf = ccc->payload.data;
 			result = I3C_Master_Insert_Task_CCCr(CCC, 1, TxLen, &RxLen, TxBuf, RxBuf,
-					Baudrate, Timeout, pCallback, (void *)xfer, PortId, Policy, bHIF);
+								 Baudrate, Timeout, pCallback,
+								 (void *)xfer, PortId, Policy, bHIF);
 		} else if (CCC == CCC_DIRECT_GETMRL) {
 			TxLen = 1;
 			RxLen = 3;
 			TxBuf[0] = ccc->addr;
 			RxBuf = ccc->payload.data;
 			result = I3C_Master_Insert_Task_CCCr(CCC, 1, TxLen, &RxLen, TxBuf, RxBuf,
-					Baudrate, Timeout, pCallback, (void *)xfer, PortId, Policy, bHIF);
+								 Baudrate, Timeout, pCallback,
+								 (void *)xfer, PortId, Policy, bHIF);
 		} else if (CCC == CCC_DIRECT_GETPID) {
 			TxLen = 1;
 			RxLen = 6;
 			TxBuf[0] = ccc->addr;
 			RxBuf = ccc->payload.data;
 			result = I3C_Master_Insert_Task_CCCr(CCC, 1, TxLen, &RxLen, TxBuf, RxBuf,
-					Baudrate, Timeout, pCallback, (void *)xfer, PortId, Policy, bHIF);
-		} else if ((CCC == CCC_DIRECT_GETBCR) || (CCC == CCC_DIRECT_GETDCR)
-			|| (CCC == CCC_DIRECT_GETACCMST)) {
+								 Baudrate, Timeout, pCallback,
+								 (void *)xfer, PortId, Policy, bHIF);
+		} else if ((CCC == CCC_DIRECT_GETBCR) || (CCC == CCC_DIRECT_GETDCR) ||
+			   (CCC == CCC_DIRECT_GETACCMST)) {
 			TxLen = 1;
 			RxLen = 1;
 			TxBuf[0] = ccc->addr;
 			RxBuf = ccc->payload.data;
 			result = I3C_Master_Insert_Task_CCCr(CCC, 1, TxLen, &RxLen, TxBuf, RxBuf,
-					Baudrate,Timeout, pCallback, (void *)xfer, PortId, Policy, bHIF);
+								 Baudrate, Timeout, pCallback,
+								 (void *)xfer, PortId, Policy, bHIF);
 		} else if (CCC == CCC_DIRECT_GETSTATUS) {
 			TxLen = 1;
 			RxLen = 2;
 			TxBuf[0] = ccc->addr;
 			RxBuf = ccc->payload.data;
 			result = I3C_Master_Insert_Task_CCCr(CCC, 1, TxLen, &RxLen, TxBuf, RxBuf,
-					Baudrate, Timeout, pCallback, (void *)xfer, PortId, Policy, bHIF);
+								 Baudrate, Timeout, pCallback,
+								 (void *)xfer, PortId, Policy, bHIF);
 		} else {
 			k_mutex_unlock(&pDevice->lock);
 			return -EINVAL;
@@ -2826,8 +2711,7 @@ int i3c_npcm4xx_master_send_ccc(const struct device *dev, struct i3c_ccc_cmd *cc
 
 			TxLen = ccc->payload.length;
 			memcpy(TxBuf, ccc->payload.data, TxLen);
-		} else if ((CCC == CCC_BROADCAST_RSTDAA) ||
-			(CCC == CCC_BROADCAST_SETAASA)) {
+		} else if ((CCC == CCC_BROADCAST_RSTDAA) || (CCC == CCC_BROADCAST_SETAASA)) {
 			TxLen = 0;
 		} else if (CCC == CCC_BROADCAST_SETMWL) {
 			if (ccc->payload.length != 2) {
@@ -2842,7 +2726,7 @@ int i3c_npcm4xx_master_send_ccc(const struct device *dev, struct i3c_ccc_cmd *cc
 			TxLen = ccc->payload.length;
 			memcpy(TxBuf, ccc->payload.data, TxLen);
 		} else if (CCC == CCC_BROADCAST_SETMRL) {
-			if ((ccc->payload.length != 1) || (ccc->payload.length != 3)) {
+			if ((ccc->payload.length != 1) && (ccc->payload.length != 3)) {
 				k_mutex_unlock(&pDevice->lock);
 				return -EINVAL;
 			}
@@ -2868,7 +2752,7 @@ int i3c_npcm4xx_master_send_ccc(const struct device *dev, struct i3c_ccc_cmd *cc
 		}
 
 		result = I3C_Master_Insert_Task_CCCb(CCC, TxLen, TxBuf, Baudrate, Timeout,
-				pCallback, (void *)xfer, PortId, Policy, bHIF);
+							 pCallback, (void *)xfer, PortId, Policy, bHIF);
 	}
 
 	if (result != I3C_ERR_OK) {
@@ -2883,7 +2767,7 @@ int i3c_npcm4xx_master_send_ccc(const struct device *dev, struct i3c_ccc_cmd *cc
 	i3c_npcm4xx_start_xfer(obj, xfer);
 
 	/* wait done, xfer.ret will be changed in ISR */
-	if(k_sem_take(&xfer->xfer_complete, I3C_NPCM4XX_CCC_TIMEOUT) != 0) {
+	if (k_sem_take(&xfer->xfer_complete, I3C_NPCM4XX_CCC_TIMEOUT) != 0) {
 		key = k_spin_lock(&xfer->lock);
 		if (xfer->complete == true) {
 			/* In this case, means context switch after callback function
@@ -2917,7 +2801,7 @@ int i3c_npcm4xx_master_send_ccc(const struct device *dev, struct i3c_ccc_cmd *cc
 /* i3cdev -> target device */
 /* xfers -> send out data to slave or read in data from slave */
 int i3c_npcm4xx_master_priv_xfer(struct i3c_dev_desc *i3cdev, struct i3c_priv_xfer *xfers,
-	int nxfers)
+				 int nxfers)
 {
 	struct i3c_npcm4xx_obj *obj = DEV_DATA(i3cdev->bus);
 	struct i3c_npcm4xx_dev_priv *priv = DESC_PRIV(i3cdev);
@@ -2989,7 +2873,7 @@ int i3c_npcm4xx_master_priv_xfer(struct i3c_dev_desc *i3cdev, struct i3c_priv_xf
 		bWnR = (((i + 1) < nxfers) && (xfers[i].rnw == 0) && (xfers[i + 1].rnw == 1));
 
 		Baudrate = (pSlaveDev->info.i2c_mode) ? obj->config->i2c_scl_hz :
-			obj->config->i3c_scl_hz;
+							obj->config->i3c_scl_hz;
 
 		/* Try to slow down for the fly line */
 		/* Baudrate = (pSlaveDev->attr.b.runI3C) ? I3C_TRANSFER_SPEED_SDR_6MHZ : */
@@ -2998,21 +2882,21 @@ int i3c_npcm4xx_master_priv_xfer(struct i3c_dev_desc *i3cdev, struct i3c_priv_xf
 		if (!bWnR) {
 			if (xfers[i].rnw) {
 				Protocol = (pSlaveDev->info.i2c_mode) ?
-					I3C_TRANSFER_PROTOCOL_I2C_READ :
-					I3C_TRANSFER_PROTOCOL_I3C_READ;
+						   I3C_TRANSFER_PROTOCOL_I2C_READ :
+						   I3C_TRANSFER_PROTOCOL_I3C_READ;
 				RxBuf = xfers[i].data.in;
 				RxLen = xfers[i].len;
 			} else {
 				Protocol = (pSlaveDev->info.i2c_mode) ?
-					I3C_TRANSFER_PROTOCOL_I2C_WRITE :
-					I3C_TRANSFER_PROTOCOL_I3C_WRITE;
+						   I3C_TRANSFER_PROTOCOL_I2C_WRITE :
+						   I3C_TRANSFER_PROTOCOL_I3C_WRITE;
 				TxBuf = xfers[i].data.out;
 				TxLen = xfers[i].len;
 			}
 		} else {
 			Protocol = (pSlaveDev->info.i2c_mode) ?
-				I3C_TRANSFER_PROTOCOL_I2C_WRITEnREAD :
-				I3C_TRANSFER_PROTOCOL_I3C_WRITEnREAD;
+					   I3C_TRANSFER_PROTOCOL_I2C_WRITEnREAD :
+					   I3C_TRANSFER_PROTOCOL_I3C_WRITEnREAD;
 			TxBuf = xfers[i].data.out;
 			TxLen = xfers[i].len;
 			RxBuf = xfers[i + 1].data.in;
@@ -3020,9 +2904,9 @@ int i3c_npcm4xx_master_priv_xfer(struct i3c_dev_desc *i3cdev, struct i3c_priv_xf
 		}
 
 		pTaskInfo = I3C_Master_Create_Task(Protocol, Addr, 0, &TxLen, &RxLen, TxBuf, RxBuf,
-			Baudrate, Timeout, pCallback, (void *)xfer, PortId, Policy, bHIF);
+						   Baudrate, Timeout, pCallback, (void *)xfer,
+						   PortId, Policy, bHIF);
 		if (pTaskInfo != NULL) {
-
 			k_sem_init(&xfer->xfer_complete, 0, 1);
 
 			i3c_npcm4xx_start_xfer(obj, xfer);
@@ -3037,7 +2921,8 @@ int i3c_npcm4xx_master_priv_xfer(struct i3c_dev_desc *i3cdev, struct i3c_priv_xf
 					 */
 					LOG_WRN("sem timeout but task complete, get sem again to clear flag");
 					k_spin_unlock(&xfer->lock, key);
-					if (k_sem_take(&xfer->xfer_complete, I3C_NPCM4XX_XFER_TIMEOUT) != 0) {
+					if (k_sem_take(&xfer->xfer_complete,
+							   I3C_NPCM4XX_XFER_TIMEOUT) != 0) {
 						LOG_WRN("take sem again timeout");
 					}
 				} else { /* the memory will be free when driver call pCallback */
@@ -3110,7 +2995,8 @@ int i3c_npcm4xx_master_send_entdaa(struct i3c_dev_desc *i3cdev)
 	k_mutex_lock(&pDevice->lock, K_FOREVER);
 
 	result = I3C_Master_Insert_Task_ENTDAA(&rxlen, RxBuf_expected, Baudrate, TIMEOUT_TYPICAL,
-			pCallback, (void *)xfer, port, I3C_TASK_POLICY_APPEND_LAST, IS_HIF);
+						   pCallback, (void *)xfer, port,
+						   I3C_TASK_POLICY_APPEND_LAST, IS_HIF);
 
 	if (result != I3C_ERR_OK) {
 		LOG_ERR("Create ENTDAA task failed");
@@ -3204,7 +3090,7 @@ void I3C_Master_ISR(uint8_t I3C_IF)
 				I3C_SET_REG_MSTATUS(I3C_IF, mstatus | I3C_MSTATUS_COMPLETE_MASK);
 
 				k_work_submit_to_queue(&npcm4xx_i3c_work_q[I3C_IF],
-						&work_stop[I3C_IF]);
+							   &work_stop[I3C_IF]);
 				EXIT_MASTER_ISR();
 				return;
 			}
@@ -3214,10 +3100,10 @@ void I3C_Master_ISR(uint8_t I3C_IF)
 			pTaskInfo = pTask->pTaskInfo;
 			pTaskInfo->result = I3C_ERR_WRABT;
 
-			I3C_SET_REG_MDMACTRL(I3C_IF,
-				I3C_GET_REG_MDMACTRL(I3C_IF) & ~I3C_MDMACTRL_DMATB_MASK);
-			I3C_SET_REG_MDATACTRL(I3C_IF,
-					I3C_GET_REG_MDATACTRL(I3C_IF) | I3C_MDATACTRL_FLUSHTB_MASK);
+			I3C_SET_REG_MDMACTRL(I3C_IF, I3C_GET_REG_MDMACTRL(I3C_IF) &
+								 ~I3C_MDMACTRL_DMATB_MASK);
+			I3C_SET_REG_MDATACTRL(I3C_IF, I3C_GET_REG_MDATACTRL(I3C_IF) |
+								  I3C_MDATACTRL_FLUSHTB_MASK);
 			k_work_submit_to_queue(&npcm4xx_i3c_work_q[I3C_IF], &work_stop[I3C_IF]);
 			break;
 
@@ -3241,30 +3127,31 @@ void I3C_Master_ISR(uint8_t I3C_IF)
 
 		if ((mstatus & I3C_MSTATUS_STATE_MASK) == I3C_MSTATUS_STATE_IBIACK) {
 			I3C_SET_REG_MSTATUS(I3C_IF, I3C_MSTATUS_IBIWON_MASK |
-			I3C_MSTATUS_COMPLETE_MASK | I3C_MSTATUS_MCTRLDONE_MASK);
+								I3C_MSTATUS_COMPLETE_MASK |
+								I3C_MSTATUS_MCTRLDONE_MASK);
 
 			if (pDevice->ackIBI == false) {
-				I3C_Master_Insert_DISEC_After_IbiNack((uint32_t) pTask);
+				I3C_Master_Insert_DISEC_After_IbiNack((uint32_t)pTask);
 				EXIT_MASTER_ISR();
 				return;
 			}
 
 			/* To prevent ERRWARN.SPAR, we must ack/nak IBI ASAP */
 			if (ibi_type == I3C_MSTATUS_IBITYPE_IBI) {
-				I3C_Master_IBIACK((uint32_t) pTask);
+				I3C_Master_IBIACK((uint32_t)pTask);
 				EXIT_MASTER_ISR();
 				return;
 			} else if (ibi_type == I3C_MSTATUS_IBITYPE_MstReq) {
-				I3C_Master_Insert_GETACCMST_After_IbiAckMR((uint32_t) pTask);
+				I3C_Master_Insert_GETACCMST_After_IbiAckMR((uint32_t)pTask);
 				EXIT_MASTER_ISR();
 				return;
 			} else if (ibi_type == I3C_MSTATUS_IBITYPE_HotJoin) {
-				I3C_Master_Insert_ENTDAA_After_IbiAckHJ((uint32_t) pTask);
+				I3C_Master_Insert_ENTDAA_After_IbiAckHJ((uint32_t)pTask);
 				EXIT_MASTER_ISR();
 				return;
 			}
 
-			I3C_Master_Insert_DISEC_After_IbiNack((uint32_t) pTask);
+			I3C_Master_Insert_DISEC_After_IbiNack((uint32_t)pTask);
 			EXIT_MASTER_ISR();
 			return;
 		}
@@ -3274,7 +3161,8 @@ void I3C_Master_ISR(uint8_t I3C_IF)
 			if ((mctrl & I3C_MCTRL_IBIRESP_MASK) == I3C_MCTRL_IBIRESP(0x01)) {
 				/* NaK IBI */
 				I3C_SET_REG_MSTATUS(I3C_IF, I3C_MSTATUS_IBIWON_MASK |
-				I3C_MSTATUS_COMPLETE_MASK | I3C_MSTATUS_MCTRLDONE_MASK);
+									I3C_MSTATUS_COMPLETE_MASK |
+									I3C_MSTATUS_MCTRLDONE_MASK);
 				mintmask = I3C_MINTMASKED_MCTRLDONE_MASK;
 			} else if (ibi_type == I3C_MSTATUS_IBITYPE_IBI) {
 				/* ACK with MDB */
@@ -3324,26 +3212,26 @@ void I3C_Master_ISR(uint8_t I3C_IF)
 				/* drop rx data, because we don't have enough memory
 				 * to keep slave's info
 				 */
-				I3C_SET_REG_MDATACTRL(I3C_IF,
-					I3C_GET_REG_MDATACTRL(I3C_IF) |
-					I3C_MDATACTRL_FLUSHFB_MASK);
+				I3C_SET_REG_MDATACTRL(I3C_IF, I3C_GET_REG_MDATACTRL(I3C_IF) |
+									  I3C_MDATACTRL_FLUSHFB_MASK);
 
 				if (mstatus & I3C_MSTATUS_BETWEEN_MASK) {
 					pTaskInfo->result = I3C_ERR_OK;
 					k_work_submit_to_queue(&npcm4xx_i3c_work_q[I3C_IF],
-						&work_stop[I3C_IF]);
+								   &work_stop[I3C_IF]);
 				}
 			} else {
 				while ((pTask->pFrameList[pTask->frame_idx + 1].access_idx <
 					pTask->pFrameList[pTask->frame_idx + 1].access_len)) {
-					pTask->pFrameList[pTask->frame_idx + 1].access_buf[
-						pTask->pFrameList[pTask->frame_idx + 1].access_idx]
-						= I3C_GET_REG_MRDATAB(I3C_IF);
+					pTask->pFrameList[pTask->frame_idx + 1]
+						.access_buf[pTask->pFrameList[pTask->frame_idx + 1]
+									.access_idx] =
+						I3C_GET_REG_MRDATAB(I3C_IF);
 					pTask->pFrameList[pTask->frame_idx + 1].access_idx++;
 				}
 
 				k_work_submit_to_queue(&npcm4xx_i3c_work_q[I3C_IF],
-					&work_next[I3C_IF]);
+							   &work_next[I3C_IF]);
 			}
 		} else if (pTask->protocol == I3C_TRANSFER_PROTOCOL_ENTDAA) {
 			/* no slave want to participate ENTDAA, but slave ack 7E+Wr
@@ -3355,13 +3243,13 @@ void I3C_Master_ISR(uint8_t I3C_IF)
 				/* 7E+Wr / CCCw */
 				if (pTask->frame_count == (pTask->frame_idx + 1)) {
 					k_work_submit_to_queue(&npcm4xx_i3c_work_q[I3C_IF],
-						&work_stop[I3C_IF]);
+								   &work_stop[I3C_IF]);
 					EXIT_MASTER_ISR();
 					return;
 				}
 				/* 7E+ Wr + RW */
 				k_work_submit_to_queue(&npcm4xx_i3c_work_q[I3C_IF],
-					&work_next[I3C_IF]);
+							   &work_next[I3C_IF]);
 			} else {
 				if (pFrame->type == I3C_TRANSFER_TYPE_DDR)
 					I3C_SET_REG_MWDATAB1(I3C_IF, pFrame->hdrcmd);
@@ -3387,10 +3275,13 @@ void I3C_Master_ISR(uint8_t I3C_IF)
 				PDMA->TDSTS = BIT(PDMA_OFFSET + I3C_IF + I3C_PORT_MAX);
 				*pTask->pRdLen = pFrame->access_len;
 			} else if (I3C_GET_REG_MDMACTRL(I3C_IF) & I3C_MDMACTRL_DMAFB_MASK) {
-				*pTask->pRdLen = pFrame->access_len -
-					((uint16_t)((PDMA->DSCT[PDMA_OFFSET + I3C_IF +
-						I3C_PORT_MAX].CTL & PDMA_DSCT_CTL_TXCNT_Msk) >>
-					PDMA_DSCT_CTL_TXCNT_Pos) + 1);
+				*pTask->pRdLen =
+					pFrame->access_len -
+					((uint16_t)((PDMA->DSCT[PDMA_OFFSET + I3C_IF + I3C_PORT_MAX]
+								 .CTL &
+							 PDMA_DSCT_CTL_TXCNT_Msk) >>
+							PDMA_DSCT_CTL_TXCNT_Pos) +
+					 1);
 			}
 		}
 
@@ -3398,19 +3289,20 @@ void I3C_Master_ISR(uint8_t I3C_IF)
 			PDMA->TDSTS = BIT(PDMA_OFFSET + I3C_IF);
 		} else if (I3C_GET_REG_MDMACTRL(I3C_IF) & I3C_MDMACTRL_DMATB_MASK) {
 			*pTask->pWrLen = pFrame->access_len -
-				((uint16_t)((PDMA->DSCT[PDMA_OFFSET + I3C_IF].CTL &
-					PDMA_DSCT_CTL_TXCNT_Msk) >>
-					PDMA_DSCT_CTL_TXCNT_Pos) + 1);
+					 ((uint16_t)((PDMA->DSCT[PDMA_OFFSET + I3C_IF].CTL &
+							  PDMA_DSCT_CTL_TXCNT_Msk) >>
+							 PDMA_DSCT_CTL_TXCNT_Pos) +
+					  1);
 		}
 
-		I3C_SET_REG_MDMACTRL(I3C_IF, I3C_GET_REG_MDMACTRL(I3C_IF) &
-			~I3C_MDMACTRL_DMAFB_MASK);
+		I3C_SET_REG_MDMACTRL(I3C_IF,
+					 I3C_GET_REG_MDMACTRL(I3C_IF) & ~I3C_MDMACTRL_DMAFB_MASK);
 		PDMA->CHCTL &= ~BIT(PDMA_OFFSET + I3C_IF + I3C_PORT_MAX);
 
-		I3C_SET_REG_MDMACTRL(I3C_IF, I3C_GET_REG_MDMACTRL(I3C_IF) &
-			~I3C_MDMACTRL_DMATB_MASK);
-		I3C_SET_REG_MDATACTRL(I3C_IF, I3C_GET_REG_MDATACTRL(I3C_IF) |
-			I3C_MDATACTRL_FLUSHTB_MASK);
+		I3C_SET_REG_MDMACTRL(I3C_IF,
+					 I3C_GET_REG_MDMACTRL(I3C_IF) & ~I3C_MDMACTRL_DMATB_MASK);
+		I3C_SET_REG_MDATACTRL(I3C_IF,
+					  I3C_GET_REG_MDATACTRL(I3C_IF) | I3C_MDATACTRL_FLUSHTB_MASK);
 		PDMA->CHCTL &= ~BIT(PDMA_OFFSET + I3C_IF);
 
 		/* Error has been caught, but complete also assert */
@@ -3443,14 +3335,13 @@ void I3C_Master_ISR(uint8_t I3C_IF)
 			*pTask->pRdLen = pTask->frame_idx * 9;
 
 			pTaskInfo->result = I3C_ERR_OK;
-			I3C_Master_End_Request((uint32_t) pTask);
+			I3C_Master_End_Request((uint32_t)pTask);
 			EXIT_MASTER_ISR();
 			return;
 		}
 
 		if (pFrame->flag & I3C_TRANSFER_NO_STOP) {
-			k_work_submit_to_queue(&npcm4xx_i3c_work_q[I3C_IF],
-				&work_next[I3C_IF]);
+			k_work_submit_to_queue(&npcm4xx_i3c_work_q[I3C_IF], &work_next[I3C_IF]);
 			EXIT_MASTER_ISR();
 			return;
 		}
@@ -3462,15 +3353,17 @@ void I3C_Master_ISR(uint8_t I3C_IF)
 			if ((pFrame->address == I3C_BROADCAST_ADDR) &&
 				(pFrame->direction == I3C_TRANSFER_DIR_WRITE) &&
 				(pFrame->access_buf[0] == CCC_DIRECT_GETACCMST)) {
-				I3C_Master_End_Request((uint32_t) pTask);
+				I3C_Master_End_Request((uint32_t)pTask);
 
 				I3C_SET_REG_MCONFIG(I3C_IF, I3C_GET_REG_MCONFIG(I3C_IF) &
-					~I3C_MCONFIG_MSTENA_MASK);
-				I3C_SET_REG_MCONFIG(I3C_IF, I3C_GET_REG_MCONFIG(I3C_IF) |
-					I3C_MCONFIG_MSTENA(I3C_MCONFIG_MSTENA_MASTER_CAPABLE));
+									~I3C_MCONFIG_MSTENA_MASK);
+				I3C_SET_REG_MCONFIG(
+					I3C_IF, I3C_GET_REG_MCONFIG(I3C_IF) |
+							I3C_MCONFIG_MSTENA(
+								I3C_MCONFIG_MSTENA_MASTER_CAPABLE));
 
 				I3C_SET_REG_CONFIG(I3C_IF, I3C_GET_REG_CONFIG(I3C_IF) |
-					I3C_CONFIG_SLVENA_MASK);
+								   I3C_CONFIG_SLVENA_MASK);
 
 				pDevice->mode = I3C_DEVICE_MODE_SECONDARY_MASTER;
 				EXIT_MASTER_ISR();
@@ -3491,11 +3384,13 @@ void I3C_Master_ISR(uint8_t I3C_IF)
 		pBus->pCurrentMaster = pDevice;
 
 		I3C_SET_REG_STATUS(I3C_IF, I3C_STATUS_EVENT_MASK | I3C_STATUS_CHANDLED_MASK |
-			I3C_STATUS_STOP_MASK);
-		I3C_SET_REG_DMACTRL(I3C_IF, I3C_GET_REG_DMACTRL(I3C_IF) &
-			~(I3C_DMACTRL_DMATB_MASK | I3C_DMACTRL_DMAFB_MASK));
-		I3C_SET_REG_DATACTRL(I3C_IF, I3C_GET_REG_DATACTRL(I3C_IF) |
-			(I3C_DATACTRL_FLUSHFB_MASK | I3C_DATACTRL_FLUSHTB_MASK));
+						   I3C_STATUS_STOP_MASK);
+		I3C_SET_REG_DMACTRL(I3C_IF,
+					I3C_GET_REG_DMACTRL(I3C_IF) &
+						~(I3C_DMACTRL_DMATB_MASK | I3C_DMACTRL_DMAFB_MASK));
+		I3C_SET_REG_DATACTRL(I3C_IF,
+					 I3C_GET_REG_DATACTRL(I3C_IF) | (I3C_DATACTRL_FLUSHFB_MASK |
+									 I3C_DATACTRL_FLUSHTB_MASK));
 		I3C_SET_REG_CONFIG(I3C_IF, I3C_GET_REG_CONFIG(I3C_IF) & ~I3C_CONFIG_SLVENA_MASK);
 
 		pTask = pDevice->pTaskListHead;
@@ -3503,7 +3398,7 @@ void I3C_Master_ISR(uint8_t I3C_IF)
 		pFrame = &pTask->pFrameList[pTask->frame_idx];
 
 		pTaskInfo->result = I3C_ERR_OK;
-		I3C_Master_End_Request((uint32_t) pTask);
+		I3C_Master_End_Request((uint32_t)pTask);
 	}
 
 	/* SLVSTART might asserted right after the current task has complete (STOP).
@@ -3558,7 +3453,7 @@ void I3C_Slave_ISR(uint8_t I3C_IF)
 			if (intmasked & I3C_INTMASKED_STOP_MASK) {
 				I3C_Slave_Insert_Task_HotJoin(I3C_IF);
 				k_work_submit_to_queue(&npcm4xx_i3c_work_q[I3C_IF],
-						&work_send_ibi[I3C_IF]);
+							   &work_send_ibi[I3C_IF]);
 				obj->config->hj_req = I3C_HOT_JOIN_STATE_Queue;
 			}
 		}
@@ -3570,7 +3465,7 @@ void I3C_Slave_ISR(uint8_t I3C_IF)
 	} else {
 		if (obj->config->hj_req != I3C_HOT_JOIN_STATE_None) {
 			LOG_WRN("MATCHSS set. DA=0x%x\n",
-					I3C_Update_Dynamic_Address((uint32_t) I3C_IF));
+				I3C_Update_Dynamic_Address((uint32_t)I3C_IF));
 			obj->config->hj_req = I3C_HOT_JOIN_STATE_None;
 		}
 	}
@@ -3593,14 +3488,14 @@ void I3C_Slave_ISR(uint8_t I3C_IF)
 				/* Received stop interrupt but current status is start, clear it. */
 				if (I3C_GET_REG_STATUS(I3C_IF) & I3C_STATUS_START_MASK) {
 					LOG_DBG("[RE-ENTRY] FORCE CLEAR START in STOP INT, intmasked=0x%x status=0x%x",
-							intmasked, I3C_GET_REG_STATUS(I3C_IF));
+						intmasked, I3C_GET_REG_STATUS(I3C_IF));
 					I3C_SET_REG_STATUS(I3C_IF, I3C_STATUS_START_MASK);
 				}
 
 				/* Received stop interrupt but current status is stop, clear it. CPU running too slow? */
 				if (I3C_GET_REG_STATUS(I3C_IF) & I3C_STATUS_STOP_MASK) {
 					LOG_ERR("[RE-ENTRY] RECV SECOND STOP in STOP INT, intmasked=0x%x status=0x%x",
-							intmasked, I3C_GET_REG_STATUS(I3C_IF));
+						intmasked, I3C_GET_REG_STATUS(I3C_IF));
 					I3C_SET_REG_STATUS(I3C_IF, I3C_STATUS_STOP_MASK);
 				}
 			}
@@ -3654,7 +3549,7 @@ void I3C_Slave_ISR(uint8_t I3C_IF)
 
 	if (intmasked & I3C_INTMASKED_DACHG_MASK) {
 		/* LOG_INF("dynamic address changed\n"); */
-		addr = I3C_Update_Dynamic_Address((uint32_t) I3C_IF);
+		addr = I3C_Update_Dynamic_Address((uint32_t)I3C_IF);
 		sconfig = I3C_GET_REG_CONFIG(I3C_IF);
 		if (addr) {
 			obj->sir_allowed_by_sw = 1;
@@ -3695,7 +3590,7 @@ void I3C_Slave_ISR(uint8_t I3C_IF)
 
 	if (intmasked & I3C_INTMASKED_CCC_MASK) {
 		/* must handle vendor CCC here, STOP will not be triggerred when MATCHSS == 1 */
-		I3C_Slave_Handle_DMA((uint32_t) pDevice);
+		I3C_Slave_Handle_DMA((uint32_t)pDevice);
 
 		intmasked = I3C_GET_REG_INTMASKED(I3C_IF);
 		if (!intmasked) {
@@ -3716,8 +3611,8 @@ void I3C_Slave_ISR(uint8_t I3C_IF)
 
 		ctrl = I3C_GET_REG_CTRL(I3C_IF);
 		if (ctrl & I3C_CTRL_EVENT_MASK) {
-			evdet = (uint8_t)((status &
-				I3C_STATUS_EVDET_MASK) >> I3C_STATUS_EVDET_SHIFT);
+			evdet = (uint8_t)((status & I3C_STATUS_EVDET_MASK) >>
+					  I3C_STATUS_EVDET_SHIFT);
 
 			if (evdet == 0x02) {
 				/* IBI ?, NACK */
@@ -3757,7 +3652,7 @@ void I3C_Slave_ISR(uint8_t I3C_IF)
 			EXIT_SLAVE_ISR();
 			return;
 		}
-	} else if (intmasked & I3C_INTMASKED_CHANDLED_MASK){
+	} else if (intmasked & I3C_INTMASKED_CHANDLED_MASK) {
 		I3C_SET_REG_STATUS(I3C_IF, I3C_STATUS_CHANDLED_MASK);
 
 		intmasked &= ~I3C_INTMASKED_CHANDLED_MASK;
@@ -3772,43 +3667,7 @@ void I3C_Slave_ISR(uint8_t I3C_IF)
 
 		LOG_WRN("Slave ERRWARN:0x%x\n", errwarn);
 
-		if (errwarn & I3C_ERRWARN_SPAR_MASK) {
-			I3C_SET_REG_ERRWARN(I3C_IF, I3C_ERRWARN_SPAR_MASK);
-		}
-
-		if (errwarn & I3C_ERRWARN_URUNNACK_MASK) {
-			I3C_SET_REG_ERRWARN(I3C_IF, I3C_ERRWARN_URUNNACK_MASK);
-		}
-
-		if (errwarn & I3C_ERRWARN_INVSTART_MASK) {
-			I3C_SET_REG_ERRWARN(I3C_IF, I3C_ERRWARN_INVSTART_MASK);
-		}
-
-		if (errwarn & I3C_ERRWARN_OWRITE_MASK) {
-			I3C_SET_REG_ERRWARN(I3C_IF, I3C_ERRWARN_OWRITE_MASK);
-		}
-		if (errwarn & I3C_ERRWARN_OREAD_MASK) {
-			I3C_SET_REG_ERRWARN(I3C_IF, I3C_ERRWARN_OREAD_MASK);
-		}
-
-		if (errwarn & I3C_ERRWARN_HCRC_MASK) {
-			I3C_SET_REG_ERRWARN(I3C_IF, I3C_ERRWARN_HCRC_MASK);
-		}
-		if (errwarn & I3C_ERRWARN_HPAR_MASK) {
-			I3C_SET_REG_ERRWARN(I3C_IF, I3C_ERRWARN_HPAR_MASK);
-		}
-		if (errwarn & I3C_ERRWARN_ORUN_MASK) {
-			I3C_SET_REG_ERRWARN(I3C_IF, I3C_ERRWARN_ORUN_MASK);
-		}
-		if (errwarn & I3C_ERRWARN_TERM_MASK) {
-			I3C_SET_REG_ERRWARN(I3C_IF, I3C_ERRWARN_TERM_MASK);
-		}
-		if (errwarn & I3C_ERRWARN_S0S1_MASK) {
-			I3C_SET_REG_ERRWARN(I3C_IF, I3C_ERRWARN_S0S1_MASK);
-		}
-		if (errwarn & I3C_ERRWARN_URUN_MASK) {
-			I3C_SET_REG_ERRWARN(I3C_IF, I3C_ERRWARN_URUN_MASK);
-		}
+		I3C_SET_REG_ERRWARN(I3C_IF, errwarn);
 	}
 
 	if (intmasked & I3C_INTMASKED_STOP_MASK) {
@@ -3820,141 +3679,156 @@ void I3C_Slave_ISR(uint8_t I3C_IF)
 			}
 
 			/* handle target data */
-			I3C_Slave_Handle_DMA((uint32_t) pDevice);
+			I3C_Slave_Handle_DMA((uint32_t)pDevice);
 		}
 	}
 
 	EXIT_SLAVE_ISR();
 }
 
+static bool is_slave_receive_data(I3C_PORT_Enum port, uint8_t pdma_ch)
+{
+	return (I3C_GET_REG_STATUS(port) & I3C_STATUS_DDRMATCH_MASK) ||
+		   (I3C_GET_REG_DMACTRL(port) & I3C_DMACTRL_DMAFB_MASK);
+}
+
+static void handle_vendor_ccc(I3C_PORT_Enum port, uint8_t idx)
+{
+	/* Reserved for vendor CCC, drop rx data directly */
+	if (slvRxBuf[port + (I3C_PORT_MAX * idx)][0] == CCC_BROADCAST_SETAASA) {
+		LOG_WRN("rcv setaasa...");
+	} else {
+		LOG_WRN("rcv %X", slvRxBuf[port + (I3C_PORT_MAX * idx)][0]);
+	}
+
+	/* We can't support SETAASA because DYNADDR is RO. */
+	slvRxOffset[port + (I3C_PORT_MAX * idx)] = 0;
+	I3C_SET_REG_STATUS(port, I3C_GET_REG_STATUS(port) | I3C_STATUS_CCC_MASK);
+}
+
+static void process_received_data(I3C_PORT_Enum port, uint8_t idx)
+{
+	struct i3c_npcm4xx_obj *obj = gObj[port];
+	struct i3c_slave_payload *payload = NULL;
+	bool bRet = false;
+	int ret = 0;
+
+	/* To fill rx data to the requested mqueue
+	 * We must find callback from slave_data
+	 */
+
+	/* Prepare m_queue to backup rx data */
+	if (obj->slave_data.callbacks->write_requested != NULL) {
+		payload = obj->slave_data.callbacks->write_requested(obj->slave_data.dev);
+		payload->size = slvRxOffset[port + (I3C_PORT_MAX * idx)];
+
+		/*i3c_aspeed_rd_rx_fifo(obj, payload->buf, payload->size);*/
+		bRet = true;
+		if (obj->config->priv_xfer_pec) {
+			ret = pec_valid(obj->dev, (uint8_t *)&slvRxBuf[port + (I3C_PORT_MAX * idx)],
+					slvRxOffset[port + (I3C_PORT_MAX * idx)]);
+			if (ret) {
+				LOG_WRN("PEC error\n");
+				bRet = false;
+				payload->size = 0;
+			}
+		}
+
+		memcpy(payload->buf, slvRxBuf[port + (I3C_PORT_MAX * idx)], payload->size);
+	}
+
+	if ((obj->slave_data.callbacks->write_done != NULL) && (payload->size != 0)) {
+		obj->slave_data.callbacks->write_done(obj->slave_data.dev);
+	}
+}
+
+static void handle_slave_receive_data(I3C_PORT_Enum port, uint8_t pdma_ch)
+{
+	uint8_t idx = slvRxId[port]; /* Update receive data length */
+
+	if (PDMA->TDSTS & BIT(PDMA_OFFSET + pdma_ch)) {
+		/* PDMA Rx Task Done */
+		PDMA->TDSTS = BIT(PDMA_OFFSET + pdma_ch);
+		slvRxOffset[port + (I3C_PORT_MAX * idx)] = slvRxLen[port];
+
+		/* receive data more than DMA buffer size -> overrun & drop */
+		if (I3C_GET_REG_DATACTRL(port) & I3C_DATACTRL_RXCOUNT_MASK) {
+			I3C_SET_REG_DATACTRL(port, I3C_GET_REG_DATACTRL(port) |
+							   I3C_DATACTRL_FLUSHFB_MASK);
+			LOG_DBG("Increase buffer size or limit transfer size !!!\r\n");
+		}
+	} else if (I3C_GET_REG_STATUS(port) & I3C_STATUS_STREQWR_MASK) {
+		/* bypass until all data has been received */
+		LOG_DBG("Send message too quick to response !!!\r\n");
+		slvRxOffset[port + (I3C_PORT_MAX * idx)] = 0;
+	} else {
+		/* PDMA Rx Task not finish */
+		slvRxOffset[port + (I3C_PORT_MAX * idx)] =
+			slvRxLen[port] -
+			(((PDMA->DSCT[PDMA_OFFSET + pdma_ch].CTL & PDMA_DSCT_CTL_TXCNT_Msk) >>
+			  PDMA_DSCT_CTL_TXCNT_Pos) +
+			 1);
+	}
+
+	/* Process the Rcvd Data */
+	if (slvRxOffset[port + (I3C_PORT_MAX * idx)]) {
+		/* Start Rx DMA here to prevent data loss */
+		stop_rx_dma(port, pdma_ch);
+		I3C_Prepare_To_Read_Command((uint32_t)port);
+
+		if (I3C_GET_REG_STATUS(port) & I3C_STATUS_CCC_MASK) {
+			handle_vendor_ccc(port, idx);
+		} else {
+			process_received_data(port, idx);
+		}
+	}
+}
+
+static bool is_slave_tx_data_sent(I3C_DEVICE_INFO_t *pDevice)
+{
+	return (pDevice->txLen != 0) && (pDevice->txOffset != 0);
+}
+
+static void handle_slave_tx_data_sent(I3C_DEVICE_INFO_t *pDevice)
+{
+	uint16_t txDataLen = 0;
+
+	hal_I3C_Slave_Query_TxLen(pDevice->port, &txDataLen);
+	if (txDataLen == 0) {
+		/* call tx send complete hook */
+		I3C_Slave_Finish_Response(pDevice);
+
+		/* master read ibi data done */
+		k_sem_give(&pDevice->ibi_complete);
+	}
+}
+
 void I3C_Slave_Handle_DMA(uint32_t Parm)
 {
-	I3C_DEVICE_INFO_t *pDevice;
-	I3C_PORT_Enum port;
-	uint16_t txDataLen;
-	bool bRet;
-	uint8_t idx;
-	uint8_t pdma_ch;
+	I3C_DEVICE_INFO_t *pDevice = (I3C_DEVICE_INFO_t *)Parm;	
+	I3C_PORT_Enum port = pDevice->port;
+	uint8_t pdma_ch = Get_PDMA_Channel(port, I3C_TRANSFER_DIR_READ);
 
-	pDevice = (I3C_DEVICE_INFO_t *)Parm;
 	if (pDevice == NULL)
 		return;
-
-	port = pDevice->port;
-
-	pdma_ch = Get_PDMA_Channel(port, I3C_TRANSFER_DIR_READ);
 
 	/* Slave Rcv data ?
 	 * 1. Rx DMA is started, and TXCNT change
 	 * 2. DDR matched
 	 * 3. vendor CCC, not implement yet
 	 */
-	if ((I3C_GET_REG_STATUS(port) & I3C_STATUS_DDRMATCH_MASK) ||
-		((I3C_GET_REG_DMACTRL(port) & I3C_DMACTRL_DMAFB_MASK))) {
-		/* Update receive data length */
-		idx = slvRxId[port];
-
-		if (PDMA->TDSTS & BIT(PDMA_OFFSET + pdma_ch)) {
-			/* PDMA Rx Task Done */
-			PDMA->TDSTS = BIT(PDMA_OFFSET + pdma_ch);
-			slvRxOffset[port + (I3C_PORT_MAX * idx)] = slvRxLen[port];
-
-			/* receive data more than DMA buffer size -> overrun & drop */
-			if (I3C_GET_REG_DATACTRL(port) & I3C_DATACTRL_RXCOUNT_MASK) {
-				I3C_SET_REG_DATACTRL(port, I3C_GET_REG_DATACTRL(port)
-					| I3C_DATACTRL_FLUSHFB_MASK);
-				LOG_DBG("Increase buffer size or limit transfer size !!!\r\n");
-			}
-		} else if (I3C_GET_REG_STATUS(port) & I3C_STATUS_STREQWR_MASK) {
-			// bypass until all data has been received
-			LOG_DBG("Send message too quick to response !!!\r\n");
-			slvRxOffset[port + (I3C_PORT_MAX * idx)] = 0;
-		} else {
-			/* PDMA Rx Task not finish */
-			slvRxOffset[port + (I3C_PORT_MAX * idx)] = slvRxLen[port]
-			- (((PDMA->DSCT[PDMA_OFFSET + pdma_ch].CTL & PDMA_DSCT_CTL_TXCNT_Msk)
-			>> PDMA_DSCT_CTL_TXCNT_Pos) + 1);
-		}
-
-		/* Process the Rcvd Data */
-		if (slvRxOffset[port + (I3C_PORT_MAX * idx)]) {
-			/* Stop RX DMA */
-			I3C_SET_REG_DMACTRL(port, I3C_GET_REG_DMACTRL(port) &
-				~I3C_DMACTRL_DMAFB_MASK);
-			PDMA->CHCTL &= ~BIT(PDMA_OFFSET + pdma_ch);
-
-			// Start Rx DMA here to prevent data loss
-			I3C_Prepare_To_Read_Command((uint32_t)port);
-
-			if (I3C_GET_REG_STATUS(port) & I3C_STATUS_CCC_MASK) {
-				/* reserved for vendor CCC, drop rx data directly */
-				if (slvRxBuf[port + (I3C_PORT_MAX * idx)][0] == CCC_BROADCAST_SETAASA) {
-					LOG_WRN("rcv setaasa...");
-				} else {
-					LOG_WRN("rcv %X", slvRxBuf[port + (I3C_PORT_MAX * idx)][0]);
-				}
-
-				/* we can't support SETAASA because DYNADDR is RO. */
-				slvRxOffset[port + (I3C_PORT_MAX * idx)] = 0;
-				I3C_SET_REG_STATUS(port, I3C_GET_REG_STATUS(port) |
-					I3C_STATUS_CCC_MASK);
-			} else {
-				bRet = false;
-
-				/* To fill rx data to the requested mqueue */
-				/* We must find callback from slave_data */
-				struct i3c_npcm4xx_obj *obj = NULL;
-				struct i3c_slave_payload *payload = NULL;
-				int ret = 0;
-
-				/* slave device */
-				obj = gObj[port];
-
-				/* prepare m_queue to backup rx data */
-				if (obj->slave_data.callbacks->write_requested != NULL) {
-					payload = obj->slave_data.callbacks->write_requested(
-						obj->slave_data.dev);
-					payload->size = slvRxOffset[port + (I3C_PORT_MAX * idx)];
-
-					/*i3c_aspeed_rd_rx_fifo(obj, payload->buf, payload->size);*/
-					bRet = true;
-					if (obj->config->priv_xfer_pec) {
-						ret = pec_valid(obj->dev, (uint8_t *)&slvRxBuf[port + (I3C_PORT_MAX * idx)],
-							slvRxOffset[port + (I3C_PORT_MAX * idx)]);
-						if (ret) {
-							LOG_WRN("PEC error\n");
-							bRet = false;
-							payload->size = 0;
-						}
-					}
-
-					memcpy(payload->buf, slvRxBuf[port + (I3C_PORT_MAX * idx)], payload->size);
-				}
-
-				if ((obj->slave_data.callbacks->write_done != NULL) && (payload->size != 0)) {
-					obj->slave_data.callbacks->write_done(obj->slave_data.dev);
-				}
-			}
-		}
+	if (is_slave_receive_data(port, pdma_ch)) {
+		handle_slave_receive_data(port, pdma_ch);
 	}
 
 	/* Slave TX data has send ? */
-	if ((pDevice->txLen != 0) && (pDevice->txOffset != 0)) {
-		txDataLen = 0;
-
-		hal_I3C_Slave_Query_TxLen(port, &txDataLen);
-		if (txDataLen == 0) {
-			/* call tx send complete hook */
-			I3C_Slave_Finish_Response(pDevice);
-
-			/* master read ibi data done */
-			k_sem_give(&pDevice->ibi_complete);
-		}
+	if (is_slave_tx_data_sent(pDevice)) {
+		handle_slave_tx_data_sent(pDevice);
 	}
 }
 
 I3C_ErrCode_Enum GetRegisterIndex(I3C_DEVICE_INFO_t *pDevice, uint16_t rx_cnt, uint8_t *pRx_buff,
-	uint8_t *pIndexRet)
+				  uint8_t *pIndexRet)
 {
 	uint8_t reg_count;
 	uint8_t reg_chk_count;
@@ -4010,82 +3884,20 @@ static void i3c_npcm4xx_isr(const struct device *dev)
 {
 	struct i3c_npcm4xx_config *config = DEV_CFG(dev);
 	I3C_PORT_Enum port = config->inst_id;
-	uint32_t mconfig, sconfig;
 	k_spinlock_key_t key;
-	struct i3c_npcm4xx_obj *obj;
+	struct i3c_npcm4xx_obj *obj = DEV_DATA(dev);
 
-	mconfig = sys_read32(I3C_BASE_ADDR(port) + OFFSET_MCONFIG);
-	if ((mconfig & I3C_MCONFIG_MSTENA_MASK) == I3C_MCONFIG_MSTENA_MASTER_ON) {
+	if ((sys_read32(I3C_BASE_ADDR(port) + OFFSET_MCONFIG) & I3C_MCONFIG_MSTENA_MASK) ==
+		I3C_MCONFIG_MSTENA_MASTER_ON) {
 		I3C_Master_ISR(port);
-		return;
-	}
-
-	sconfig = sys_read32(I3C_BASE_ADDR(port) + OFFSET_CONFIG);
-	if ((sconfig & I3C_CONFIG_SLVENA_MASK) == I3C_CONFIG_SLVENA_SLAVE_ON) {
-		obj = DEV_DATA(dev);
+	} else if ((sys_read32(I3C_BASE_ADDR(port) + OFFSET_CONFIG) & I3C_CONFIG_SLVENA_MASK) ==
+		   I3C_CONFIG_SLVENA_SLAVE_ON) {
 		key = k_spin_lock(&obj->lock);
+
 		I3C_Slave_ISR(port);
+
 		k_spin_unlock(&obj->lock, key);
-
-		return;
 	}
-}
-
-static int i3c_init_work_queue(I3C_PORT_Enum port)
-{
-	switch (port) {
-#if DT_NODE_HAS_STATUS(DT_NODELABEL(i3c0), okay)
-	case 0:
-		k_work_queue_start(&npcm4xx_i3c_work_q[port], npcm4xx_i3c_stack_area0,
-			K_THREAD_STACK_SIZEOF(npcm4xx_i3c_stack_area0),
-			NPCM4XX_I3C_WORK_QUEUE_PRIORITY, NULL);
-		break;
-#endif
-#if DT_NODE_HAS_STATUS(DT_NODELABEL(i3c1), okay)
-	case 1:
-		k_work_queue_start(&npcm4xx_i3c_work_q[port], npcm4xx_i3c_stack_area1,
-			K_THREAD_STACK_SIZEOF(npcm4xx_i3c_stack_area1),
-			NPCM4XX_I3C_WORK_QUEUE_PRIORITY, NULL);
-		break;
-#endif
-#if DT_NODE_HAS_STATUS(DT_NODELABEL(i3c2), okay)
-	case 2:
-		k_work_queue_start(&npcm4xx_i3c_work_q[port], npcm4xx_i3c_stack_area2,
-			K_THREAD_STACK_SIZEOF(npcm4xx_i3c_stack_area2),
-			NPCM4XX_I3C_WORK_QUEUE_PRIORITY, NULL);
-		break;
-#endif
-#if DT_NODE_HAS_STATUS(DT_NODELABEL(i3c3), okay)
-	case 3:
-		k_work_queue_start(&npcm4xx_i3c_work_q[port], npcm4xx_i3c_stack_area3,
-			K_THREAD_STACK_SIZEOF(npcm4xx_i3c_stack_area3),
-			NPCM4XX_I3C_WORK_QUEUE_PRIORITY, NULL);
-		break;
-#endif
-#if DT_NODE_HAS_STATUS(DT_NODELABEL(i3c4), okay)
-	case 4:
-		k_work_queue_start(&npcm4xx_i3c_work_q[port], npcm4xx_i3c_stack_area4,
-			K_THREAD_STACK_SIZEOF(npcm4xx_i3c_stack_area4),
-			NPCM4XX_I3C_WORK_QUEUE_PRIORITY, NULL);
-		break;
-#endif
-#if DT_NODE_HAS_STATUS(DT_NODELABEL(i3c5), okay)
-	case 5:
-		k_work_queue_start(&npcm4xx_i3c_work_q[port], npcm4xx_i3c_stack_area5,
-			K_THREAD_STACK_SIZEOF(npcm4xx_i3c_stack_area5),
-			NPCM4XX_I3C_WORK_QUEUE_PRIORITY, NULL);
-		break;
-#endif
-	default:
-		return -ENXIO;
-	}
-
-	k_work_init(&work_stop[port], work_stop_fun);
-	k_work_init(&work_next[port], work_next_fun);
-	k_work_init(&work_send_ibi[port], work_send_ibi_fun);
-	k_work_init(&work_entdaa[port], work_entdaa_fun);
-
-	return 0;
 }
 
 static void sir_allowed_worker(struct k_work *work)
@@ -4107,20 +3919,19 @@ static int i3c_npcm4xx_init(const struct device *dev)
 	int ret;
 
 	LOG_INF("size_t=%d, uint32_t=%d", sizeof(size_t), sizeof(uint32_t));
-	LOG_INF("Base=%x", (uint32_t) config->base);
+	LOG_INF("Base=%x", (uint32_t)config->base);
 	LOG_INF("slave=%d, secondary=%d", config->slave, config->secondary);
 	LOG_INF("i2c_scl_hz=%d, i3c_scl_hz=%d", config->i2c_scl_hz, config->i3c_scl_hz);
 
 	/* Turn on device clock first and get source clock freq. */
-	ret = clock_control_on(clk_dev, (clock_control_subsys_t *)
-			&config->clk_cfg);
+	ret = clock_control_on(clk_dev, (clock_control_subsys_t *)&config->clk_cfg);
 	if (ret < 0) {
 		LOG_ERR("Turn on I3C clock fail %d", ret);
 		return ret;
 	}
 
-	ret = clock_control_get_rate(clk_dev, (clock_control_subsys_t *)
-			&config->clk_cfg, &apb3_rate);
+	ret = clock_control_get_rate(clk_dev, (clock_control_subsys_t *)&config->clk_cfg,
+					 &apb3_rate);
 	if (ret < 0) {
 		LOG_ERR("Get I3C clock rate error %d", ret);
 		return ret;
@@ -4138,8 +3949,9 @@ static int i3c_npcm4xx_init(const struct device *dev)
 	obj->hw_dat_free_pos = GENMASK(DEVICE_COUNT_MAX - 1, 0);
 
 	gObj[port] = obj;
-	ret = i3c_init_work_queue(port);
-	__ASSERT(ret == 0, "failed to init work queue for i3c driver !!!");
+
+	/* Initialize work queue */
+	config->work_queue_config_func(port);
 
 	/* update default setting */
 	I3C_Port_Default_Setting(port);
@@ -4151,8 +3963,8 @@ static int i3c_npcm4xx_init(const struct device *dev)
 	pDevice->disableTimeout = true;
 	pDevice->vendorID = I3C_GET_REG_VENDORID(port);
 	pDevice->partNumber = (uint32_t)config->part_id << 16 |
-		(uint32_t)port << 12 | /* instance id */
-		(uint32_t)config->vendor_def_id; /* vendor def id*/
+				  (uint32_t)port << 12 | /* instance id */
+				  (uint32_t)config->vendor_def_id; /* vendor def id*/
 
 	pDevice->bcr = config->bcr;
 	pDevice->dcr = config->dcr;
@@ -4160,8 +3972,7 @@ static int i3c_npcm4xx_init(const struct device *dev)
 	pDevice->pid[1] = (uint8_t)(pDevice->vendorID << 1);
 	pDevice->pid[2] = (uint8_t)(config->part_id >> 8);
 	pDevice->pid[3] = (uint8_t)config->part_id;
-	pDevice->pid[4] = ((port & 0x0F) << 4) |
-		((uint8_t)(config->vendor_def_id >> 8) & 0x0F);
+	pDevice->pid[4] = ((port & 0x0F) << 4) | ((uint8_t)(config->vendor_def_id >> 8) & 0x0F);
 	pDevice->pid[5] = (uint8_t)config->vendor_def_id;
 
 	pDevice->staticAddr = config->assigned_addr;
@@ -4205,45 +4016,58 @@ static int i3c_npcm4xx_init(const struct device *dev)
 	/* set hj req as false */
 	config->hj_req = I3C_HOT_JOIN_STATE_None;
 
+	/* Configure interrupt */
+	config->irq_config_func(dev);
+
 	config->rst_reason = npcm4xx_get_reset_reason();
 
 	return 0;
 }
 
-#define I3C_NPCM4XX_INIT(n) static int i3c_npcm4xx_config_func_##n(const struct device *dev);\
-	static const struct i3c_npcm4xx_config i3c_npcm4xx_config_##n = {\
-		.inst_id = DT_INST_PROP_OR(n, instance_id, 0),\
-		.assigned_addr = DT_INST_PROP_OR(n, assigned_address, 0),\
-		.slave = DT_INST_PROP_OR(n, slave, 0),\
-		.secondary = DT_INST_PROP_OR(n, secondary, 0),\
-		.bcr = DT_INST_PROP_OR(n, bcr, 0),\
-		.dcr = DT_INST_PROP_OR(n, dcr, 0),\
-		.part_id = DT_INST_PROP_OR(n, part_id, 0),\
-		.vendor_def_id = DT_INST_PROP_OR(n, vendor_def_id, 0),\
-		.dma_tx_channel = DT_INST_PROP_OR(n, dma_tx_channel, 0xff),\
-		.dma_rx_channel = DT_INST_PROP_OR(n, dma_rx_channel, 0xff),\
-		.busno = DT_INST_PROP_OR(n, busno, I3C_BUS_COUNT_MAX),\
-		.i2c_scl_hz = DT_INST_PROP_OR(n, i2c_scl_hz, 0),\
-		.i3c_scl_hz = DT_INST_PROP_OR(n, i3c_scl_hz, 0),\
-		.base = (struct i3c_reg *)DT_INST_REG_ADDR_BY_NAME(n, i3c),\
-		.pmc_base = DT_INST_REG_ADDR_BY_NAME(n, pmc),\
-		.clk_cfg = NPCM4XX_DT_CLK_CFG_ITEM(n),\
-		.irq = DT_INST_IRQN(n),\
-	};\
-	static struct i3c_npcm4xx_obj i3c_npcm4xx_obj##n;\
-	DEVICE_DT_INST_DEFINE(n, &i3c_npcm4xx_config_func_##n, NULL, &i3c_npcm4xx_obj##n,\
-			      &i3c_npcm4xx_config_##n, POST_KERNEL,\
-			      CONFIG_KERNEL_INIT_PRIORITY_DEVICE, NULL);\
-	static int i3c_npcm4xx_config_func_##n(const struct device *dev)\
-	{\
-		int ret;\
-		ret = i3c_npcm4xx_init(dev);\
-		if (ret < 0) \
-			return ret;\
-		IRQ_CONNECT(DT_INST_IRQN(n), DT_INST_IRQ(n, priority), i3c_npcm4xx_isr,\
-			DEVICE_DT_INST_GET(n), 0);\
-		irq_enable(DT_INST_IRQN(n));\
-		return 0;\
-	}
+#define I3C_NPCM4XX_INIT(n)                                                                        \
+	static void npcm4xx_i3c_irq_config_##n(const struct device *dev)                           \
+	{                                                                                          \
+		IRQ_CONNECT(DT_INST_IRQN(n), DT_INST_IRQ(n, priority), i3c_npcm4xx_isr,            \
+			    DEVICE_DT_INST_GET(n), 0);                                             \
+		irq_enable(DT_INST_IRQN(n));                                                       \
+	}                                                                                          \
+                                                                                                   \
+	K_THREAD_STACK_DEFINE(npcm4xx_i3c_stack_area_##n, NPCM4XX_I3C_WORK_QUEUE_STACK_SIZE);      \
+	static void i3c_init_work_queue_##n(I3C_PORT_Enum port)                                    \
+	{                                                                                          \
+		k_work_queue_start(&npcm4xx_i3c_work_q[port], npcm4xx_i3c_stack_area_##n,          \
+				   K_THREAD_STACK_SIZEOF(npcm4xx_i3c_stack_area_##n),              \
+				   NPCM4XX_I3C_WORK_QUEUE_PRIORITY, NULL);                         \
+		k_work_init(&work_stop[port], work_stop_fun);                                      \
+		k_work_init(&work_next[port], work_next_fun);                                      \
+		k_work_init(&work_entdaa[port], work_entdaa_fun);                                  \
+	}                                                                                          \
+                                                                                                   \
+	static const struct i3c_npcm4xx_config i3c_npcm4xx_config_##n = {                          \
+		.inst_id = DT_INST_PROP_OR(n, instance_id, 0),                                     \
+		.assigned_addr = DT_INST_PROP_OR(n, assigned_address, 0),                          \
+		.slave = DT_INST_PROP_OR(n, slave, 0),                                             \
+		.secondary = DT_INST_PROP_OR(n, secondary, 0),                                     \
+		.bcr = DT_INST_PROP_OR(n, bcr, 0),                                                 \
+		.dcr = DT_INST_PROP_OR(n, dcr, 0),                                                 \
+		.part_id = DT_INST_PROP_OR(n, part_id, 0),                                         \
+		.vendor_def_id = DT_INST_PROP_OR(n, vendor_def_id, 0),                             \
+		.dma_tx_channel = DT_INST_PROP_OR(n, dma_tx_channel, 0xff),                        \
+		.dma_rx_channel = DT_INST_PROP_OR(n, dma_rx_channel, 0xff),                        \
+		.busno = DT_INST_PROP_OR(n, busno, I3C_BUS_COUNT_MAX),                             \
+		.i2c_scl_hz = DT_INST_PROP_OR(n, i2c_scl_hz, 0),                                   \
+		.i3c_scl_hz = DT_INST_PROP_OR(n, i3c_scl_hz, 0),                                   \
+		.base = (struct i3c_reg *)DT_INST_REG_ADDR_BY_NAME(n, i3c),                        \
+		.pmc_base = DT_INST_REG_ADDR_BY_NAME(n, pmc),                                      \
+		.clk_cfg = NPCM4XX_DT_CLK_CFG_ITEM(n),                                             \
+		.irq = DT_INST_IRQN(n),                                                            \
+		.irq_config_func = npcm4xx_i3c_irq_config_##n,                                     \
+		.work_queue_config_func = i3c_init_work_queue_##n,                                 \
+	};                                                                                         \
+	static struct i3c_npcm4xx_obj i3c_npcm4xx_obj##n;                                          \
+                                                                                                   \
+	DEVICE_DT_INST_DEFINE(n, i3c_npcm4xx_init, NULL, &i3c_npcm4xx_obj##n,                      \
+			      &i3c_npcm4xx_config_##n, POST_KERNEL,                                \
+			      CONFIG_KERNEL_INIT_PRIORITY_DEVICE, NULL);
 
 DT_INST_FOREACH_STATUS_OKAY(I3C_NPCM4XX_INIT);

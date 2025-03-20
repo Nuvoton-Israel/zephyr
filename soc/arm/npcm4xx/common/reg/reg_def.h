@@ -2314,13 +2314,7 @@ struct pdma_reg {
 
 	__I  uint32_t RESERVE2[8];
 
-	__IO uint32_t REQSEL0_3;
-
-	__IO uint32_t REQSEL4_7;
-
-	__IO uint32_t REQSEL8_11;
-
-	__IO uint32_t REQSEL12_15;
+	__IO uint32_t REQSEL[4];
 };
 
 #define PDMA_BASE_ADDR                    (0x40015000)
