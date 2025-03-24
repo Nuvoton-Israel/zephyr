@@ -300,14 +300,14 @@ struct I3C_TASK_INFO *send_ibi(const struct device *dev, uint8_t req_type,
 			return NULL;
 		}
 		/* Set up transmission buffer:
-		  * - The first byte is always the mandatory data byte.
-		  * - If PEC appending is enabled, adjust length and call pec_append().
-		  */
+		 * - The first byte is always the mandatory data byte.
+		 * - If PEC appending is enabled, adjust length and call pec_append().
+		 */
 		tx_buf[0] = ibi_notify->buf[0];
 		if (config->ibi_append_pec) {
 			/* The returned pointer is not used further,
-			  * but pec_append() performs required PEC calculations.
-			  */
+			 * but pec_append() performs required PEC calculations.
+			 */
 			pec_append(dev, ibi_notify->buf, ibi_notify->size);
 			tx_len = 2;
 		} else {
@@ -1769,10 +1769,6 @@ hj_retry:
 	}
 
 hj_exit:
-	if (obj) {
-		obj->config->hj_req = I3C_HOT_JOIN_STATE_None;
-	}
-
 	return ret;
 }
 
@@ -2404,20 +2400,15 @@ int i3c_npcm4xx_slave_hj_req(const struct device *dev)
 		return -1;
 	}
 
-	if (config->hj_req == I3C_HOT_JOIN_STATE_None) {
-		if (config->rst_reason == NPCM4XX_RESET_REASON_VCC_POWERUP) {
-			LOG_WRN("Auto Hot-Join\n");
-			config->hj_req = I3C_HOT_JOIN_STATE_Request;
-			/* change reset reason to sw-rst, direct hot-join next time */
-			config->rst_reason = NPCM4XX_RESET_REASON_DEBUGGER_RST;
-		} else {
-			LOG_WRN("Direct Hot-Join\n");
-			send_ibi(dev, I3C_TRANSFER_PROTOCOL_HOT_JOIN, NULL);
-			config->hj_req = I3C_HOT_JOIN_STATE_Queue;
-		}
+	if (config->rst_reason == NPCM4XX_RESET_REASON_VCC_POWERUP) {
+		/* change reset reason to sw-rst, direct hot-join next time */
+		config->rst_reason = NPCM4XX_RESET_REASON_DEBUGGER_RST;
+
+		LOG_WRN("Auto Hot-Join\n");
 	} else {
-		LOG_WRN("Hot-Join request progress, state = %d\n", config->hj_req);
+		LOG_WRN("Direct Hot-Join\n");
 	}
+	send_ibi(dev, I3C_TRANSFER_PROTOCOL_HOT_JOIN, NULL);
 
 	return 0;
 }
@@ -3537,30 +3528,6 @@ static void handle_start_interrupt(I3C_PORT_Enum port)
 	}
 }
 
-/* Helper function to handle CCC Command auto response */
-static int handle_CCC_command(I3C_PORT_Enum port, struct I3C_DEVICE_INFO *pDevice, uint32_t status,
-			      uint32_t ctrl)
-{
-	I3C_ErrCode_Enum result = I3C_ERR_NACK_SLVSTART;
-
-	/* Process auto-response based on the event type */
-	if ((ctrl & I3C_CTRL_EVENT_MASK) == I3C_CTRL_EVENT_IBI) {
-		if (status & I3C_STATUS_IBIDIS_MASK) {
-			result = I3C_ERR_OK;
-		}
-	} else if ((ctrl & I3C_CTRL_EVENT_MASK) == I3C_CTRL_EVENT_MstReq) {
-		if (status & I3C_STATUS_MRDIS_MASK) {
-			result = I3C_ERR_OK;
-		}
-	} else if ((ctrl & I3C_CTRL_EVENT_MASK) == I3C_CTRL_EVENT_HotJoin) {
-		if (status & I3C_STATUS_HJDIS_MASK) {
-			result = I3C_ERR_OK;
-		}
-	}
-
-	return result;
-}
-
 void I3C_Slave_ISR(const struct device *dev)
 {
 	struct i3c_npcm4xx_config *config = DEV_CFG(dev);
@@ -3569,35 +3536,12 @@ void I3C_Slave_ISR(const struct device *dev)
 	struct I3C_DEVICE_INFO *pDevice = I3C_Get_INODE(port);
 	uint32_t intmasked = I3C_GET_REG_INTMASKED(port);
 	uint32_t status = I3C_GET_REG_STATUS(port);
-	uint8_t evdet;
 	bool bMATCHSS = !!(I3C_GET_REG_CONFIG(port) & I3C_CONFIG_MATCHSS_MASK);
-	uint32_t ctrl;
-	int ret;
 
 	ENTER_SLAVE_ISR();
 
 	if (intmasked == 0) {
 		goto exit;
-	}
-
-	/* Handle Hot-Join state and matched status */
-	if (!bMATCHSS) {
-		if (obj->config->hj_req == I3C_HOT_JOIN_STATE_Request &&
-		    (intmasked & I3C_INTMASKED_STOP_MASK)) {
-			send_ibi(dev, I3C_TRANSFER_PROTOCOL_HOT_JOIN, NULL);
-			obj->config->hj_req = I3C_HOT_JOIN_STATE_Queue;
-		}
-
-		if (status & I3C_STATUS_MATCHED_MASK) {
-			LOG_WRN("Status matched before set MATCHSS, set bMATCHSS as true\n");
-			bMATCHSS = true;
-		}
-	} else {
-		if (obj->config->hj_req != I3C_HOT_JOIN_STATE_None) {
-			LOG_WRN("MATCHSS set. DA=0x%x\n",
-				I3C_Update_Dynamic_Address((uint32_t)port));
-			obj->config->hj_req = I3C_HOT_JOIN_STATE_None;
-		}
 	}
 
 	/* Process STOP interrupt */
@@ -3654,36 +3598,10 @@ void I3C_Slave_ISR(const struct device *dev)
 		}
 	}
 
-	/* Process CCC Command auto-response when MATCHSS is enabled */
+	/* Process CCC Command interrupt */
 	if (intmasked & I3C_INTMASKED_CHANDLED_MASK) {
-		if (bMATCHSS) {
-			/* CCC Command, auto */
-			I3C_SET_REG_STATUS(port, I3C_STATUS_CHANDLED_MASK);
-
-			/* must handle nack SLVSTART here if MATCHSS = 1 */
-			/* If master send DISEC after SLVSTART, the slave task should be removed.
-	 		 * Otherwise, HW will retry automatically and the slave task remain.
-	 		 */
-
-			ctrl = I3C_GET_REG_CTRL(port);
-			if (ctrl & I3C_CTRL_EVENT_MASK) {
-				evdet = (uint8_t)((status & I3C_STATUS_EVDET_MASK) >>
-						  I3C_STATUS_EVDET_SHIFT);
-
-				if (evdet == I3C_STATUS_EVDET_SEND_NACKED) {
-					/* IBI ?, NACK */
-					/* Master Request ?, NACK */
-					/* Hot-Join, NACK SLVSTART and follow DISEC with RESTART */
-					ret = handle_CCC_command(port, pDevice, status, ctrl);
-					if (ret != 0) {
-						LOG_WRN("CCC error=%d\n", ret);
-						goto exit;
-					}
-				}
-			}
-		} else {
-			I3C_SET_REG_STATUS(port, I3C_STATUS_CHANDLED_MASK);
-		}
+		/* CCC Command, auto */
+		I3C_SET_REG_STATUS(port, I3C_STATUS_CHANDLED_MASK);
 
 		intmasked &= ~I3C_INTMASKED_CHANDLED_MASK;
 		if (!intmasked) {
@@ -4054,9 +3972,6 @@ static int i3c_npcm4xx_init(const struct device *dev)
 	I3C_connect_bus(port, config->busno);
 
 	hal_I3C_Config_Device(pDevice);
-
-	/* set hj req as false */
-	config->hj_req = I3C_HOT_JOIN_STATE_None;
 
 	/* Configure interrupt */
 	config->irq_config_func(dev);

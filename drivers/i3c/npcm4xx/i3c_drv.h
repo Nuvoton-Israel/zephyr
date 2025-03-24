@@ -87,7 +87,6 @@ struct i3c_npcm4xx_config {
 	struct npcm4xx_clk_cfg clk_cfg;
 	bool slave;
 	bool secondary;
-	uint8_t hj_req;
 	enum npcm4xx_reset_reason rst_reason;
 	uint32_t i3c_scl_hz;
 	uint32_t i2c_scl_hz;
@@ -408,12 +407,6 @@ enum I3C_MSTATUS_IBITYPE_Enum {
 	I3C_MSTATUS_IBITYPE_IBI = 1,
 	I3C_MSTATUS_IBITYPE_MstReq = 2,
 	I3C_MSTATUS_IBITYPE_HotJoin = 3,
-};
-
-enum I3C_HOT_JOIN_STATE_Enum {
-	I3C_HOT_JOIN_STATE_None = 0,
-	I3C_HOT_JOIN_STATE_Request = 1,
-	I3C_HOT_JOIN_STATE_Queue = 2,
 };
 
 enum I3C_MSTATUS_STATE_Enum {
