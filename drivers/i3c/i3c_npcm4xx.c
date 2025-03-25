@@ -2288,8 +2288,9 @@ int i3c_npcm4xx_slave_put_read_data(const struct device *dev,
 	struct I3C_TASK_INFO *pTaskInfo;
 	uint32_t event_en;
 	int ret = 0;
-
-	// uint8_t *xfer_buf;
+#if CONFIG_I3C_NPCM4XX_TARGET_PEC
+	uint8_t *xfer_buf;
+#endif
 
 	__ASSERT_NO_MSG(data);
 	__ASSERT_NO_MSG(data->buf);
@@ -2297,24 +2298,26 @@ int i3c_npcm4xx_slave_put_read_data(const struct device *dev,
 
 	k_mutex_lock(&pDevice->lock, K_FOREVER);
 
+#if CONFIG_I3C_NPCM4XX_TARGET_PEC
 	if (config->priv_xfer_pec) {
-	/*
-	 *	uint8_t pec_v;
-	 *	uint8_t addr_rnw;
-	 *
-	 *	addr_rnw = (uint8_t)I3C_GET_REG_DYNADDR(port) >> 1;
-	 *	pec_v = crc8_ccitt(0, &addr_rnw, 1);
-	 *
-	 *	xfer_buf = (uint8_t *)&data->buf[1];
-	 *	pec_v = crc8_ccitt(pec_v, xfer_buf, data->size - 1);
-	 *	LOG_DBG("pec = %x", pec_v);
-	 *	xfer_buf = (uint8_t *)&data->buf[0];
-	 *	xfer_buf[data->size] = pec_v;
-	 *	i3c_npcm4xx_wr_tx_fifo(data, data->buf, data->size + 1);
-	 */
+		uint8_t pec_v;
+		uint8_t addr_rnw;
+
+		addr_rnw = (uint8_t)I3C_GET_REG_DYNADDR(port) >> 1;
+		pec_v = crc8_ccitt(0, &addr_rnw, 1);
+
+		xfer_buf = (uint8_t *)&data->buf[1];
+		pec_v = crc8_ccitt(pec_v, xfer_buf, data->size - 1);
+		LOG_DBG("pec = %x", pec_v);
+		xfer_buf = (uint8_t *)&data->buf[0];
+		xfer_buf[data->size] = pec_v;
+		i3c_npcm4xx_wr_tx_fifo(data, data->buf, data->size + 1);
 	} else {
 		i3c_npcm4xx_wr_tx_fifo(obj, data->buf, data->size);
 	}
+#else
+	i3c_npcm4xx_wr_tx_fifo(obj, data->buf, data->size);
+#endif
 
 	if (ibi_notify) {
 		if (obj->sir_allowed_by_sw == 0) {
@@ -2364,16 +2367,16 @@ int i3c_npcm4xx_slave_put_read_data(const struct device *dev,
 		}
 	}
 
-	/*
-	 * osEventFlagsClear(obj->data_event, ~osFlagsError);
-	 * if (config->priv_xfer_pec) {
-	 *   xfer_buf = pec_append(dev, data->buf, data->size);
-	 *   i3c_npcm4xx_wr_tx_fifo(obj, xfer_buf, data->size + 1);
-	 *   k_free(xfer_buf);
-	 * } else {
-	 *   i3c_npcm4xx_wr_tx_fifo(obj, data->buf, data->size);
-	 * }
-	 */
+#if CONFIG_I3C_NPCM4XX_TARGET_PEC
+	osEventFlagsClear(obj->data_event, ~osFlagsError);
+	if (config->priv_xfer_pec) {
+		xfer_buf = pec_append(dev, data->buf, data->size);
+		i3c_npcm4xx_wr_tx_fifo(obj, xfer_buf, data->size + 1);
+		k_free(xfer_buf);
+	} else {
+		i3c_npcm4xx_wr_tx_fifo(obj, data->buf, data->size);
+	}
+#endif
 
 	k_mutex_unlock(&pDevice->lock);
 

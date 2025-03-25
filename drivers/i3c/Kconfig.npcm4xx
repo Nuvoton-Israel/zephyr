@@ -8,3 +8,9 @@ config I3C_NPCM4XX
 	depends on SOC_FAMILY_NPCM4XX
 	help
 	  This option enables the I3C master driver for SOC_NPCM400F SoCs.
+
+config I3C_NPCM4XX_TARGET_PEC
+	bool "NPCM4XX I3C tatget PEC support"
+	depends on SOC_FAMILY_NPCM4XX
+	help
+	  This option enables the I3C target PEC support for SOC_NPCM400F SoCs.
