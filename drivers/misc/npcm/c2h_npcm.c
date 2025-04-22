@@ -71,6 +71,65 @@ static void host_c2h_wait_read_done(const struct device *dev)
 	}
 }
 
+void __c2h_config_reg_access(const struct device *dev, SIB_DEVICE_T device,
+                uint16_t offset)
+{
+	struct c2h_npcm_config *cfg = (struct c2h_npcm_config *)dev->config;
+	struct c2h_reg *const inst_c2h = cfg->inst_c2h;
+
+	/* Enable Core-to-Host access module */
+	inst_c2h->CRSMAE |= device;
+
+	/* Verify core-to-host modules is not in progress */
+	host_c2h_wait_read_done(dev);
+	host_c2h_wait_write_done(dev);
+
+	/*
+	 * Specifying the in-direct IO address which A0 = offset indicates the
+	 * index register is accessed. Then write index address directly and
+	 * it starts a write transaction to host sub-module on LPC/eSPI bus.
+	 */
+	inst_c2h->IHIOA = offset;
+}
+
+void __c2h_write_reg(const struct device *dev, SIB_DEVICE_T device,
+                uint16_t offset, uint8_t value)
+{
+	struct c2h_npcm_config *cfg = (struct c2h_npcm_config *)dev->config;
+	struct c2h_reg *const inst_c2h = cfg->inst_c2h;
+
+	__c2h_config_reg_access(dev, device, offset);
+
+	/*
+	 * Specifying the in-direct IO address which A0 = 1 indicates the data
+	 * register is accessed. Then write data directly and it starts a write
+	 * transaction to host sub-module on LPC/eSPI bus.
+	 */
+	inst_c2h->IHD = value;
+	host_c2h_wait_write_done(dev);
+}
+
+uint8_t __c2h_read_reg(const struct device *dev, SIB_DEVICE_T device,
+                uint16_t offset)
+{
+	struct c2h_npcm_config *cfg = (struct c2h_npcm_config *)dev->config;
+	struct c2h_reg *const inst_c2h = cfg->inst_c2h;
+	uint8_t data_val;
+
+	__c2h_config_reg_access(dev, device, offset);
+
+	/*
+	 * Specifying the in-direct IO address which A0 = 1 indicates the data
+	 * register is accessed. Then write data directly and it starts a write
+	 * transaction to host sub-module on LPC/eSPI bus.
+	 */
+	inst_c2h->SIBCTRL |= BIT(NPCM4XX_SIBCTRL_CSRD);
+	host_c2h_wait_read_done(dev);
+	data_val = inst_c2h->IHD;
+
+	return data_val;
+}
+
 void c2h_write_io_cfg_reg(const struct device *dev, uint8_t reg_index, uint8_t reg_data)
 {
 	struct c2h_npcm_config *cfg = (struct c2h_npcm_config *)dev->config;
@@ -164,6 +223,54 @@ uint8_t c2h_read_io_cfg_reg(const struct device *dev, uint8_t reg_index)
 	return data_val;
 }
 
+void rtc_write_offset(const struct device *dev, SIB_RTC_OFFSET_Enum offset,
+		      uint8_t value)
+{
+	struct c2h_npcm_config *cfg = (struct c2h_npcm_config *)dev->config;
+	struct c2h_reg *const inst_c2h = cfg->inst_c2h;
+
+	/* Disable interrupts */
+	int key = irq_lock();
+
+	/* Lock host access EC configuration registers (0x4E/0x4F) */
+	inst_c2h->LKSIOHA |= BIT(NPCM4XX_LKSIOHA_LKCFG);
+	__c2h_write_reg(dev, SIB_DEV_RTC, RTC_INDEX, offset);
+	__c2h_write_reg(dev, SIB_DEV_RTC, RTC_DATA, value);
+
+	/* Disable Core-to-Host access 'reg' module */
+	inst_c2h->CRSMAE &= (SIB_DEVICE_T)~SIB_DEV_RTC;
+	/* Unlock host access EC configuration registers (0x4E/0x4F) */
+	inst_c2h->LKSIOHA &= ~BIT(NPCM4XX_LKSIOHA_LKCFG);
+
+	/* Enable interrupts */
+	irq_unlock(key);
+}
+
+uint8_t rtc_read_offset(const struct device *dev, SIB_RTC_OFFSET_Enum offset)
+{
+	struct c2h_npcm_config *cfg = (struct c2h_npcm_config *)dev->config;
+	struct c2h_reg *const inst_c2h = cfg->inst_c2h;
+	uint8_t value;
+
+	/* Disable interrupts */
+	int key = irq_lock();
+
+	/* Lock host access EC configuration registers (0x4E/0x4F) */
+	inst_c2h->LKSIOHA |= BIT(NPCM4XX_LKSIOHA_LKCFG);
+	__c2h_write_reg(dev, SIB_DEV_RTC, RTC_INDEX, offset);
+	value = __c2h_read_reg(dev, SIB_DEV_RTC, RTC_DATA);
+
+	/* Disable Core-to-Host access 'reg' module */
+	inst_c2h->CRSMAE &= (SIB_DEVICE_T)~SIB_DEV_RTC;
+	/* Unlock host access EC configuration registers (0x4E/0x4F) */
+	inst_c2h->LKSIOHA &= ~BIT(NPCM4XX_LKSIOHA_LKCFG);
+
+	/* Enable interrupts */
+	irq_unlock(key);
+
+	return value;
+}
+
 /* C2H driver registration */
 #define NPCM4XX_C2H_INIT_FUNC(inst) _CONCAT(c2h_init, inst)
 #define NPCM4XX_C2H_INIT_FUNC_DECL(inst) \
@@ -186,7 +293,7 @@ uint8_t c2h_read_io_cfg_reg(const struct device *dev, uint8_t reg_index)
 	NPCM4XX_C2H_INIT_FUNC_DECL(inst);				                        \
 									                        \
 	static const struct c2h_npcm_config c2h_npcm_config_##inst = {	                        \
-		.inst_c2h = (struct c2h_reg *)DT_REG_ADDR_BY_NAME(DT_NODELABEL(host_sub), c2h), \
+		.inst_c2h = (struct c2h_reg *)DT_INST_REG_ADDR(inst),                           \
 	};								                        \
 									                        \
 	DEVICE_DT_INST_DEFINE(inst,					                        \
@@ -194,7 +301,7 @@ uint8_t c2h_read_io_cfg_reg(const struct device *dev, uint8_t reg_index)
 			      NULL,					                        \
 			      NULL, &c2h_npcm_config_##inst,		                        \
 			      PRE_KERNEL_1,				                        \
-			      CONFIG_KERNEL_INIT_PRIORITY_OBJECTS, NULL);                       \
+			      CONFIG_KERNEL_INIT_PRIORITY_DEVICE, NULL);                        \
 									                        \
 									                        \
 	NPCM4XX_C2H_INIT_FUNC_IMPL(inst)
