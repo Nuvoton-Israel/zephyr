@@ -69,6 +69,8 @@ source "drivers/ipmi/Kconfig"
 
 source "drivers/flash/Kconfig"
 
+source "drivers/rtc/Kconfig"
+
 source "drivers/sensor/Kconfig"
 
 source "drivers/counter/Kconfig"

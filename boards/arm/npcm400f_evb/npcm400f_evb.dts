@@ -21,6 +21,7 @@
 
 	aliases {
 		peci-0 = &peci0;
+		rtc = &rtc;
 	};
 
 
@@ -622,5 +623,10 @@
 };
 
 &c2h {
+	status = "okay";
+};
+
+&rtc {
+	alarms_count = <1>;
 	status = "okay";
 };
