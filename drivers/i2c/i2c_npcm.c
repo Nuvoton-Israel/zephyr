@@ -1116,7 +1116,7 @@ static DEVICE_API(i2c, i2c_npcm_driver_api) = {
 	static int i2c_npcm_init_##inst(const struct device *dev);                                 \
 	static const struct i2c_npcm_config i2c_npcm_cfg_##inst = {                                \
 		.base = DT_INST_REG_ADDR(inst),                                                    \
-		.clk_cfg = DT_INST_PHA(inst, clocks, clk_cfg),                                     \
+		.clk_cfg = DT_INST_PHA(inst, clocks, clk_id),                                     \
 		.default_bitrate = DT_INST_PROP(inst, clock_frequency),                            \
 		.irq = DT_INST_IRQN(inst),                                                         \
 		.pcfg = PINCTRL_DT_INST_DEV_CONFIG_GET(inst),                                      \

@@ -600,7 +600,7 @@ static DEVICE_API(uart, uart_npcm_driver_api) = {
                                                                                                    \
 	static const struct uart_npcm_config uart_npcm_cfg_##inst = {                              \
 		.base = (struct uart_reg *)DT_INST_REG_ADDR(inst),                                 \
-		.clk_cfg = DT_INST_PHA(inst, clocks, clk_cfg),                                     \
+		.clk_cfg = DT_INST_PHA(inst, clocks, clk_id),                                     \
 		.pcfg = PINCTRL_DT_INST_DEV_CONFIG_GET(inst),                                      \
 		NPCM_UART_IRQ_CONFIG_FUNC_INIT(inst)};                                             \
                                                                                                    \

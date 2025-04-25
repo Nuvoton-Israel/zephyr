@@ -3544,7 +3544,7 @@ static DEVICE_API(i3c, npcm_i3c_driver) = {
                                                                                                    \
 	static const struct npcm_i3c_config npcm_i3c_config_##inst = {                             \
 		.base = (struct i3c_reg *)DT_INST_REG_ADDR(inst),                                  \
-		.clk_cfg = DT_INST_PHA(inst, clocks, clk_cfg),                                     \
+		.clk_cfg = DT_INST_PHA(inst, clocks, clk_id),                                     \
 		.irq_config_func = npcm_i3c_irq_config_##inst,                                     \
 		.common.dev_list.i3c = npcm_i3c_device_array_##inst,                               \
 		.common.dev_list.num_i3c = ARRAY_SIZE(npcm_i3c_device_array_##inst),               \
