@@ -182,6 +182,13 @@ static struct clk_cfg_t clk_cfg[] = {
 	{.clock_id = NPCM_CLOCK_SMB10, .bus = NPCM_CLOCK_BUS_APB3},
 	{.clock_id = NPCM_CLOCK_SMB11, .bus = NPCM_CLOCK_BUS_APB3},
 	{.clock_id = NPCM_CLOCK_SMB12, .bus = NPCM_CLOCK_BUS_APB3},
+
+	{.clock_id = NPCM_CLOCK_I3CI, .bus = NPCM_CLOCK_BUS_APB3},
+	{.clock_id = NPCM_CLOCK_I3CI2, .bus = NPCM_CLOCK_BUS_APB3},
+	{.clock_id = NPCM_CLOCK_I3CI3, .bus = NPCM_CLOCK_BUS_APB3},
+	{.clock_id = NPCM_CLOCK_I3CI4, .bus = NPCM_CLOCK_BUS_APB3},
+	{.clock_id = NPCM_CLOCK_I3CI5, .bus = NPCM_CLOCK_BUS_APB3},
+	{.clock_id = NPCM_CLOCK_I3CI6, .bus = NPCM_CLOCK_BUS_APB3},
 };
 
 /* PMC multi-registers */
