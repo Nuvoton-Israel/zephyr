@@ -27,6 +27,7 @@
 		compatible ="nuvoton,npcm-nor";
 		size = <DT_SIZE_M(2 * 8)>;
 		reg = <0>;
+		label = "spi_spim0_cs0";
 		status = "okay";
 
 		/* quad spi bus configuration of nor flash device */
