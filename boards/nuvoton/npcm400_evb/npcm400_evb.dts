@@ -157,7 +157,7 @@
 };
 
 &spip0 {
-	pinctrl-0 = <&pspi1_clk_io0_io1_io2_io3_cs_gp66_67_70_73_76_77>;
+	pinctrl-0 = <&pspi1_clk_gpio66_67_70_73_76_77>;
 	pinctrl-names = "default";
 	status = "okay";
 };
@@ -173,8 +173,8 @@
 		/* quad spi bus configuration of nor flash device */
 		qspi-flags = <NPCM_QSPI_SW_CS1>;
 		mapped-addr = <0x70000000>;
-		pinctrl-0 = <&fiu0_shd_cs_io0_io1_clk_gp44_45_46_47
-			     &fiu0_shd_quad_io2_io3_clk_gp55_56>;
+		pinctrl-0 = <&fiu0_shd_cs_io0_io1_clk_gpio44_45_46_47
+			     &fiu0_shd_quad_io2_io3_clk_gpio55_56>;
 		pinctrl-names = "default";
 	};
 };

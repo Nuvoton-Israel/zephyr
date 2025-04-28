@@ -27,6 +27,111 @@ LOG_MODULE_REGISTER(spi_npcm_spip, CONFIG_SPI_LOG_LEVEL);
 /* The max allowed prescaler divider */
 #define SPI_NPCM_MAX_PRESCALER_DIV 1023
 
+/* Driver access helper */
+#define GET_POS_FIELD(pos, size)     pos
+#define GET_SIZE_FIELD(pos, size)    size
+#define FIELD_POS(field)             GET_POS_##field
+#define FIELD_SIZE(field)            GET_SIZE_##field
+#define SET_FIELD(reg, field, value) _SET_FIELD_(reg, FIELD_POS(field), FIELD_SIZE(field), value)
+#define _SET_FIELD_(reg, f_pos, f_size, value)                                                     \
+	((reg) = ((reg) & (~(((1 << (f_size)) - 1) << (f_pos)))) | ((value) << (f_pos)))
+
+/*
+ * SPI PERIPHERAL INTERFACE (SPIP) device registers
+ */
+struct spip_reg {
+	/* 0x00: SPI Control Register */
+	volatile uint32_t SPIP_CTL;
+	/* 0x04: SPI Clock Divider Register */
+	volatile uint32_t SPIP_CLKDIV;
+	/* 0x08: SPI Slave Select Control Register */
+	volatile uint32_t SPIP_SSCTL;
+	/* 0x0C: SPI PDMA Control Register */
+	volatile uint32_t SPIP_PDMACTL;
+	/* 0x10: SPI FIFO Control Register */
+	volatile uint32_t SPIP_FIFOCTL;
+	/* 0x14: SPI Status Register */
+	volatile uint32_t SPIP_STATUS;
+	volatile uint32_t RESERVE0[2];
+	/* 0x20: SPI Data Transmit Register */
+	volatile uint32_t SPIP_TX;
+	volatile uint32_t RESERVE1[3];
+	/* 0x30: SPI Data Receive Register */
+	volatile uint32_t SPIP_RX;
+};
+
+/* SPIP register fields */
+/* 0x00: SPI_CTL fields */
+#define NPCM_CTL_QUADIOEN		(22)
+#define NPCM_CTL_DUALIOEN		(21)
+#define NPCM_CTL_QDIODIR		(20)
+#define NPCM_CTL_REORDER		(19)
+#define NPCM_CTL_SLAVE			(18)
+#define NPCM_CTL_UNITIEN		(17)
+#define NPCM_CTL_TWOBIT			(16)
+#define NPCM_CTL_LSB			(13)
+#define NPCM_CTL_DWIDTH			FIELD(8, 5)
+#define NPCM_CTL_SUSPITV		FIELD(4, 4)
+#define NPCM_CTL_CLKPOL			(3)
+#define NPCM_CTL_TXNEG			(2)
+#define NPCM_CTL_RXNEG			(1)
+#define NPCM_CTL_SPIEN			(0)
+
+/* 0x04: SPI_CLKDIV fields */
+#define NPCM_CLKDIV_DIVIDER		FIELD(0, 10)
+
+/* 0x08: SPI_SSCTL fields */
+#define NPCM_SSCTL_SLVTOCNT		(16)
+#define NPCM_SSCTL_SSINAIEN		(13)
+#define NPCM_SSCTL_SSACTIEN		(12)
+#define NPCM_SSCTL_SLVURIEN		(9)
+#define NPCM_SSCTL_SLVBEIEN		(8)
+#define NPCM_SSCTL_SLVTORST		(6)
+#define NPCM_SSCTL_SLVTOIEN		(5)
+#define NPCM_SSCTL_SLV3WIRE		(4)
+#define NPCM_SSCTL_AUTOSS		(3)
+#define NPCM_SSCTL_SSACTPOL		(2)
+#define NPCM_SSCTL_SS			(0)
+
+/* 0x0C: SPI_PDMACTL fields */
+#define NPCM_PDMACTL_PDMARST		(2)
+#define NPCM_PDMACTL_RXPDMAEN		(1)
+#define NPCM_PDMACTL_TXPDMAEN		(0)
+
+/* 0x10: SPI_FIFOCTL fields */
+#define NPCM_FIFOCTL_TXTH		(28)
+#define NPCM_FIFOCTL_RXTH		(24)
+#define NPCM_FIFOCTL_TXUFIEN		(7)
+#define NPCM_FIFOCTL_TXUFPOL		(6)
+#define NPCM_FIFOCTL_RXOVIEN		(5)
+#define NPCM_FIFOCTL_RXTOIEN		(4)
+#define NPCM_FIFOCTL_TXTHIEN		(3)
+#define NPCM_FIFOCTL_RXTHIEN		(2)
+#define NPCM_FIFOCTL_TXRST		(1)
+#define NPCM_FIFOCTL_RXRST		(0)
+
+/* 0x14: SPI_STATUS fields */
+#define NPCM_STATUS_TXCNT		(28)
+#define NPCM_STATUS_RXCNT		(24)
+#define NPCM_STATUS_TXRXRST		(23)
+#define NPCM_STATUS_TXUFIF		(19)
+#define NPCM_STATUS_TXTHIF		(18)
+#define NPCM_STATUS_TXFULL		(17)
+#define NPCM_STATUS_TXEMPTY		(16)
+#define NPCM_STATUS_SPIENSTS		(15)
+#define NPCM_STATUS_RXTOIF		(12)
+#define NPCM_STATUS_RXOVIF		(11)
+#define NPCM_STATUS_RXTHIF		(10)
+#define NPCM_STATUS_RXFULL		(9)
+#define NPCM_STATUS_RXEMPTY		(8)
+#define NPCM_STATUS_SLVUDRIF		(7)
+#define NPCM_STATUS_SLVBEIF		(6)
+#define NPCM_STATUS_SLVTOIF		(5)
+#define NPCM_STATUS_SSLINE		(4)
+#define NPCM_STATUS_SSINAIF		(3)
+#define NPCM_STATUS_SSACTIF		(2)
+#define NPCM_STATUS_UNITIF		(1)
+#define NPCM_STATUS_BUSY		(0)
 struct spi_npcm_spip_data {
 	struct spi_context ctx;
 	uint32_t src_clock_freq;
@@ -36,9 +141,12 @@ struct spi_npcm_spip_data {
 
 struct spi_npcm_spip_cfg {
 	struct spip_reg *reg_base;
-	struct npcm_clk_cfg clk_cfg;
+	uint32_t clk_cfg;
 	const struct pinctrl_dev_config *pcfg;
 };
+
+/* Clock control device */
+#define NPCM_CLK_CTRL_DEV DT_NODELABEL(pcc)
 
 static int spi_npcm_spip_configure(const struct device *dev, const struct spi_config *spi_cfg)
 {
@@ -360,20 +468,20 @@ static int spi_npcm_spip_init(const struct device *dev)
 	int ret;
 	struct spi_npcm_spip_data *const data = dev->data;
 	const struct spi_npcm_spip_cfg *const config = dev->config;
-	const struct device *const clk_dev = DEVICE_DT_GET(NPCM_CLK_CTRL_NODE);
+	const struct device *const clk_dev = DEVICE_DT_GET(NPCM_CLK_CTRL_DEV);
 
 	if (!device_is_ready(clk_dev)) {
 		LOG_ERR("clock control device not ready");
 		return -ENODEV;
 	}
 
-	ret = clock_control_on(clk_dev, (clock_control_subsys_t)&config->clk_cfg);
+	ret = clock_control_on(clk_dev, (clock_control_subsys_t *)config->clk_cfg);
 	if (ret < 0) {
 		LOG_ERR("Turn on SPIP clock fail %d", ret);
 		return ret;
 	}
 
-	ret = clock_control_get_rate(clk_dev, (clock_control_subsys_t)&config->clk_cfg,
+	ret = clock_control_get_rate(clk_dev, (clock_control_subsys_t *)config->clk_cfg,
 				     &data->src_clock_freq);
 	if (ret < 0) {
 		LOG_ERR("Get SPIP clock source rate error %d", ret);
@@ -410,7 +518,7 @@ static struct spi_driver_api spi_npcm_spip_api = {
                                                                                                    \
 	static struct spi_npcm_spip_cfg spi_npcm_spip_cfg_##n = {                                  \
 		.reg_base = (struct spip_reg *)DT_INST_REG_ADDR(n),                                \
-		.clk_cfg = NPCM_DT_CLK_CFG_ITEM(n),                                                \
+		.clk_cfg = DT_INST_PHA(n, clocks, clk_id),                                         \
 		.pcfg = PINCTRL_DT_INST_DEV_CONFIG_GET(n)};                                        \
                                                                                                    \
 	DEVICE_DT_INST_DEFINE(n, spi_npcm_spip_init, NULL, &spi_npcm_spip_data_##n,                \

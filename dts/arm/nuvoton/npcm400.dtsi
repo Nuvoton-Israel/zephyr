@@ -33,5 +33,5 @@
 		qspi-flags = <NPCM_QSPI_SW_CS0>;
 		rd-mode = "NPCM_RD_MODE_QUAD";
 		mapped-addr = <0x80000>;
-        };
+    };
 };

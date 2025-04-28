@@ -147,6 +147,8 @@ static struct clk_cfg_t clk_cfg[] = {
 	{.clock_id = NPCM_CLOCK_UART2, .bus = NPCM_CLOCK_BUS_APB2},
 
 	{.clock_id = NPCM_CLOCK_FIU, .bus = NPCM_CLOCK_BUS_FIU},
+	{.clock_id = NPCM_CLOCK_SPIM, .bus = NPCM_CLOCK_BUS_APB3},
+	{.clock_id = NPCM_CLOCK_SPIP1, .bus = NPCM_CLOCK_BUS_APB3},
 	{.clock_id = NPCM_CLOCK_USB20, .bus = NPCM_CLOCK_BUS_USB20_CLK},
 	{.clock_id = NPCM_CLOCK_UART, .bus = NPCM_CLOCK_BUS_APB2},
 

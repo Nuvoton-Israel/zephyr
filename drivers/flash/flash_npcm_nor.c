@@ -11,7 +11,6 @@
 #include <zephyr/drivers/flash/npcm_flash_api_ex.h>
 #include <zephyr/drivers/pinctrl.h>
 #include <zephyr/dt-bindings/flash_controller/npcm_qspi.h>
-#include <soc.h>
 #ifdef CONFIG_USERSPACE
 #include <zephyr/syscall.h>
 #include <zephyr/internal/syscall_handler.h>

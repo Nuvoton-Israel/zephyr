@@ -11,27 +11,181 @@
 #include <zephyr/drivers/pinctrl.h>
 #include <zephyr/drivers/spi.h>
 #include <zephyr/dt-bindings/flash_controller/npcm_qspi.h>
-#include <soc.h>
 
 #include "spi_nor.h"
 #include "flash_npcm_qspi.h"
 
 #include <zephyr/logging/log.h>
-LOG_MODULE_REGISTER(npcm_spim_qspi, LOG_LEVEL_ERR);
+LOG_MODULE_REGISTER(npcm_spim_qspi, CONFIG_FLASH_LOG_LEVEL);
 
 #define NPCM_SPIM_INT_CS	NPCM_QSPI_SW_CS0
 
 /* Driver convenience defines */
-#define HAL_INSTANCE(dev) \
+#define HAL_INSTANCE(dev)                                                                          \
 	((struct spim_reg *)((const struct npcm_qspi_spim_config *)(dev)->config)->base)
+#define HAL_SFCG_INST() (struct scfg_reg *)(npcm_scfg_cfg.base_scfg)
+#define NPCM_DEV_CTL3   0x04
+#define DEV_CTL3_INST   (npcm_scfg_cfg.base_scfg + NPCM_DEV_CTL3)
+
+/* Driver access helper */
+#define GET_POS_FIELD(pos, size)     pos
+#define GET_SIZE_FIELD(pos, size)    size
+#define FIELD_POS(field)             GET_POS_##field
+#define FIELD_SIZE(field)            GET_SIZE_##field
+#define SET_FIELD(reg, field, value) _SET_FIELD_(reg, FIELD_POS(field), FIELD_SIZE(field), value)
+#define _SET_FIELD_(reg, f_pos, f_size, value)                                                     \
+	((reg) = ((reg) & (~(((1 << (f_size)) - 1) << (f_pos)))) | ((value) << (f_pos)))
+
+/* SCFG base */
+struct npcm_scfg_config {
+	/* scfg device base address */
+	uintptr_t base_scfg;
+};
+
+static const struct npcm_scfg_config npcm_scfg_cfg = {
+	.base_scfg = DT_REG_ADDR_BY_NAME(DT_INST(0, nuvoton_npcm_pinctrl), scfg),
+};
+
+/*
+ * SPI Synchronous serial Interface Controller (SPIM) device registers
+ */
+struct spim_reg {
+	/* 0x000: Control and Status Register 0 */
+	volatile uint32_t SPIM_CTL0;
+	/* 0x004: Control and Status Register 1 */
+	volatile uint32_t SPIM_CTL1;
+	volatile uint32_t reserved1;
+	/* 0x00C: RX Clock Delay Control Register */
+	volatile uint32_t SPIM_RXCLKDLY;
+	/* 0x010: Data Receive Register 0 */
+	volatile uint32_t SPIM_RX0;
+	/* 0x014: Data Receive Register 1 */
+	volatile uint32_t SPIM_RX1;
+	/* 0x018: Data Receive Register 2 */
+	volatile uint32_t SPIM_RX2;
+	/* 0x01C: Data Receive Register 3 */
+	volatile uint32_t SPIM_RX3;
+	/* 0x020: Data Transmit Register 0 */
+	volatile uint32_t SPIM_TX0;
+	/* 0x024: Data Transmit Register 1 */
+	volatile uint32_t SPIM_TX1;
+	/* 0x028: Data Transmit Register 2 */
+	volatile uint32_t SPIM_TX2;
+	/* 0x02C: Data Transmit Register 3 */
+	volatile uint32_t SPIM_TX3;
+	/* 0x030: SRAM Memory Address Register */
+	volatile uint32_t SPIM_SRAMADDR;
+	/* 0x034: DMA Transfer Byte Count Register */
+	volatile uint32_t SPIM_DMACNT;
+	/* 0x038: SPI Flash Address Register */
+	volatile uint32_t SPIM_FADDR;
+	volatile uint32_t reserved2[2];
+	/* 0x044: Direct Memory Mapping Mode Control Register */
+	volatile uint32_t SPIM_DMMCTL;
+	/* 0x048: Control Register 2 */
+	volatile uint32_t SPIM_CTL2;
+};
+
+/* SPIM register fields */
+
+/* 0x000: SPIM_CTL0 */
+#define NPCM_SPIM_CTL0_CMDCODE			FIELD(24, 8)
+#define NPCM_SPIM_CTL0_OPMODE			FIELD(22, 2)
+#define NPCM_SPIM_CTL0_OPMODE_NORMAL_IO		0x0
+#define NPCM_SPIM_CTL0_OPMODE_DMA_WRITE		0x1
+#define NPCM_SPIM_CTL0_OPMODE_DMA_READ		0x2
+#define NPCM_SPIM_CTL0_OPMODE_DMM		0x3
+#define NPCM_SPIM_CTL0_BITMODE			FIELD(20, 2)
+#define NPCM_SPIM_CTL0_BITMODE_STANDARD		0x0
+#define NPCM_SPIM_CTL0_BITMODE_DUAL		0x1
+#define NPCM_SPIM_CTL0_BITMODE_QUAD		0x2
+#define NPCM_SPIM_CTL0_SUSPITV			FIELD(16, 4)
+#define NPCM_SPIM_CTL0_QDIODIR			15
+#define NPCM_SPIM_CTL0_BURSTNUM			FIELD(13, 2)
+#define NPCM_SPIM_CTL0_BURSTNUM_1		0x0
+#define NPCM_SPIM_CTL0_BURSTNUM_2		0x1
+#define NPCM_SPIM_CTL0_BURSTNUM_3		0x2
+#define NPCM_SPIM_CTL0_BURSTNUM_4		0x3
+#define NPCM_SPIM_CTL0_DWIDTH			FIELD(8, 5)
+#define NPCM_SPIM_CTL0_DWIDTH_8			0x7
+#define NPCM_SPIM_CTL0_DWIDTH_16		0xF
+#define NPCM_SPIM_CTL0_DWIDTH_24		0x17
+#define NPCM_SPIM_CTL0_DWIDTH_32		0x1F
+#define NPCM_SPIM_CTL0_IF			7
+#define NPCM_SPIM_CTL0_IEN			6
+#define NPCM_SPIM_CTL0_B4ADDREN			5
+#define NPCM_SPIM_CTL0_CIPHOFF			0
+
+/* 0x004: SPIM_CTL1 */
+#define NPCM_SPIM_CTL1_DIVIDER			FIELD(16, 16)
+#define NPCM_SPIM_CTL1_IDLE_TIME		FIELD(8, 4)
+#define NPCM_SPIM_CTL1_SSACTPOL			5
+#define NPCM_SPIM_CTL1_SS			4
+#define NPCM_SPIM_CTL1_CDINVAL			3
+#define NPCM_SPIM_CTL1_CACHEOFF			1
+#define NPCM_SPIM_CTL1_SPIMEN			0
+
+/* 0x00C: SPIM_RXCLKDLY */
+#define NPCM_SPIM_RXCLKDLY_RDDLYSEL		FIELD(16, 3)
+#define NPCM_SPIM_RXCLKDLY_PHDELSEL		FIELD(8, 8)
+#define NPCM_SPIM_RXCLKDLY_DWDELSEL		FIELD(0, 8)
+
+/* 0x044: SPIM_DMMCTL */
+#define NPCM_SPIM_DMMCTL_ACTSCLKT		FIELD(28, 4)
+#define NPCM_SPIM_DMMCTL_UACTSCLK		26
+#define NPCM_SPIM_DMMCTL_CREN			25
+#define NPCM_SPIM_DMMCTL_BWEN			24
+#define NPCM_SPIM_DMMCTL_DESELTIM		FIELD(16, 5)
+#define NPCM_SPIM_DMMCTL_CRMDAT			FIELD(8, 8)
+
+/* 0x048: SPIM_CTL2 */
+#define NPCM_SPIM_CTL2_DCNUM			FIELD(24, 5)
+#define NPCM_SPIM_CTL2_USETEN			16
 
 /* Device config */
 struct npcm_qspi_spim_config {
 	/* Flash controller base address */
 	uintptr_t base;
 	/* Clock configuration */
-	struct npcm_clk_cfg clk_cfg;
+	uint32_t clk_cfg;
 };
+
+/* Clock control device */
+#define NPCM_CLK_CTRL_DEV DT_NODELABEL(pcc)
+
+#define NPCM_FIU_FLASH_WP  BIT(0)
+#define NPCM_SPIM_FLASH_WP BIT(1)
+#define NPCM_DEV_CTL3_WP_INT_FL               0
+#define NPCM_DEV_CTL3_WP_GPIO55               1
+#define NPCM_DEV_CTL3_WP_GPIO76               2
+static int npcm_pinctrl_flash_write_protect_set(int interface)
+{
+	volatile uintptr_t dev_ctl3 = DEV_CTL3_INST;
+	uint32_t reg_val;
+
+	switch (interface) {
+	case NPCM_FIU_FLASH_WP:
+		reg_val = sys_read32(dev_ctl3) | BIT(NPCM_DEV_CTL3_WP_GPIO55);
+		sys_write32(reg_val, dev_ctl3);
+		if (!(sys_read32(dev_ctl3) & BIT(NPCM_DEV_CTL3_WP_GPIO55))) {
+			return -EIO;
+		}
+		break;
+
+	case NPCM_SPIM_FLASH_WP:
+		reg_val = sys_read32(dev_ctl3) | BIT(NPCM_DEV_CTL3_WP_INT_FL);
+		sys_write32(reg_val, dev_ctl3);
+		if (!(sys_read32(dev_ctl3) & BIT(NPCM_DEV_CTL3_WP_INT_FL))) {
+			return -EIO;
+		}
+		break;
+
+	default:
+		return -EINVAL;
+	}
+
+	return 0;
+}
 
 /* NPCM SPI Normal functions */
 static inline void qspi_npcm_normal_cs_level(const struct device *dev, uint8_t sw_cs, bool level)
@@ -322,7 +476,7 @@ static int qspi_npcm_spim_init(const struct device *dev)
 {
 	const struct npcm_qspi_spim_config *const config = dev->config;
 	struct npcm_qspi_data *const data = dev->data;
-	const struct device *const clk_dev = DEVICE_DT_GET(NPCM_CLK_CTRL_NODE);
+	const struct device *const clk_dev = DEVICE_DT_GET(NPCM_CLK_CTRL_DEV);
 	int ret;
 
 	if (!device_is_ready(clk_dev)) {
@@ -331,8 +485,7 @@ static int qspi_npcm_spim_init(const struct device *dev)
 	}
 
 	/* Turn on device clock first and get source clock freq. */
-	ret = clock_control_on(clk_dev,
-			       (clock_control_subsys_t)&config->clk_cfg);
+	ret = clock_control_on(clk_dev, (clock_control_subsys_t *)config->clk_cfg);
 	if (ret < 0) {
 		LOG_ERR("Turn on SPIM clock fail %d", ret);
 		return ret;
@@ -347,16 +500,14 @@ static int qspi_npcm_spim_init(const struct device *dev)
 	return 0;
 }
 
-#define NPCM_SPI_SPIM_INIT(n)							\
-static const struct npcm_qspi_spim_config npcm_qspi_spim_config_##n = {		\
-	.base = DT_INST_REG_ADDR(n),						\
-	.clk_cfg = NPCM_DT_CLK_CFG_ITEM(n),					\
-};										\
-static struct npcm_qspi_data npcm_qspi_data_##n = {				\
-	.qspi_ops = &npcm_qspi_spim_ops						\
-};										\
-DEVICE_DT_INST_DEFINE(n, qspi_npcm_spim_init, NULL,				\
-		      &npcm_qspi_data_##n, &npcm_qspi_spim_config_##n,	\
-		      PRE_KERNEL_1, CONFIG_FLASH_INIT_PRIORITY, NULL);
+#define NPCM_SPI_SPIM_INIT(n)                                                                      \
+	static const struct npcm_qspi_spim_config npcm_qspi_spim_config_##n = {                    \
+		.base = DT_INST_REG_ADDR(n),                                                       \
+		.clk_cfg = DT_INST_PHA(n, clocks, clk_id),                                         \
+	};                                                                                         \
+	static struct npcm_qspi_data npcm_qspi_data_##n = {.qspi_ops = &npcm_qspi_spim_ops};       \
+	DEVICE_DT_INST_DEFINE(n, qspi_npcm_spim_init, NULL, &npcm_qspi_data_##n,                   \
+			      &npcm_qspi_spim_config_##n, PRE_KERNEL_1,                            \
+			      CONFIG_FLASH_INIT_PRIORITY, NULL);
 
 DT_INST_FOREACH_STATUS_OKAY(NPCM_SPI_SPIM_INIT)

@@ -13,7 +13,7 @@ description: |
 
             qspi-flags = <NPCM_QSPI_SW_CS1>;
             mapped-addr = <0x70000000>;
-            pinctrl-0 = <&fiu0_shd_cs_io0_io1_clk_gp44_45_46_47>;
+            pinctrl-0 = <&fiu0_shd_cs_io0_io1_clk_gpio44_45_46_47>;
             pinctrl-names = "default";
       };
 
