@@ -11,3 +11,14 @@ config PINCTRL_NPCM
 	help
 		This option enables the pin controller driver for NPCM family of
 		processors.
+
+config PINCTRL_NPCM_CFG_ON_RESET_CAUSE
+	bool "Enable pin configuration on reset cause"
+	default y
+	depends on PINCTRL_NPCM
+	depends on HWINFO_HAS_DRIVER
+	help
+		This option enables the pin configuration on reset cause.
+		When the system is reset, the pin controller will configure the
+		pins according to the reset cause. This is useful for ensuring
+		that the pins are configured correctly after a reset.
