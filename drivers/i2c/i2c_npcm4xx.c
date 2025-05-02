@@ -34,7 +34,6 @@ LOG_MODULE_REGISTER(i2c_npcm4xx, LOG_LEVEL_ERR);
 #define CONFIG_MASTER_HW_TIMEOUT_CLK_LOW_TIME 25
 #define CONFIG_MASTER_HW_TIMEOUT_CLK_CYCLE_TIME 50
 
-/* when using Quick command (SMBUS), do not enable slave timeout */
 #define CONFIG_SLAVE_HW_TIMEOUT_EN 'N'
 #define CONFIG_SLAVE_HW_TIMEOUT_CLK_LOW_TIME 25
 #define CONFIG_SLAVE_HW_TIMEOUT_CLK_CYCLE_TIME 50
@@ -903,9 +902,6 @@ static int i2c_npcm4xx_transfer(const struct device *dev, struct i2c_msg *msgs,
 	struct i2c_reg *const inst = I2C_INSTANCE(dev);
 	const struct i2c_npcm4xx_config *const config = I2C_DRV_CONFIG(dev);
 
-#if (CONFIG_MASTER_HW_TIMEOUT_EN == 'Y')
-	struct i2c_reg *const inst = I2C_INSTANCE(dev);
-#endif
 	struct i2c_npcm4xx_data *const data = I2C_DRV_DATA(dev);
 	int ret;
 
