@@ -55,6 +55,10 @@ struct espi_flash_cmplt {
 
 #define ESPI_FLASH_RESP_LEN	3
 
+#define ESPI_FLASH_ERASE_4K   0x00
+#define ESPI_FLASH_ERASE_32K  0x01
+#define ESPI_FLASH_ERASE_64K  0x02
+
 int espi_npcm4xx_flash_get_rx(const struct device *dev, struct espi_npcm4xx_ioc *ioc, bool blocking);
 int espi_npcm4xx_flash_put_tx(const struct device *dev, struct espi_npcm4xx_ioc *ioc);
 

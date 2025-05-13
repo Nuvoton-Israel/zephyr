@@ -340,7 +340,11 @@ static void espi_bus_reset_isr(const struct device *dev)
 			NPCM4XX_FLASHCFG_BOTH_TAFS_CAFS);
 	SET_FIELD(inst->FLASHCFG, NPCM4XX_FLASHCFG_TRGFLASHEBLKSIZE,
 			NPCM4XX_FLASHCFG_TRGLKSIZE_DEF);
+#if !defined(CONFIG_ESPI_NPCM4XX_FLASH_SAFS_HW_MODE)
 	inst->FLASHCTL &= ~BIT(NPCM4XX_FLASHCTL_SAF_AUTO_READ);
+#else
+	inst->FLASHBASE = 0x70000000;
+#endif
 }
 
 static void espi_bus_cfg_update_isr(const struct device *dev)
@@ -395,6 +399,7 @@ static void espi_bus_cfg_update_isr(const struct device *dev)
 		SET_FIELD(inst->FLASHCFG, NPCM4XX_FLASHCFG_TRGFLASHEBLKSIZE,
 				NPCM4XX_FLASHCFG_TRGLKSIZE_DEF);
 
+#if !defined(CONFIG_ESPI_NPCM4XX_FLASH_SAFS_HW_MODE)
 		inst->FLASHCTL &= ~BIT(NPCM4XX_FLASHCTL_SAF_AUTO_READ);
 		for (int i = 0; i < 3; i++)
 		{
@@ -403,6 +408,9 @@ static void espi_bus_cfg_update_isr(const struct device *dev)
 			k_busy_wait(10);
 			LOG_INF("FLASHCTL 0x%x", inst->FLASHCTL);
 		}
+#else
+	inst->FLASHBASE = 0x70000000;
+#endif
 		if (0 == k_sem_count_get(&data->tafs_tx_lock))
 			k_sem_give(&data->tafs_tx_lock);
 	}
@@ -738,7 +746,12 @@ static int espi_npcm4xx_configure(const struct device *dev, struct espi_cfg *cfg
 				NPCM4XX_FLASHCFG_BOTH_TAFS_CAFS);
 		SET_FIELD(inst->FLASHCFG, NPCM4XX_FLASHCFG_TRGFLASHEBLKSIZE,
 				NPCM4XX_FLASHCFG_TRGLKSIZE_DEF);
+
+#if !defined(CONFIG_ESPI_NPCM4XX_FLASH_SAFS_HW_MODE)
 		inst->FLASHCTL &= ~BIT(NPCM4XX_FLASHCTL_SAF_AUTO_READ);
+#else
+		inst->FLASHBASE = 0x70000000;
+#endif
 	}
 
 	LOG_DBG("%s: %d %d ESPICFG: 0x%08X", __func__,
