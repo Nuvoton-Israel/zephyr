@@ -528,7 +528,7 @@ static const struct rtc_driver_api rtc_npcm_driver_api = {
 static void rtc_npcm_isr(const struct device *dev, struct npcm4xx_wui *wui)
 {
 	const struct rtc_npcm_config *cfg = dev->config;
-	const struct device *c2h_dev = cfg->c2h_dev;
+	[[maybe_unused]]const struct device *c2h_dev = cfg->c2h_dev;
 
 #ifdef CONFIG_RTC_ALARM
 	struct rtc_npcm_data *const data = dev->data;
