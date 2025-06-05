@@ -28,6 +28,8 @@ struct npcm4xx_spi_fiu_config {
 	mm_reg_t core_base;
 	/* flash interface unit host base address */
 	mm_reg_t host_base;
+	/* clock control base address */
+	mm_reg_t cdcg_base;
 	/* clock configuration */
 	struct npcm4xx_clk_cfg clk_cfg;
 	/* direct access memory for private */
@@ -54,6 +56,8 @@ struct npcm4xx_spi_fiu_data {
 	((struct fiu_reg *)((const struct npcm4xx_spi_fiu_config *)(dev)->config)->core_base)
 #define HAL_HOST_INSTANCE(dev)                                                                     \
 	((struct fiu_reg *)((const struct npcm4xx_spi_fiu_config *)(dev)->config)->host_base)
+#define HAL_CDCG_INSTANCE(dev)                                                                     \
+	((struct cdcg_reg *)((const struct npcm4xx_spi_fiu_config *)(dev)->config)->cdcg_base)
 
 static inline void spi_npcm4xx_fiu_uma_lock(const struct device *dev)
 {
@@ -776,6 +780,45 @@ static int spi_nor_npcm4xx_fiu_read_init(const struct device *dev,
 {
 	struct npcm4xx_spi_fiu_data *data = dev->data;
 	enum npcm4xx_fiu_spi_nor_type spi_nor_type = spi_cfg->slave;
+	const struct npcm4xx_spi_fiu_config *const config = dev->config;
+	const struct device *const clk_dev = device_get_binding(NPCM4XX_CLK_CTRL_NAME);
+	struct cdcg_reg *const cdcg_inst = HAL_CDCG_INSTANCE(dev);
+	uint32_t rate, target_freq, required_div_factor, target_div, div;
+	int ret;
+
+	/*
+     * Get FIU_CLK and set frequency according to spi_max_frequency
+     * The divider only supports /2 or /4 and the max freq = 50MHz.
+     */
+	ret = clock_control_get_rate(clk_dev, (clock_control_subsys_t)&config->clk_cfg, &rate);
+	if (ret < 0) {
+		LOG_ERR("Get clock rate error %d", ret);
+		return ret;
+	}
+
+	target_freq = spi_cfg->frequency;
+	div = cdcg_inst->HFCBCD1 & 0x3;
+	rate = rate * (div + 1); /* Source frequency */
+
+	/* Only adjust divider if target frequency is less than current rate */
+	if (target_freq < rate) {
+		/* Calculate required divider based on target frequency */
+		required_div_factor = (rate + target_freq - 1) / target_freq; /* Ceiling division */
+
+		/* Map to hardware divider values: 0=/1, 1=/2, 3=/4 */
+		if (required_div_factor <= 1) {
+			target_div = 0; /* No division */
+		} else if (required_div_factor <= 2) {
+			target_div = 1; /* Divide by 2 */
+		} else {
+			target_div = 3; /* Divide by 4 */
+		}
+
+		/* Only update divider if we need a higher division */
+		if (target_div > div) {
+			cdcg_inst->HFCBCD1 = target_div & 0x3;
+		}
+	}
 
 	/* record read command from jesd216 */
 	memcpy(&data->read_op_info[spi_nor_type], &op_info, sizeof(op_info));
@@ -858,6 +901,7 @@ static struct spi_driver_api spi_npcm4xx_fiu_api = {
 		static struct npcm4xx_spi_fiu_config npcm4xx_spi_fiu_config_##inst = {              \
 		.core_base = DT_INST_REG_ADDR_BY_NAME(inst, core_reg),                              \
 		.host_base = DT_INST_REG_ADDR_BY_NAME(inst, host_reg),                              \
+		.cdcg_base = DT_INST_REG_ADDR_BY_NAME(inst, cdcg_reg),                              \
 		.private_mmap_base = DT_INST_REG_ADDR_BY_NAME(inst, private_mmap),                  \
 		.share_mmap_base = DT_INST_REG_ADDR_BY_NAME(inst, share_mmap),                      \
 		.backup_mmap_base = DT_INST_REG_ADDR_BY_NAME(inst, backup_mmap),                    \
