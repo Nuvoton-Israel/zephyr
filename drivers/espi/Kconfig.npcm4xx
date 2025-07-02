@@ -77,4 +77,7 @@ config ESPI_PERIPHERAL_PMCH4
 	help
 	  Enables PM channel 4 for eSPI peripheral channel.
 
+config ESPI_RTC_SUPP
+	default n
+
 endif #ESPI_NPCM4XX

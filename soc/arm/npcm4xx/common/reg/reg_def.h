@@ -1060,6 +1060,7 @@ struct espi_reg {
 #define NPCM4XX_ESPICFG_VWCHN_SUPP          25
 #define NPCM4XX_ESPICFG_OOBCHN_SUPP         26
 #define NPCM4XX_ESPICFG_FLASHCHN_SUPP       27
+#define NPCM4XX_ESPICFG_RTC_SUPP            29
 #define NPCM4XX_ESPIIE_IBRSTIE              0
 #define NPCM4XX_ESPIIE_CFGUPDIE             1
 #define NPCM4XX_ESPIIE_BERRIE               2

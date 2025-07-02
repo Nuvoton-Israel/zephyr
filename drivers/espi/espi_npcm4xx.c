@@ -725,6 +725,8 @@ static int espi_npcm4xx_configure(const struct device *dev, struct espi_cfg *cfg
 		SET_FIELD(inst->ESPICFG, NPCM4XX_ESPICFG_IOMODE_FIELD, io_mode);
 	}
 
+	if (cfg->rtc_supp)
+		inst->ESPICFG |= BIT(NPCM4XX_ESPICFG_RTC_SUPP);
 
 	inst->ESPICFG |= BIT(NPCM4XX_ESPICFG_VWMS_VALID_EN);
 	inst->ESPICFG |= BIT(NPCM4XX_ESPICFG_VWSM_VALID_EN);
@@ -1101,6 +1103,7 @@ static int espi_npcm4xx_init(const struct device *dev)
 			   | ESPI_IO_MODE_QUAD_LINES,
 		.channel_caps = ESPI_CHANNEL_VWIRE | ESPI_CHANNEL_PERIPHERAL,
 		.max_freq = ESPI_FREQ_20MHZ,
+		.rtc_supp = 0,
 	};
 
 	/* If eSPI driver supports additional capabilities use them */
@@ -1110,6 +1113,10 @@ static int espi_npcm4xx_init(const struct device *dev)
 
 #ifdef CONFIG_ESPI_FLASH_CHANNEL
 	cfg.channel_caps |= ESPI_CHANNEL_FLASH;
+#endif
+
+#ifdef CONFIG_ESPI_RTC_SUPP
+	cfg.rtc_supp = 1;
 #endif
 
 	inst->ESPICFG &= ~BIT(NPCM4XX_ESPICFG_VWCHANEN);

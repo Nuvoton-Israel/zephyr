@@ -81,6 +81,11 @@ config ESPI_FLASH_CHANNEL
 	help
 	  eSPI Controller supports flash channel.
 
+config ESPI_RTC_SUPP
+	bool "ESPI RTC support"
+	help
+	  eSPI Controller supports rtc feature
+
 if ESPI_PERIPHERAL_CHANNEL
 
 config ESPI_PERIPHERAL_UART
