@@ -37,7 +37,7 @@ struct i3c_npcm4xx_obj *gObj[I3C_PORT_MAX];
 /* current set 10ms * 5 * 3 => 0.15 seconds */
 #define NPCM4XX_I3C_HJ_RETRY_MAX	3
 #define NPCM4XX_I3C_HJ_CHECK_MAX	5
-#define NPCM4XX_I3C_HJ_UDELAY		10000
+#define NPCM4XX_I3C_HJ_UDELAY		1000
 
 #define I3C_NPCM4XX_CCC_TIMEOUT		K_MSEC(100)
 #define I3C_NPCM4XX_XFER_TIMEOUT	K_MSEC(100)
@@ -1612,6 +1612,12 @@ I3C_ErrCode_Enum hal_I3C_Start_IBI(I3C_TASK_INFO_t *pTaskInfo)
 		hal_I3C_Stop_SlaveEvent(pTaskInfo);
 	}
 
+	if (I3C_GET_REG_STATUS(port) & I3C_STATUS_IBIDIS_MASK) {
+		LOG_WRN("IBI is disabled, can't generate IBI\n");
+		I3C_Slave_End_Request((uint32_t)pTask);
+		return I3C_ERR_OK;
+	}
+
 	ctrl = I3C_GET_REG_CTRL(port);
 	ctrl &= ~(I3C_CTRL_IBIDATA_MASK | I3C_CTRL_EXTDATA_MASK | I3C_CTRL_EVENT_MASK);
 
@@ -1647,6 +1653,7 @@ I3C_ErrCode_Enum hal_I3C_Start_Master_Request(I3C_TASK_INFO_t *pTaskInfo)
 {
 	I3C_PORT_Enum port;
 	I3C_DEVICE_INFO_t *pDevice;
+	I3C_TRANSFER_TASK_t *pTask;
 	uint32_t ctrl;
 	uint32_t key;
 
@@ -1666,6 +1673,13 @@ I3C_ErrCode_Enum hal_I3C_Start_Master_Request(I3C_TASK_INFO_t *pTaskInfo)
 		LOG_WRN("Generarte Master REQ but CTRL in Progress: 0x%x\n",
 				I3C_GET_REG_CTRL(port));
 		hal_I3C_Stop_SlaveEvent(pTaskInfo);
+	}
+
+	pTask = pTaskInfo->pTask;
+	if (I3C_GET_REG_STATUS(port) & I3C_STATUS_MRDIS_MASK) {
+		LOG_WRN("Master Request is disabled, can't generate Master Request\n");
+		I3C_Slave_End_Request((uint32_t)pTask);
+		return I3C_ERR_OK;
 	}
 
 	key = irq_lock();
@@ -1769,22 +1783,25 @@ I3C_ErrCode_Enum hal_I3C_Start_HotJoin(I3C_TASK_INFO_t *pTaskInfo)
 	ctrl |= I3C_CTRL_EVENT(I3C_CTRL_EVENT_HotJoin);
 
 	/* initial retry and check count */
-        retry = 0x0;
-        check_count = 0x0;
+	retry = 0x0;
+	check_count = 0x0;
+
+	uint8_t reset = 1;
 
 hj_retry:
-	/* wait util bus idle */
-	while(I3C_GET_REG_STATUS(port) & I3C_STATUS_STNOTSTOP_MASK);
+	/* Wait until bus idle */
+	while (I3C_GET_REG_STATUS(port) & I3C_STATUS_STNOTSTOP_MASK);
 
-	/* if daa already done, exit hot-join progress */
+	/* Exit if dynamic address already present */
 	if (I3C_Update_Dynamic_Address(port)) {
-		LOG_WRN("HotJoin: Bus BUS idle and DA present\n");
-		if (pTask) {
-			I3C_Slave_End_Request((uint32_t)pTask);
-		}
+		LOG_WRN("HotJoin: Bus idle and DA present\n");
+		goto hj_end_ok;
+	}
 
-		ret = I3C_ERR_OK;
-		goto hj_exit;
+	/* Exit if Hot-Join disabled */
+	if (I3C_GET_REG_STATUS(port) & I3C_STATUS_HJDIS_MASK) {
+		LOG_WRN("HotJoin: HJDIS is set, can't generate Hot-Join\n");
+		goto hj_end_ok;
 	}
 
 	/* HotJoin only could generate when bus idle, otherwise hw may stuck. */
@@ -1794,62 +1811,48 @@ hj_retry:
 	do {
 		k_busy_wait(NPCM4XX_I3C_HJ_UDELAY);
 
-		if ((I3C_GET_REG_CTRL(port) & I3C_CTRL_EVENT_MASK) ==
-				I3C_CTRL_EVENT_None) {
+		if ((I3C_GET_REG_CTRL(port) & I3C_CTRL_EVENT_MASK) == I3C_CTRL_EVENT_None) {
 			LOG_WRN("HotJoin: Send successful\n");
-			ret = I3C_ERR_OK;
-			goto hj_exit;
-		} else {
-			check_count++;
-		}
-
-		if (check_count >= NPCM4XX_I3C_HJ_CHECK_MAX)
+			reset = 0;
 			break;
-
-	} while(true);
-
-	if (I3C_Update_Dynamic_Address(port)) {
-		LOG_WRN("HotJoin: Try to generate event but DA=0x%x present\n",
-				I3C_Update_Dynamic_Address(port));
-
-		/* Disable generate event */
-		I3C_SET_REG_CTRL(port, I3C_CTRL_EVENT_None);
-
-		if (pTask) {
-			I3C_Slave_End_Request((uint32_t)pTask);
+		}
+		if (I3C_Update_Dynamic_Address(port)) {
+			I3C_SET_REG_CTRL(port, I3C_CTRL_EVENT_None);
+			LOG_WRN("HotJoin: DA=0x%x present\n", I3C_Update_Dynamic_Address(port));
+			reset = 0;
+			break;
+		}
+		if (I3C_GET_REG_STATUS(port) & I3C_STATUS_HJDIS_MASK) {
+			I3C_SET_REG_CTRL(port, I3C_CTRL_EVENT_None);
+			LOG_WRN("HotJoin: HJDIS is set, stop Hot-Join\n");
+			reset = 0;
+			break;
 		}
 
-		ret = I3C_ERR_OK;
-		goto hj_exit;
-	}
+		check_count++;
+	} while (check_count < NPCM4XX_I3C_HJ_CHECK_MAX);
 
-	/* reset i3c hw since there is no dynamic address present */
-	i3c_npcm4xx_reset(port);
-
-	/* add retry count */
-	retry++;
-
-	if (retry >= NPCM4XX_I3C_HJ_RETRY_MAX) {
+	if (reset) {
+		/* Reset I3C HW if no dynamic address present, then retry */
+		i3c_npcm4xx_reset(port);
+		retry++;
+		if (retry < NPCM4XX_I3C_HJ_RETRY_MAX) {
+			check_count = 0;
+			goto hj_retry;
+		}
 		LOG_ERR("HotJoin: Send event failed\n");
-		if (pTask) {
-			I3C_Slave_End_Request((uint32_t)pTask);
-		}
-
 		ret = I3C_ERR_BUS_ERROR;
-		goto hj_exit;
-	} else {
-		/* re-initial check count */
-		check_count = 0x0;
-		/* retry again */
-		goto hj_retry;
 	}
 
+hj_end_ok:
+    if (pTask) {
+        I3C_Slave_End_Request((uint32_t)pTask);
+    }
 hj_exit:
-	if (obj) {
-		obj->config->hj_req = I3C_HOT_JOIN_STATE_None;
-	}
-
-	return ret;
+    if (obj) {
+        obj->config->hj_req = I3C_HOT_JOIN_STATE_None;
+    }
+    return ret;
 }
 
 I3C_ErrCode_Enum hal_I3C_Slave_TX_Free(I3C_PORT_Enum port)
@@ -2510,9 +2513,9 @@ int i3c_npcm4xx_slave_hj_req(const struct device *dev)
 			config->rst_reason = NPCM4XX_RESET_REASON_DEBUGGER_RST;
 		} else {
 			LOG_WRN("Direct Hot-Join\n");
+			config->hj_req = I3C_HOT_JOIN_STATE_Queue;
 			I3C_Slave_Insert_Task_HotJoin(port);
 			k_work_submit_to_queue(&npcm4xx_i3c_work_q[port], &work_send_ibi[port]);
-			config->hj_req = I3C_HOT_JOIN_STATE_Queue;
 		}
 	} else {
 		LOG_WRN("Hot-Join request progress, state = %d\n", config->hj_req);
@@ -3673,6 +3676,21 @@ void I3C_Slave_ISR(uint8_t I3C_IF)
 		}
 
 		I3C_SET_REG_STATUS(I3C_IF, I3C_STATUS_DACHG_MASK);
+
+		/* Stop hot-join when dynamic address changed */
+		if ((I3C_GET_REG_CTRL(I3C_IF) &  I3C_CTRL_EVENT_MASK) == I3C_CTRL_EVENT_HotJoin) {
+			LOG_WRN("DACHG, hot-join\n");
+			I3C_SET_REG_CTRL(I3C_IF, I3C_CTRL_EVENT_None);
+
+			pTask = pDevice->pTaskListHead;
+			pTaskInfo = pTask->pTaskInfo;
+
+			if (pTaskInfo != NULL) {
+				pTaskInfo->result = I3C_ERR_OK;
+				I3C_Slave_End_Request((uint32_t)pTask);
+			}
+			obj->config->hj_req = I3C_HOT_JOIN_STATE_None;
+		}
 
 		intmasked &= ~I3C_INTMASKED_DACHG_MASK;
 		if (!intmasked) {
