@@ -1706,6 +1706,10 @@ static void spi_nor_info_init_params(
 		spi_nor_assign_read_cmd(data, JESD216_MODE_111_FAST, SPI_NOR_CMD_READ_FAST, 8);
 	else if (data->cap_mask & SPI_NOR_MODE_1_1_1_CAP)
 		spi_nor_assign_read_cmd(data, JESD216_MODE_111, SPI_NOR_CMD_READ, 0);
+	else if (data->cap_mask & SPI_NOR_MODE_1_2_2_CAP)
+		spi_nor_assign_read_cmd(data, JESD216_MODE_122, SPI_NOR_CMD_READ_1_2_2, 4);
+	else if (data->cap_mask & SPI_NOR_MODE_1_4_4_CAP)
+		spi_nor_assign_read_cmd(data, JESD216_MODE_144, SPI_NOR_CMD_READ_1_4_4, 6);
 
 	spi_nor_assign_pp_cmd(data, JESD216_MODE_111, SPI_NOR_CMD_PP);
 
