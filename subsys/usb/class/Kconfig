@@ -20,3 +20,5 @@ source "subsys/usb/class/hid/Kconfig"
 source "subsys/usb/class/audio/Kconfig"
 
 source "subsys/usb/class/dfu/Kconfig"
+
+source "subsys/usb/class/Kconfig.obmf"
