@@ -57,17 +57,17 @@ struct usb_obmf_config {
 #endif
 } __packed;
 
-#define INITIALIZER_IF
-	{
-		.bLength = sizeof(struct usb_if_descriptor),
-		.bDescriptorType = USB_DESC_INTERFACE,
-		.bInterfaceNumber = 0,
-		.bAlternateSetting = 0,
-		.bNumEndpoints = NUM_ENDPOINTS,
-		.bInterfaceClass = OBMF_INTERFACE_CLASS,
-		.bInterfaceSubClass = OBMF_INTERFACE_SUBCLASS,
-		.bInterfaceProtocol = OBMF_INTERFACE_PROTOCOL,
-		.iInterface = 0, /* TODO: Add string descriptor "OCP OBMF" */
+#define INITIALIZER_IF \
+	{ \
+		.bLength = sizeof(struct usb_if_descriptor), \
+		.bDescriptorType = USB_DESC_INTERFACE, \
+		.bInterfaceNumber = 0, \
+		.bAlternateSetting = 0, \
+		.bNumEndpoints = NUM_ENDPOINTS, \
+		.bInterfaceClass = OBMF_INTERFACE_CLASS, \
+		.bInterfaceSubClass = OBMF_INTERFACE_SUBCLASS, \
+		.bInterfaceProtocol = OBMF_INTERFACE_PROTOCOL, \
+		.iInterface = 0, /* TODO: Add string descriptor "OCP OBMF" */ \
 	}
 
 #if CONFIG_OBMF_INTERRUPT_EP_SUPPORT
@@ -76,46 +76,46 @@ struct usb_obmf_config {
 #define OBMF_INT_EP_SIZE 0
 #endif
 
-#define INITIALIZER_OBMF_FUNC_DESC(wr_size, rd_size, int_size)
-	{
-		.bLength = sizeof(struct ocp_obmf_functional_descriptor),
-		.bDescriptorType = OCP_OBMF_FUNCTIONAL_DESC_TYPE,
-		.bDescriptorSubtype = OCP_OBMF_FUNCTIONAL_DESC_SUBTYPE,
-		.bReserved = 0,
-		.wMaxWrTransferSize = sys_cpu_to_le16(wr_size),
-		.wMaxRdTransferSize = sys_cpu_to_le16(rd_size),
-		.wMaxRdInterruptSize = sys_cpu_to_le16(int_size),
-		.bcdOCPOBMFVersion = sys_cpu_to_le16(0x0100), /* 1.0 */
+#define INITIALIZER_OBMF_FUNC_DESC(wr_size, rd_size, int_size) \
+	{ \
+		.bLength = sizeof(struct ocp_obmf_functional_descriptor), \
+		.bDescriptorType = OCP_OBMF_FUNCTIONAL_DESC_TYPE, \
+		.bDescriptorSubtype = OCP_OBMF_FUNCTIONAL_DESC_SUBTYPE, \
+		.bReserved = 0, \
+		.wMaxWrTransferSize = sys_cpu_to_le16(wr_size), \
+		.wMaxRdTransferSize = sys_cpu_to_le16(rd_size), \
+		.wMaxRdInterruptSize = sys_cpu_to_le16(int_size), \
+		.bcdOCPOBMFVersion = sys_cpu_to_le16(0x0100), /* 1.0 */ \
 	}
 
-#define INITIALIZER_EP_DESC(addr, attr, mps, interval)
-	{
-		.bLength = sizeof(struct usb_ep_descriptor),
-		.bDescriptorType = USB_DESC_ENDPOINT,
-		.bEndpointAddress = addr,
-		.bmAttributes = attr,
-		.wMaxPacketSize = sys_cpu_to_le16(mps),
-		.bInterval = interval,
+#define INITIALIZER_EP_DESC(addr, attr, mps, interval) \
+	{ \
+		.bLength = sizeof(struct usb_ep_descriptor), \
+		.bDescriptorType = USB_DESC_ENDPOINT, \
+		.bEndpointAddress = addr, \
+		.bmAttributes = attr, \
+		.wMaxPacketSize = sys_cpu_to_le16(mps), \
+		.bInterval = interval, \
 	}
 
 #if CONFIG_OBMF_INTERRUPT_EP_SUPPORT
-#define DEFINE_OBMF_DESCR(x, _)
-	USBD_CLASS_DESCR_DEFINE(primary, x)
-	struct usb_obmf_config obmf_cfg_##x = {
-	.if0 = INITIALIZER_IF,
-	.if0_obmf_func = INITIALIZER_OBMF_FUNC_DESC(CONFIG_OBMF_BULK_EP_MPS, CONFIG_OBMF_BULK_EP_MPS, OBMF_INT_EP_SIZE),
-	.if0_in_ep = INITIALIZER_EP_DESC(AUTO_EP_IN, USB_DC_EP_BULK, CONFIG_OBMF_BULK_EP_MPS, 0),
-	.if0_out_ep = INITIALIZER_EP_DESC(AUTO_EP_OUT, USB_DC_EP_BULK, CONFIG_OBMF_BULK_EP_MPS, 0),
-	.if0_int_ep = INITIALIZER_EP_DESC(AUTO_EP_IN, USB_DC_EP_INTERRUPT, CONFIG_OBMF_INTERRUPT_EP_MPS, 0x0A),
+#define DEFINE_OBMF_DESCR(x, _) \
+	USBD_CLASS_DESCR_DEFINE(primary, x) \
+	struct usb_obmf_config obmf_cfg_##x = { \
+		.if0 = INITIALIZER_IF, \
+		.if0_obmf_func = INITIALIZER_OBMF_FUNC_DESC(CONFIG_OBMF_BULK_EP_MPS, CONFIG_OBMF_BULK_EP_MPS, OBMF_INT_EP_SIZE), \
+		.if0_in_ep = INITIALIZER_EP_DESC(AUTO_EP_IN, USB_DC_EP_BULK, CONFIG_OBMF_BULK_EP_MPS, 0), \
+		.if0_out_ep = INITIALIZER_EP_DESC(AUTO_EP_OUT, USB_DC_EP_BULK, CONFIG_OBMF_BULK_EP_MPS, 0), \
+		.if0_int_ep = INITIALIZER_EP_DESC(AUTO_EP_IN, USB_DC_EP_INTERRUPT, CONFIG_OBMF_INTERRUPT_EP_MPS, 0x0A), \
 	};
 #else
-#define DEFINE_OBMF_DESCR(x, _)
-	USBD_CLASS_DESCR_DEFINE(primary, x)
-	struct usb_obmf_config obmf_cfg_##x = {
-	.if0 = INITIALIZER_IF,
-	.if0_obmf_func = INITIALIZER_OBMF_FUNC_DESC(CONFIG_OBMF_BULK_EP_MPS, CONFIG_OBMF_BULK_EP_MPS, OBMF_INT_EP_SIZE),
-	.if0_in_ep = INITIALIZER_EP_DESC(AUTO_EP_IN, USB_DC_EP_BULK, CONFIG_OBMF_BULK_EP_MPS, 0),
-	.if0_out_ep = INITIALIZER_EP_DESC(AUTO_EP_OUT, USB_DC_EP_BULK, CONFIG_OBMF_BULK_EP_MPS, 0),
+#define DEFINE_OBMF_DESCR(x, _) \
+	USBD_CLASS_DESCR_DEFINE(primary, x) \
+	struct usb_obmf_config obmf_cfg_##x = { \
+		.if0 = INITIALIZER_IF, \
+		.if0_obmf_func = INITIALIZER_OBMF_FUNC_DESC(CONFIG_OBMF_BULK_EP_MPS, CONFIG_OBMF_BULK_EP_MPS, OBMF_INT_EP_SIZE), \
+		.if0_in_ep = INITIALIZER_EP_DESC(AUTO_EP_IN, USB_DC_EP_BULK, CONFIG_OBMF_BULK_EP_MPS, 0), \
+		.if0_out_ep = INITIALIZER_EP_DESC(AUTO_EP_OUT, USB_DC_EP_BULK, CONFIG_OBMF_BULK_EP_MPS, 0), \
 	};
 #endif
 
@@ -200,24 +200,24 @@ int obmf_usb_int_ep_write(const struct device *dev, const uint8_t *data,
 }
 #endif
 
-#define INITIALIZER_EP_DATA(cb, addr)
-	{
-		.ep_cb = cb,
-		.ep_addr = addr,
+#define INITIALIZER_EP_DATA(cb, addr) \
+	{ \
+		.ep_cb = cb, \
+		.ep_addr = addr, \
 	}
 
 #if CONFIG_OBMF_INTERRUPT_EP_SUPPORT
-#define DEFINE_OBMF_EP(x, _)
-	static struct usb_ep_cfg_data obmf_ep_data_##x[] = {
-		INITIALIZER_EP_DATA(usb_transfer_ep_callback, AUTO_EP_IN),
-		INITIALIZER_EP_DATA(obmf_out_cb, AUTO_EP_OUT),
-		INITIALIZER_EP_DATA(usb_transfer_ep_callback, AUTO_EP_IN),
+#define DEFINE_OBMF_EP(x, _) \
+	static struct usb_ep_cfg_data obmf_ep_data_##x[] = { \
+		INITIALIZER_EP_DATA(usb_transfer_ep_callback, AUTO_EP_IN), \
+		INITIALIZER_EP_DATA(obmf_out_cb, AUTO_EP_OUT), \
+		INITIALIZER_EP_DATA(usb_transfer_ep_callback, AUTO_EP_IN), \
 	};
 #else
-#define DEFINE_OBMF_EP(x, _)
-	static struct usb_ep_cfg_data obmf_ep_data_##x[] = {
-		INITIALIZER_EP_DATA(usb_transfer_ep_callback, AUTO_EP_IN),
-		INITIALIZER_EP_DATA(obmf_out_cb, AUTO_EP_OUT),
+#define DEFINE_OBMF_EP(x, _) \
+	static struct usb_ep_cfg_data obmf_ep_data_##x[] = { \
+		INITIALIZER_EP_DATA(usb_transfer_ep_callback, AUTO_EP_IN), \
+		INITIALIZER_EP_DATA(obmf_out_cb, AUTO_EP_OUT), \
 	};
 #endif
 
@@ -242,19 +242,19 @@ static void obmf_interface_config(struct usb_desc_header *head,
 	desc->if0.bInterfaceNumber = bInterfaceNumber;
 }
 
-#define DEFINE_OBMF_CFG_DATA(x, _)
-	USBD_CFG_DATA_DEFINE(primary, obmf)
-	struct usb_cfg_data obmf_config_##x = {
-		.usb_device_description = NULL,
-		.interface_config = obmf_interface_config,
-		.interface_descriptor = &obmf_cfg_##x.if0,
-		.cb_usb_status = obmf_status_cb,
-		.interface = {
-			.class_handler = NULL,
-			.custom_handler = NULL,
-		},
-		.num_endpoints = ARRAY_SIZE(obmf_ep_data_##x),
-		.endpoint = obmf_ep_data_##x,
+#define DEFINE_OBMF_CFG_DATA(x, _) \
+	USBD_CFG_DATA_DEFINE(primary, obmf) \
+	struct usb_cfg_data obmf_config_##x = { \
+		.usb_device_description = NULL, \
+		.interface_config = obmf_interface_config, \
+		.interface_descriptor = &obmf_cfg_##x.if0, \
+		.cb_usb_status = obmf_status_cb, \
+		.interface = { \
+			.class_handler = NULL, \
+			.custom_handler = NULL, \
+		}, \
+		.num_endpoints = ARRAY_SIZE(obmf_ep_data_##x), \
+		.endpoint = obmf_ep_data_##x, \
 	};
 
 static int usb_obmf_device_init(const struct device *dev)
@@ -263,18 +263,14 @@ static int usb_obmf_device_init(const struct device *dev)
 	return 0;
 }
 
-#define DEFINE_OBMF_DEV_DATA(x, _)
+#define DEFINE_OBMF_DEV_DATA(x, _) \
 	struct obmf_device_info usb_obmf_dev_data_##x;
 
-#define DEFINE_OBMF_DEVICE(x, _)
-	DEVICE_DEFINE(usb_obmf_device_##x,
-			    CONFIG_USB_OBMF_DEVICE_NAME "_" #x,
-			    &usb_obmf_device_init,
-			    NULL,
-			    &usb_obmf_dev_data_##x,
-			    &obmf_config_##x, POST_KERNEL,
-			    CONFIG_KERNEL_INIT_PRIORITY_DEFAULT,
-			    NULL);
+#define DEFINE_OBMF_DEVICE(x, _) \
+	DEVICE_DEFINE(usb_obmf_device_##x, CONFIG_USB_OBMF_DEVICE_NAME "_" #x, \
+			    &usb_obmf_device_init, NULL, &usb_obmf_dev_data_##x, \
+			    &obmf_config_##x, POST_KERNEL, \
+			    CONFIG_KERNEL_INIT_PRIORITY_DEFAULT, NULL);
 
 UTIL_LISTIFY(CONFIG_USB_OBMF_DEVICE_COUNT, DEFINE_OBMF_DESCR, _)
 UTIL_LISTIFY(CONFIG_USB_OBMF_DEVICE_COUNT, DEFINE_OBMF_EP, _)
