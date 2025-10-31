@@ -166,19 +166,15 @@ int obmf_usb_ep_write(const struct device *dev, const uint8_t *data,
 	const struct usb_cfg_data *cfg = dev->config;
 	int ret;
 
-	if (!cfg || !cfg->endpoint || data_len == 0) {
-		LOG_ERR("Invalid config or data");
+	/* transfer data to host */
+	ret = usb_transfer_sync(cfg->endpoint[0].ep_addr,
+				(uint8_t *)data, data_len, USB_TRANS_WRITE);
+	if (ret != data_len) {
+		LOG_ERR("Transfer failure");
 		return -EINVAL;
 	}
 
-	/* transfer data to host */
-	ret = usb_write(cfg->endpoint[0].ep_addr, data, data_len, NULL);
-	if (ret) {
-		LOG_ERR("USB write failed: %d", ret);
-		return ret;
-	}
-
-	*bytes_ret = data_len;
+	*bytes_ret = ret;
 
 	return 0;
 }
