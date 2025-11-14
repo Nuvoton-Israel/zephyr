@@ -145,4 +145,8 @@ FUN_DEFINE(DT_NODELABEL(pinctrl_sgpio1_default), IOX2_LDSH, IOX2_DOUT, IOX2_DIN,
 FUN_DEFINE(DT_NODELABEL(pinctrl_emac_default), EMAC)
 #endif
 
+#if DT_NODE_HAS_STATUS(DT_NODELABEL(pwm4), okay) && CONFIG_PWM_NPCM
+FUN_DEFINE(DT_NODELABEL(pinctrl_pwm4_default), PWM4)
+#endif
+
 FUN_DEFINE(DT_NODELABEL(pinctrl_sinoutb_default), UARTB_SINB, UARTB_SOUTB)
