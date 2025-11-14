@@ -645,3 +645,9 @@
 	alarms_count = <1>;
 	status = "okay";
 };
+
+&pwm4 {
+	pinctrl-0 = <&pinctrl_pwm4_default>;
+	pinctrl-names = "default";
+	status = "okay";
+};
