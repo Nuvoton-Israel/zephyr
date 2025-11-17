@@ -1800,22 +1800,31 @@ struct tach_reg {
 #define NPCM4XX_TMCTRL_TBEDG                4
 #define NPCM4XX_TCFG_TADBEN                 6
 #define NPCM4XX_TCFG_TBDBEN                 7
+#define NPCM4XX_TCFG_MFT_IN_SEL             FIELD(2, 4)
 #define NPCM4XX_TECTRL_TAPND                0
 #define NPCM4XX_TECTRL_TBPND                1
 #define NPCM4XX_TECTRL_TCPND                2
 #define NPCM4XX_TECTRL_TDPND                3
+#define NPCM4XX_TECTRL_TEPND                4
+#define NPCM4XX_TECTRL_TFPND                5
 #define NPCM4XX_TECLR_TACLR                 0
 #define NPCM4XX_TECLR_TBCLR                 1
 #define NPCM4XX_TECLR_TCCLR                 2
 #define NPCM4XX_TECLR_TDCLR                 3
+#define NPCM4XX_TECLR_TECLR                 4
+#define NPCM4XX_TECLR_TFCLR                 5
 #define NPCM4XX_TIEN_TAIEN                  0
 #define NPCM4XX_TIEN_TBIEN                  1
 #define NPCM4XX_TIEN_TCIEN                  2
 #define NPCM4XX_TIEN_TDIEN                  3
+#define NPCM4XX_TIEN_TEIEN                  4
+#define NPCM4XX_TIEN_TFIEN                  5
 #define NPCM4XX_TWUEN_TAWEN                 0
 #define NPCM4XX_TWUEN_TBWEN                 1
 #define NPCM4XX_TWUEN_TCWEN                 2
 #define NPCM4XX_TWUEN_TDWEN                 3
+#define NPCM4XX_TWUEN_TEWEN                 4
+#define NPCM4XX_TWUEN_TFWEN                 5
 
 /* Debug Interface registers */
 struct dbg_reg {

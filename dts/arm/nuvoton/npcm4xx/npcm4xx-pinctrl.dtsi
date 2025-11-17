@@ -65,4 +65,5 @@
 	pinctrl_pwm7_default: pwm7_default {};
 	pinctrl_pwm8_default: pwm8_default {};
 	pinctrl_pwm9_default: pwm9_default {};
+	pinctrl_tach1_default: tach1_default {};
 };

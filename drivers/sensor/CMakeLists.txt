@@ -89,6 +89,7 @@ add_subdirectory_ifdef(CONFIG_TACH_XEC		mchp_tach_xec)
 add_subdirectory_ifdef(CONFIG_ITDS		wsen_itds)
 add_subdirectory_ifdef(CONFIG_MCUX_ACMP		mcux_acmp)
 add_subdirectory_ifdef(CONFIG_TACH_NPCX		nuvoton_tach_npcx)
+add_subdirectory_ifdef(CONFIG_TACH_NPCM     nuvoton_tach_npcm)
 
 zephyr_sources_ifdef(CONFIG_USERSPACE sensor_handlers.c)
 zephyr_sources_ifdef(CONFIG_SENSOR_SHELL sensor_shell.c)
