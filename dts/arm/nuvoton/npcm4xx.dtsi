@@ -741,6 +741,32 @@
 			label = "PWM_9";
 			status = "disabled";
 		};
+		tach1: tach@400e1000 {
+			compatible = "nuvoton,npcm-tach";
+			reg = <0x400e1000 0x2000>;
+			clocks = <&pcc NPCM4XX_CLOCK_BUS_LFCLK NPCM4XX_PWDWN_CTL1 5>;
+			tach-channel = <1>;
+			label = "TACH_1";
+			status = "disabled";
+		};
+
+		tach2: tach@400e3000 {
+			compatible = "nuvoton,npcm-tach";
+			reg = <0x400e3000 0x2000>;
+			clocks = <&pcc NPCM4XX_CLOCK_BUS_LFCLK NPCM4XX_PWDWN_CTL1 6>;
+			tach-channel = <2>;
+			label = "TACH_2";
+			status = "disabled";
+		};
+
+		tach3: tach@400e5000 {
+			compatible = "nuvoton,npcm-tach";
+			reg = <0x400e5000 0x2000>;
+			clocks = <&pcc NPCM4XX_CLOCK_BUS_LFCLK NPCM4XX_PWDWN_CTL1 7>;
+			tach-channel = <3>;
+			label = "TACH_3";
+			status = "disabled";
+		};
 	};
 
 	soc-if {

@@ -149,4 +149,8 @@ FUN_DEFINE(DT_NODELABEL(pinctrl_emac_default), EMAC)
 FUN_DEFINE(DT_NODELABEL(pinctrl_pwm4_default), PWM4)
 #endif
 
+#if DT_NODE_HAS_STATUS(DT_NODELABEL(tach1), okay) && CONFIG_TACH_NPCM
+FUN_DEFINE(DT_NODELABEL(pinctrl_tach1_default), TA4)
+#endif
+
 FUN_DEFINE(DT_NODELABEL(pinctrl_sinoutb_default), UARTB_SINB, UARTB_SOUTB)
