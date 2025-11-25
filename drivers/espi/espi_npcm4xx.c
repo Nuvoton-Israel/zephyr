@@ -217,7 +217,7 @@ int espi_npcm4xx_flash_get_rx(const struct device *dev, struct espi_npcm4xx_ioc 
 	*tmp = inst->FLASHRXBUF[1];
 
 	count = len / 4;
-	if (count % 4)
+	if (len % 4)
 		count++;
 
 	/* RX buffer is 64 bytes max */
