@@ -20,3 +20,6 @@ family:
     - name: npcx9m7f
     - name: npcx9m7fb
     - name: npcx9mfp
+  - name: npcm4
+    socs:
+    - name: npcm400
