@@ -36,4 +36,3 @@
 	pinctrl-0 = <&cr_uart2_sin_gp30 &cr_uart2_sout_gp31>;
 	pinctrl-names = "default";
 };
-

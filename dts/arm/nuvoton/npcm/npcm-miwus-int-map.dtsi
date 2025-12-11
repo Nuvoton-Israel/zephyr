@@ -72,11 +72,14 @@
 				irq-prio   = <2>;
 				group-mask = <0x04>;
 			};
+			/* disable group D1 interrupt as eSPI is powered down */
+			/*
 			group_d1: group-d1-map {
 				irq        = <51>;
 				irq-prio   = <2>;
 				group-mask = <0x08>;
 			};
+			*/
 			/*
 			group_e1a: group-e1a-map {
 				irq        = <36>;
