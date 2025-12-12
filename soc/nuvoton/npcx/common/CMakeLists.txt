@@ -7,6 +7,7 @@ zephyr_sources(
   scfg.c
   ${CONFIG_NPCX_SOC_VARIANT}/registers.c
 )
+zephyr_sources_ifdef(CONFIG_SOC_SERIES_NPCM4 ${CONFIG_NPCX_SOC_VARIANT}/hook.c)
 zephyr_include_directories(${CONFIG_NPCX_SOC_VARIANT}/include)
 
 # Check for disabling header CRC.
@@ -24,9 +25,11 @@ if(DEFINED CONFIG_NPCX_IMAGE_OUTPUT_BIN)
 
   if(DEFINED CONFIG_SOC_SERIES_NPCM4)
     set(NPCM_BIN_NAME ${CONFIG_KERNEL_BIN_NAME}.npcm.bin)
+    set(NPCM_ELF_NAME ${CONFIG_KERNEL_BIN_NAME}.elf)
     set_property(GLOBAL APPEND PROPERTY extra_post_build_commands
       COMMAND ${PYTHON_EXECUTABLE} ${SOC_${soc_name_upper}_DIR}/common/npcmn/esiost/esiost.py
       -i ${KERNEL_BIN_NAME}
+      -elf ${NPCM_ELF_NAME}
       -o ${NPCM_BIN_NAME}
       -v
       )
