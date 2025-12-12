@@ -10,6 +10,7 @@
 #include <zephyr/dt-bindings/clock/npcx_clock.h>
 #include <zephyr/dt-bindings/gpio/gpio.h>
 #include <zephyr/dt-bindings/pinctrl/npcx-pinctrl.h>
+#include <zephyr/dt-bindings/flash_controller/npcx_fiu_qspi.h>
 #include <freq.h>
 
 / {
@@ -313,6 +314,13 @@
 			gpio-controller;
 			index = <0xF>;
 			#gpio-cells=<2>;
+		};
+
+		qspi_spim: quad-spim@40017000 {
+			compatible = "nuvoton,npcx-spim-qspi";
+			#address-cells = <1>;
+			#size-cells = <0>;
+			reg = <0x40017000 0x100>;
 		};
 	};
 };

@@ -36,3 +36,17 @@
 	pinctrl-0 = <&cr_uart2_sin_gp30 &cr_uart2_sout_gp31>;
 	pinctrl-names = "default";
 };
+
+&qspi_spim {
+	int_flash: w25q16@80000 {
+		compatible = "nuvoton,npcx-spim-nor";
+		size = <DT_SIZE_M(2 * 8)>;
+		reg = <0x80000 0x00200000>;
+		status = "okay";
+
+		/* quad spi bus configuration of nor flash device */
+		qspi-flags = <NPCX_QSPI_SW_CS0>;
+		rd-mode = "NPCX_RD_MODE_QUAD";
+		mapped-addr = <0x80000>;
+	};
+};

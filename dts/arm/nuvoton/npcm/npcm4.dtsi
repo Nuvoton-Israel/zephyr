@@ -146,6 +146,11 @@
 			lvol-maps = <&lvol_iof0 &lvol_iof1 &lvol_iof2 &lvol_iof3
 				     &lvol_iof4 &lvol_iof5 &lvol_none &lvol_none>;
 		};
+
+		/* Dedicated Quad-SPI interface to access SPIM flash */
+		qspi_spim: quad-spim@40017000 {
+			clocks = <&pcc NPCX_CLOCK_BUS_CORE NPCX_PWDWN_CTL1 0>;
+		};
 	};
 
 	soc-if {};
