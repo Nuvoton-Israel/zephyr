@@ -18,3 +18,4 @@ supported:
   - clock
   - uart
   - pwm
+  - flash

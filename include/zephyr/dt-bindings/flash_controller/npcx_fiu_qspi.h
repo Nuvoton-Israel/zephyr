@@ -24,6 +24,7 @@
 #define NPCX_RD_MODE_NORMAL	0
 #define NPCX_RD_MODE_FAST	1
 #define NPCX_RD_MODE_FAST_DUAL	3
+#define NPCX_RD_MODE_QUAD	4
 
 #if defined(CONFIG_NPCX_SOC_VARIANT_NPCKN)
 /* Maximum length of a valid read burst */
