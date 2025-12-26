@@ -8,6 +8,7 @@
 
 #include <nuvoton/npcm400fm4.dtsi>
 #include <dt-bindings/i2c/i2c.h>
+#include <dt-bindings/sensor/npcm4xx_tach.h>
 
 / {
 	model = "Nuvoton NPCM400F evaluation board";
