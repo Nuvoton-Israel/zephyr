@@ -52,11 +52,11 @@
 	};
 
 	/omit-if-no-ref/ i2c6a_scl_gp96: periph-i2c6a-scl {
-		pinmux = <&alt7_no_gp96>;
+		pinmux = <&alt7_gp96_sl>;
 	};
 
 	/omit-if-no-ref/ i2c6a_sda_gp97: periph-i2c6a-sda {
-		pinmux = <&alt7_no_gp97>;
+		pinmux = <&alt7_gp97_sl>;
 	};
 
 	/omit-if-no-ref/ i2c6b_scl_sda_gp16_17: periph-i2c6b {
@@ -135,11 +135,11 @@
 	};
 
 	/omit-if-no-ref/ tri_state_gp96: periph-tri-state-gp96 {
-		pinmux = <&alt7_no_gp96>;
+		pinmux = <&alt7_gp96_sl>;
 	};
 
 	/omit-if-no-ref/ tri_state_gp97: periph-tri-state-gp97 {
-		pinmux = <&alt7_no_gp97>;
+		pinmux = <&alt7_gp97_sl>;
 	};
 
 	/* UART peripheral interfaces */

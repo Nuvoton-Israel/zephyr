@@ -10,13 +10,13 @@
 
 		/* SCFG device alternative table */
 		/* SCFG DEVALT 0 */
-		alt0_espi_cs2_sl: alt00 {
-			alts = <&scfg 0x10 0x0 0>;
+		alt0_fiu_pvt_cs_sl: alt01 {
+			alts = <&scfg 0x10 0x1 0>;
 		};
 		alt0_fiu_back_cs_sl: alt02 {
 			alts = <&scfg 0x10 0x2 0>;
 		};
-		alt0_clkrn_sl: alt05 {
+		alt0_clkrun_sl: alt05 {
 			alts = <&scfg 0x10 0x5 0>;
 		};
 		alt0_lpcpd_sl: alt06 {
@@ -157,7 +157,7 @@
 		};
 
 		/* SCFG DEVALT 7 */
-		alt7_fw_rdy_sl: alt70-inv {
+		alt7_gp72_sl: alt70-inv {
 			alts = <&scfg 0x17 0x0 1>;
 		};
 		alt7_cirrx_sl: alt71 {
@@ -166,10 +166,10 @@
 		alt7_i3c6_sl: alt72 {
 			alts = <&scfg 0x17 0x2 0>;
 		};
-		alt7_no_gp96: alt73-inv {
+		alt7_gp96_sl: alt73-inv {
 			alts = <&scfg 0x17 0x3 1>;
 		};
-		alt7_no_gp97: alt74-inv {
+		alt7_gp97_sl: alt74-inv {
 			alts = <&scfg 0x17 0x4 1>;
 		};
 		alt7_ext32ksl: alt75 {
@@ -312,7 +312,7 @@
 		};
 
 		/* SCFG DEVALT E */
-		alte_kcb_test: alte0 {
+		alte_kbc_test: alte0 {
 			alts = <&scfg 0x1E 0x0 0>;
 		};
 		alte_kbc_sl: alte3 {
@@ -356,13 +356,13 @@
 
 		/* SCFG DEVALT 11 */
 		alt11_miwu_acpi_en: alt111 {
-			alts = <&scfg 0x0C 0x0 0>;
-		};
-		alt11_sib_sync_all: alt112 {
 			alts = <&scfg 0x0C 0x1 0>;
 		};
-		alt11_sib_sync_address: alt113 {
+		alt11_sib_sync_all: alt112 {
 			alts = <&scfg 0x0C 0x2 0>;
+		};
+		alt11_sib_sync_address: alt113 {
+			alts = <&scfg 0x0C 0x3 0>;
 		};
 
 		/* SCFG DEVALT 2E */
@@ -585,7 +585,7 @@
 		alt5b_deep_s5_mod: alt5b2 {
 			alts = <&scfg 0x5B 0x2 0>;
 		};
-		alt5b_dpwrok0_mod: alt5b3 {
+		alt5b_pwrok0_mod: alt5b3 {
 			alts = <&scfg 0x5B 0x3 0>;
 		};
 		alt5b_dpwrok_pp: alt5b6 {
@@ -611,7 +611,7 @@
 		alt5c_3vsbsw_sel: alt5c4 {
 			alts = <&scfg 0x5C 0x4 0>;
 		};
-		alt5c_slpsus_sel: alt5c5-inv {
+		alt5c_slp_sus_sel: alt5c5-inv {
 			alts = <&scfg 0x5C 0x5 1>;
 		};
 
