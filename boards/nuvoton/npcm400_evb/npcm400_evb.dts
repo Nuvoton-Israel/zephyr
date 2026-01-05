@@ -37,6 +37,66 @@
 	pinctrl-names = "default";
 };
 
+&pwm0 {
+	status = "okay";
+	pinctrl-0 = <&pwm0_sl_gp82 &pwm0_i3c5_disable>;
+	pinctrl-names = "default";
+};
+
+&pwm1 {
+	status = "okay";
+	pinctrl-0 = <&pwm1_sl_gp04 &pwm1_rmii_disable &pwm1_sp2i_disable &pwm1_urti_disable>;
+	pinctrl-names = "default";
+};
+
+&pwm2 {
+	status = "okay";
+	pinctrl-0 = <&pwm2_sl_gp36 &pwm2_prt_disable &pwm2_ext32k_disable &pwm2_smb4a_disable>;
+	pinctrl-names = "default";
+};
+
+&pwm3 {
+	status = "okay";
+	pinctrl-0 = <&pwm3_sl_gp64 &pwm3_dpwrok_disable>;
+	pinctrl-names = "default";
+};
+
+&pwm4 {
+	status = "okay";
+	pinctrl-0 = <&pwm4_sl_gpa0>;
+	pinctrl-names = "default";
+};
+
+&pwm5 {
+	status = "okay";
+	pinctrl-0 = <&pwm5_sl_gpa3>;
+	pinctrl-names = "default";
+};
+
+&pwm6 {
+	status = "okay";
+	pinctrl-0 = <&pwm6_sl_gpa5>;
+	pinctrl-names = "default";
+};
+
+&pwm7 {
+	status = "okay";
+	pinctrl-0 = <&pwm7_sl_gp00 &pwm7_rmii_disable &pwm7_cts2_disable>;
+	pinctrl-names = "default";
+};
+
+&pwm8 {
+	status = "okay";
+	pinctrl-0 = <&pwm8_sl_gp02 &pwm8_rmii_disable &pwm8_rts2_disable>;
+	pinctrl-names = "default";
+};
+
+&pwm9 {
+	status = "okay";
+	pinctrl-0 = <&pwm9_sl_gp06 &pwm9_rmii_disable &pwm9_sp2ctl_disable>;
+	pinctrl-names = "default";
+};
+
 &qspi_spim {
 	int_flash: w25q16@80000 {
 		compatible = "nuvoton,npcx-spim-nor";

@@ -128,6 +128,96 @@
 			status = "disabled";
 		};			
 
+		pwm0: pwm@40080000 {
+			compatible = "nuvoton,npcx-pwm";
+			reg = <0x40080000 0x2000>;
+			clocks = <&pcc NPCX_CLOCK_BUS_APB3 NPCX_PWDWN_CTL1 5>;
+			pwm-channel = <0>;
+			#pwm-cells = <3>;
+			status = "disabled";
+		};
+
+		pwm1: pwm@40082000 {
+			compatible = "nuvoton,npcx-pwm";
+			reg = <0x40082000 0x2000>;
+			clocks = <&pcc NPCX_CLOCK_BUS_APB3 NPCX_PWDWN_CTL1 6>;
+			pwm-channel = <1>;
+			#pwm-cells = <3>;
+			status = "disabled";
+		};
+
+		pwm2: pwm@40084000 {
+			compatible = "nuvoton,npcx-pwm";
+			reg = <0x40084000 0x2000>;
+			clocks = <&pcc NPCX_CLOCK_BUS_APB3 NPCX_PWDWN_CTL1 7>;
+			pwm-channel = <2>;
+			#pwm-cells = <3>;
+			status = "disabled";
+		};
+
+		pwm3: pwm@40086000 {
+			compatible = "nuvoton,npcx-pwm";
+			reg = <0x40086000 0x2000>;
+			clocks = <&pcc NPCX_CLOCK_BUS_APB3 NPCX_PWDWN_CTL2 0>;
+			pwm-channel = <3>;
+			#pwm-cells = <3>;
+			status = "disabled";
+		};
+
+		pwm4: pwm@40088000 {
+			compatible = "nuvoton,npcx-pwm";
+			reg = <0x40088000 0x2000>;
+			clocks = <&pcc NPCX_CLOCK_BUS_APB3 NPCX_PWDWN_CTL2 1>;
+			pwm-channel = <4>;
+			#pwm-cells = <3>;
+			status = "disabled";
+		};
+
+		pwm5: pwm@4008a000 {
+			compatible = "nuvoton,npcx-pwm";
+			reg = <0x4008a000 0x2000>;
+			clocks = <&pcc NPCX_CLOCK_BUS_APB3 NPCX_PWDWN_CTL2 2>;
+			pwm-channel = <5>;
+			#pwm-cells = <3>;
+			status = "disabled";
+		};
+
+		pwm6: pwm@4008c000 {
+			compatible = "nuvoton,npcx-pwm";
+			reg = <0x4008c000 0x2000>;
+			clocks = <&pcc NPCX_CLOCK_BUS_APB3 NPCX_PWDWN_CTL2 3>;
+			pwm-channel = <6>;
+			#pwm-cells = <3>;
+			status = "disabled";
+		};
+
+		pwm7: pwm@4008e000 {
+			compatible = "nuvoton,npcx-pwm";
+			reg = <0x4008e000 0x2000>;
+			clocks = <&pcc NPCX_CLOCK_BUS_APB3 NPCX_PWDWN_CTL2 4>;
+			pwm-channel = <7>;
+			#pwm-cells = <3>;
+			status = "disabled";
+		};
+
+		pwm8: pwm@40090000 {
+			compatible = "nuvoton,npcx-pwm";
+			reg = <0x40090000 0x2000>;
+			clocks = <&pcc NPCX_CLOCK_BUS_APB3 NPCX_PWDWN_CTL2 5>;
+			pwm-channel = <8>;
+			#pwm-cells = <3>;
+			status = "disabled";
+		};
+
+		pwm9: pwm@40092000 {
+			compatible = "nuvoton,npcx-pwm";
+			reg = <0x40092000 0x2000>;
+			clocks = <&pcc NPCX_CLOCK_BUS_APB3 NPCX_PWDWN_CTL2 6>;
+			pwm-channel = <9>;
+			#pwm-cells = <3>;
+			status = "disabled";
+		};
+
 		miwu0: miwu@400bb000 {
 			compatible = "nuvoton,npcx-miwu";
 			reg = <0x400bb000 0x2000>;
