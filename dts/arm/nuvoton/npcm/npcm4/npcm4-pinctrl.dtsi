@@ -232,16 +232,48 @@
 		pinmux = <&alt4_pwm0_sl>;
 	};
 
+	/omit-if-no-ref/ pwm0_i3c5_disable: pwm0-i3c5-dis {
+		pinmux = <&alta_i3c5_dis>;
+	};
+
 	/omit-if-no-ref/ pwm1_sl_gp04: pwm1-sel {
 		pinmux = <&alt4_pwm1_sl>;
+	};
+
+	/omit-if-no-ref/ pwm1_rmii_disable: pwm1-rmii-dis {
+		pinmux = <&alt4d_rmii_dis>;
+	};
+
+	/omit-if-no-ref/ pwm1_sp2i_disable: pwm1-sp2i-dis {
+		pinmux = <&alt9_sp2i_dis>;
+	};
+
+	/omit-if-no-ref/ pwm1_urti_disable: pwm1-urti-dis {
+		pinmux = <&altb_urti_dis>;
 	};
 
 	/omit-if-no-ref/ pwm2_sl_gp36: pwm2-sel {
 		pinmux = <&alt4_pwm2_sl>;
 	};
 
+	/omit-if-no-ref/ pwm2_prt_disable: pwm2-prt-dis {
+		pinmux = <&alt6_prt_dis>;
+	};
+
+	/omit-if-no-ref/ pwm2_ext32k_disable: pwm2-ext32k-dis {
+		pinmux = <&alt7_ext32k_dis>;
+	};
+
+	/omit-if-no-ref/ pwm2_smb4a_disable: pwm2-smb4a-dis {
+		pinmux = <&alta_smb4a_dis>;
+	};
+
 	/omit-if-no-ref/ pwm3_sl_gp64: pwm3-sel {
 		pinmux = <&alt4_pwm3_sl>;
+	};
+
+	/omit-if-no-ref/ pwm3_dpwrok_disable: pwm3-dpwrok-dis {
+		pinmux = <&alt9_dpwrok_dis>;
 	};
 
 	/omit-if-no-ref/ pwm4_sl_gpa0: pwm4-sel {
@@ -260,12 +292,36 @@
 		pinmux = <&alt5_pwm7_sl>;
 	};
 
+	/omit-if-no-ref/ pwm7_rmii_disable: pwm7-rmii-dis {
+		pinmux = <&alt4d_rmii_dis>;
+	};
+
+	/omit-if-no-ref/ pwm7_cts2_disable: pwm7-cts2-dis {
+		pinmux = <&alt9_cts2_dis>;
+	};
+
 	/omit-if-no-ref/ pwm8_sl_gp02: pwm8-sel {
 		pinmux = <&alt5_pwm8_sl>;
 	};
 
+	/omit-if-no-ref/ pwm8_rmii_disable: pwm8-rmii-dis {
+		pinmux = <&alt4d_rmii_dis>;
+	};
+
+	/omit-if-no-ref/ pwm8_rts2_disable: pwm8-rts2-dis {
+		pinmux = <&alt9_rts2_dis>;
+	};
+
 	/omit-if-no-ref/ pwm9_sl_gp06: pwm9-sel {
 		pinmux = <&alt5_pwm9_sl>;
+	};
+
+	/omit-if-no-ref/ pwm9_rmii_disable: pwm9-rmii-dis {
+		pinmux = <&alt4d_rmii_dis>;
+	};
+
+	/omit-if-no-ref/ pwm9_sp2ctl_disable: pwm9-sp2ctl-dis {
+		pinmux = <&alt9_sp2ctl_dis>;
 	};
 
 	/omit-if-no-ref/ ta0_sl_gp83: ta0_sel {
