@@ -140,6 +140,9 @@
 		alt6_prt_sl: alt62 {
 			alts = <&scfg 0x16 0x2 0>;
 		};
+		alt6_prt_dis: alt62-inv {
+			alts = <&scfg 0x16 0x2 1>;
+		};
 		alt6_port80_sl: alt63 {
 			alts = <&scfg 0x16 0x3 0>;
 		};
@@ -175,6 +178,9 @@
 		alt7_ext32ksl: alt75 {
 			alts = <&scfg 0x17 0x5 0>;
 		};
+		alt7_ext32k_dis: alt75-inv {
+			alts = <&scfg 0x17 0x5 1>;
+		};
 		alt7_clkout_sl: alt76 {
 			alts = <&scfg 0x17 0x6 0>;
 		};
@@ -200,8 +206,14 @@
 		alt9_rts2_sl: alt90 {
 			alts = <&scfg 0x19 0x0 0>;
 		};
+		alt9_rts2_dis: alt90-inv {
+			alts = <&scfg 0x19 0x0 1>;
+		};
 		alt9_sp2i_sl: alt91 {
 			alts = <&scfg 0x19 0x1 0>;
+		};
+		alt9_sp2i_dis: alt91-inv {
+			alts = <&scfg 0x19 0x1 1>;
 		};
 		alt9_sp2o_sl: alt92 {
 			alts = <&scfg 0x19 0x2 0>;
@@ -209,14 +221,23 @@
 		alt9_sp2ctl_sl: alt93 {
 			alts = <&scfg 0x19 0x3 0>;
 		};
+		alt9_sp2ctl_dis: alt93-inv {
+			alts = <&scfg 0x19 0x3 1>;
+		};
 		alt9_cts2_sl: alt94 {
 			alts = <&scfg 0x19 0x4 0>;
+		};
+		alt9_cts2_dis: alt94-inv {
+			alts = <&scfg 0x19 0x4 1>;
 		};
 		alt9_ri2_sl: alt95 {
 			alts = <&scfg 0x19 0x5 0>;
 		};
 		alt9_dpwrok_sl: alt96 {
 			alts = <&scfg 0x19 0x6 0>;
+		};
+		alt9_dpwrok_dis: alt96-inv {
+			alts = <&scfg 0x19 0x6 1>;
 		};
 		alt9_s0ix_sl: alt97 {
 			alts = <&scfg 0x19 0x7 0>;
@@ -232,11 +253,17 @@
 		alta_smb4a_sl: alta2 {
 			alts = <&scfg 0x1A 0x2 0>;
 		};
+		alta_smb4a_dis: alta2-inv {
+			alts = <&scfg 0x1A 0x2 1>;
+		};
 		alta_smb5a_sl: alta3 {
 			alts = <&scfg 0x1A 0x3 0>;
 		};
 		alta_i3c5_sl: alta4 {
 			alts = <&scfg 0x1A 0x4 0>;
+		};
+		alta_i3c5_dis: alta4-inv {
+			alts = <&scfg 0x1A 0x4 1>;
 		};
 		alta_smb1b_sl: alta5 {
 			alts = <&scfg 0x1A 0x5 0>;
@@ -254,6 +281,9 @@
 		};
 		altb_urti_sl: altb1 {
 			alts = <&scfg 0x1B 0x1 0>;
+		};
+		altb_urti_dis: altb1-inv {
+			alts = <&scfg 0x1B 0x1 1>;
 		};
 		altb_sp1i_sl: altb2 {
 			alts = <&scfg 0x1B 0x2 0>;
@@ -461,6 +491,9 @@
 		/* SCFG DEVALT 4D */
 		alt4d_rmii_en: alt4d0 {
 			alts = <&scfg 0x4d 0x0 0>;
+		};
+		alt4d_rmii_dis: alt4d0-inv {
+			alts = <&scfg 0x4d 0x0 1>;
 		};
 		alt4d_mdio_en: alt4d1 {
 			alts = <&scfg 0x4d 0x1 0>;
