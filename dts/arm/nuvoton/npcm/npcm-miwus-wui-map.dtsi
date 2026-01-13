@@ -321,6 +321,12 @@
 		wui_t0out: wui1-5-3 {
 			miwus = <&miwu1 4 3>; /* T0OUT */
 		};
+		wui_siox1: wui1-5-4 {
+			miwus = <&miwu1 4 4>; /* SIOX1 Wake-up */
+		};
+		wui_siox2: wui1-5-5 {
+			miwus = <&miwu1 4 5>; /* SIOX2 Wake-up */
+		};
 
 		/* MIWU group F */
 		wui_iob0: wui1-6-0 {
