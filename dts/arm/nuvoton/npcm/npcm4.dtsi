@@ -41,13 +41,13 @@
 			/*fiu-prescaler = <1>;  FIU_CLK runs at 96MHz */
 			 /*i3c-prescaler = <1>; I3C_CLK runs at 96MHz */
 			/*ram-pd-depth = <15>;  Valid bit-depth of RAM_PDn reg */
-			pwdwn-ctl-val = <0xe7 /* Start with PWDWN_CTL0 */
-					 0xea /* No FIU_PD */
-					 0xff
-					 0x7f /* No GDMA */
-					 0xb7 /* No N2JTAG/SMB_DMA */
-					 0xfa /* No CCD/PSL */
-					 0x5f>; /* No eSPI */
+			pwdwn-ctl-val = <0x00 /* PWDWN_CTL0: All modules powered on */
+					 0x00 /* PWDWN_CTL1: All modules powered on */
+					 0x00 /* PWDWN_CTL2: All modules powered on */
+					 0x00 /* PWDWN_CTL3: All modules powered on */
+					 0x00 /* PWDWN_CTL4: All modules powered on */
+					 0x00 /* PWDWN_CTL5: All modules powered on */
+					 0x00>; /* PWDWN_CTL6: All modules powered on */
 		};
 		/* Wake-up input source mapping for GPIOs in npcx9 series */
 		gpio0: gpio@40081000 {
