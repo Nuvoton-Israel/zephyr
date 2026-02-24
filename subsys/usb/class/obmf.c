@@ -16,18 +16,23 @@
 #include <logging/log.h>
 LOG_MODULE_REGISTER(usb_obmf);
 
-#define OBMF_INTERFACE_CLASS            0xFE /* Application Specific */
-#define OBMF_INTERFACE_SUBCLASS         0x00 /* To be assigned by USB-IF, using 0 for now */
-#define OBMF_INTERFACE_PROTOCOL         0x01 /* OCP OBMF v1 */
+#define OBMF_INTERFACE_CLASS            0xEF /* Miscellaneous Class */
+#define OBMF_INTERFACE_SUBCLASS         0x09 /* OCP OBMF-ICP SubClass */
+#define OBMF_INTERFACE_PROTOCOL         0x01 /* OBMF over USB binding version 1 */
 
 #define OCP_OBMF_FUNCTIONAL_DESC_TYPE   0x24
 #define OCP_OBMF_FUNCTIONAL_DESC_SUBTYPE 0x01
 
-#if CONFIG_OBMF_INTERRUPT_EP_SUPPORT
-#define NUM_ENDPOINTS 3
+/* Calculate number of endpoints based on config */
+#define NUM_BULK_ENDPOINTS 2
+#if CONFIG_OBMF_INTERRUPT_IN_EP_SUPPORT && CONFIG_OBMF_INTERRUPT_OUT_EP_SUPPORT
+#define NUM_INT_ENDPOINTS 2
+#elif CONFIG_OBMF_INTERRUPT_IN_EP_SUPPORT || CONFIG_OBMF_INTERRUPT_OUT_EP_SUPPORT
+#define NUM_INT_ENDPOINTS 1
 #else
-#define NUM_ENDPOINTS 2
+#define NUM_INT_ENDPOINTS 0
 #endif
+#define NUM_ENDPOINTS (NUM_BULK_ENDPOINTS + NUM_INT_ENDPOINTS)
 
 static uint8_t obmf_buf[CONFIG_OBMF_BULK_EP_MPS];
 
@@ -40,9 +45,10 @@ struct ocp_obmf_functional_descriptor {
 	uint8_t bLength;
 	uint8_t bDescriptorType;
 	uint8_t bDescriptorSubtype;
-	uint8_t bReserved;
+	uint8_t bMultimessageSupport;
 	uint16_t wMaxWrTransferSize;
 	uint16_t wMaxRdTransferSize;
+	uint16_t wMaxWrInterruptSize;
 	uint16_t wMaxRdInterruptSize;
 	uint16_t bcdOCPOBMFVersion;
 } __packed;
@@ -52,10 +58,29 @@ struct usb_obmf_config {
 	struct ocp_obmf_functional_descriptor if0_obmf_func;
 	struct usb_ep_descriptor if0_in_ep;
 	struct usb_ep_descriptor if0_out_ep;
-#if CONFIG_OBMF_INTERRUPT_EP_SUPPORT
-	struct usb_ep_descriptor if0_int_ep;
+#if CONFIG_OBMF_INTERRUPT_IN_EP_SUPPORT
+	struct usb_ep_descriptor if0_int_in_ep;
+#endif
+#if CONFIG_OBMF_INTERRUPT_OUT_EP_SUPPORT
+	struct usb_ep_descriptor if0_int_out_ep;
 #endif
 } __packed;
+
+/* String descriptor for iInterface: "OCP OBMF" */
+#define OBMF_IFACE_STR "OCP OBMF"
+
+struct usb_obmf_iface_str_descr {
+	uint8_t bLength;
+	uint8_t bDescriptorType;
+	uint8_t bString[USB_BSTRING_LENGTH(OBMF_IFACE_STR)];
+} __packed;
+
+USBD_STRING_DESCR_DEFINE(primary)
+struct usb_obmf_iface_str_descr obmf_iface_str = {
+	.bLength = USB_STRING_DESCRIPTOR_LENGTH(OBMF_IFACE_STR),
+	.bDescriptorType = USB_DESC_STRING,
+	.bString = OBMF_IFACE_STR,
+};
 
 #define INITIALIZER_IF \
 	{ \
@@ -67,25 +92,38 @@ struct usb_obmf_config {
 		.bInterfaceClass = OBMF_INTERFACE_CLASS, \
 		.bInterfaceSubClass = OBMF_INTERFACE_SUBCLASS, \
 		.bInterfaceProtocol = OBMF_INTERFACE_PROTOCOL, \
-		.iInterface = 0, /* TODO: Add string descriptor "OCP OBMF" */ \
+		.iInterface = 0, /* Set at runtime via obmf_interface_config() */ \
 	}
 
-#if CONFIG_OBMF_INTERRUPT_EP_SUPPORT
-#define OBMF_INT_EP_SIZE CONFIG_OBMF_INTERRUPT_EP_MPS
+#if CONFIG_OBMF_MULTIMESSAGE_SUPPORT
+#define OBMF_MULTIMESSAGE_VAL 0x01
 #else
-#define OBMF_INT_EP_SIZE 0
+#define OBMF_MULTIMESSAGE_VAL 0x00
 #endif
 
-#define INITIALIZER_OBMF_FUNC_DESC(wr_size, rd_size, int_size) \
+#if CONFIG_OBMF_INTERRUPT_IN_EP_SUPPORT
+#define OBMF_INT_IN_EP_SIZE CONFIG_OBMF_INTERRUPT_IN_EP_MPS
+#else
+#define OBMF_INT_IN_EP_SIZE 0
+#endif
+
+#if CONFIG_OBMF_INTERRUPT_OUT_EP_SUPPORT
+#define OBMF_INT_OUT_EP_SIZE CONFIG_OBMF_INTERRUPT_OUT_EP_MPS
+#else
+#define OBMF_INT_OUT_EP_SIZE 0
+#endif
+
+#define INITIALIZER_OBMF_FUNC_DESC(wr_size, rd_size, wr_int_size, rd_int_size) \
 	{ \
 		.bLength = sizeof(struct ocp_obmf_functional_descriptor), \
 		.bDescriptorType = OCP_OBMF_FUNCTIONAL_DESC_TYPE, \
 		.bDescriptorSubtype = OCP_OBMF_FUNCTIONAL_DESC_SUBTYPE, \
-		.bReserved = 0, \
+		.bMultimessageSupport = OBMF_MULTIMESSAGE_VAL, \
 		.wMaxWrTransferSize = sys_cpu_to_le16(wr_size), \
 		.wMaxRdTransferSize = sys_cpu_to_le16(rd_size), \
-		.wMaxRdInterruptSize = sys_cpu_to_le16(int_size), \
-		.bcdOCPOBMFVersion = sys_cpu_to_le16(0x0100), /* 1.0 */ \
+		.wMaxWrInterruptSize = sys_cpu_to_le16(wr_int_size), \
+		.wMaxRdInterruptSize = sys_cpu_to_le16(rd_int_size), \
+		.bcdOCPOBMFVersion = sys_cpu_to_le16(0x0091), /* 0.91 */ \
 	}
 
 #define INITIALIZER_EP_DESC(addr, attr, mps, interval) \
@@ -98,22 +136,47 @@ struct usb_obmf_config {
 		.bInterval = interval, \
 	}
 
-#if CONFIG_OBMF_INTERRUPT_EP_SUPPORT
+#if CONFIG_OBMF_INTERRUPT_IN_EP_SUPPORT && CONFIG_OBMF_INTERRUPT_OUT_EP_SUPPORT
+/* 4 endpoints: Bulk IN + Bulk OUT + Interrupt IN + Interrupt OUT */
 #define DEFINE_OBMF_DESCR(x, _) \
 	USBD_CLASS_DESCR_DEFINE(primary, x) \
 	struct usb_obmf_config obmf_cfg_##x = { \
 		.if0 = INITIALIZER_IF, \
-		.if0_obmf_func = INITIALIZER_OBMF_FUNC_DESC(CONFIG_OBMF_BULK_EP_MPS, CONFIG_OBMF_BULK_EP_MPS, OBMF_INT_EP_SIZE), \
+		.if0_obmf_func = INITIALIZER_OBMF_FUNC_DESC(CONFIG_OBMF_BULK_EP_MPS, CONFIG_OBMF_BULK_EP_MPS, OBMF_INT_OUT_EP_SIZE, OBMF_INT_IN_EP_SIZE), \
 		.if0_in_ep = INITIALIZER_EP_DESC(AUTO_EP_IN, USB_DC_EP_BULK, CONFIG_OBMF_BULK_EP_MPS, 0), \
 		.if0_out_ep = INITIALIZER_EP_DESC(AUTO_EP_OUT, USB_DC_EP_BULK, CONFIG_OBMF_BULK_EP_MPS, 0), \
-		.if0_int_ep = INITIALIZER_EP_DESC(AUTO_EP_IN, USB_DC_EP_INTERRUPT, CONFIG_OBMF_INTERRUPT_EP_MPS, 0x0A), \
+		.if0_int_in_ep = INITIALIZER_EP_DESC(AUTO_EP_IN, USB_DC_EP_INTERRUPT, CONFIG_OBMF_INTERRUPT_IN_EP_MPS, 0x0A), \
+		.if0_int_out_ep = INITIALIZER_EP_DESC(AUTO_EP_OUT, USB_DC_EP_INTERRUPT, CONFIG_OBMF_INTERRUPT_OUT_EP_MPS, 0x0A), \
 	};
-#else
+#elif CONFIG_OBMF_INTERRUPT_IN_EP_SUPPORT
+/* 3 endpoints: Bulk IN + Bulk OUT + Interrupt IN */
 #define DEFINE_OBMF_DESCR(x, _) \
 	USBD_CLASS_DESCR_DEFINE(primary, x) \
 	struct usb_obmf_config obmf_cfg_##x = { \
 		.if0 = INITIALIZER_IF, \
-		.if0_obmf_func = INITIALIZER_OBMF_FUNC_DESC(CONFIG_OBMF_BULK_EP_MPS, CONFIG_OBMF_BULK_EP_MPS, OBMF_INT_EP_SIZE), \
+		.if0_obmf_func = INITIALIZER_OBMF_FUNC_DESC(CONFIG_OBMF_BULK_EP_MPS, CONFIG_OBMF_BULK_EP_MPS, OBMF_INT_OUT_EP_SIZE, OBMF_INT_IN_EP_SIZE), \
+		.if0_in_ep = INITIALIZER_EP_DESC(AUTO_EP_IN, USB_DC_EP_BULK, CONFIG_OBMF_BULK_EP_MPS, 0), \
+		.if0_out_ep = INITIALIZER_EP_DESC(AUTO_EP_OUT, USB_DC_EP_BULK, CONFIG_OBMF_BULK_EP_MPS, 0), \
+		.if0_int_in_ep = INITIALIZER_EP_DESC(AUTO_EP_IN, USB_DC_EP_INTERRUPT, CONFIG_OBMF_INTERRUPT_IN_EP_MPS, 0x0A), \
+	};
+#elif CONFIG_OBMF_INTERRUPT_OUT_EP_SUPPORT
+/* 3 endpoints: Bulk IN + Bulk OUT + Interrupt OUT */
+#define DEFINE_OBMF_DESCR(x, _) \
+	USBD_CLASS_DESCR_DEFINE(primary, x) \
+	struct usb_obmf_config obmf_cfg_##x = { \
+		.if0 = INITIALIZER_IF, \
+		.if0_obmf_func = INITIALIZER_OBMF_FUNC_DESC(CONFIG_OBMF_BULK_EP_MPS, CONFIG_OBMF_BULK_EP_MPS, OBMF_INT_OUT_EP_SIZE, OBMF_INT_IN_EP_SIZE), \
+		.if0_in_ep = INITIALIZER_EP_DESC(AUTO_EP_IN, USB_DC_EP_BULK, CONFIG_OBMF_BULK_EP_MPS, 0), \
+		.if0_out_ep = INITIALIZER_EP_DESC(AUTO_EP_OUT, USB_DC_EP_BULK, CONFIG_OBMF_BULK_EP_MPS, 0), \
+		.if0_int_out_ep = INITIALIZER_EP_DESC(AUTO_EP_OUT, USB_DC_EP_INTERRUPT, CONFIG_OBMF_INTERRUPT_OUT_EP_MPS, 0x0A), \
+	};
+#else
+/* 2 endpoints: Bulk IN + Bulk OUT only */
+#define DEFINE_OBMF_DESCR(x, _) \
+	USBD_CLASS_DESCR_DEFINE(primary, x) \
+	struct usb_obmf_config obmf_cfg_##x = { \
+		.if0 = INITIALIZER_IF, \
+		.if0_obmf_func = INITIALIZER_OBMF_FUNC_DESC(CONFIG_OBMF_BULK_EP_MPS, CONFIG_OBMF_BULK_EP_MPS, 0, 0), \
 		.if0_in_ep = INITIALIZER_EP_DESC(AUTO_EP_IN, USB_DC_EP_BULK, CONFIG_OBMF_BULK_EP_MPS, 0), \
 		.if0_out_ep = INITIALIZER_EP_DESC(AUTO_EP_OUT, USB_DC_EP_BULK, CONFIG_OBMF_BULK_EP_MPS, 0), \
 	};
@@ -133,6 +196,9 @@ void usb_obmf_register_device(const struct device *dev, const struct obmf_ops *o
 	LOG_DBG("Added dev_data %p dev %p to devlist %p", dev_data, dev,
 		&usb_obmf_devlist);
 }
+
+/* Minimum OBMF-ICP message size (header only, 3 bytes) */
+#define OBMF_ICP_HEADER_SIZE 3
 
 static void obmf_out_cb(uint8_t ep, enum usb_dc_ep_cb_status_code ep_status)
 {
@@ -155,6 +221,15 @@ static void obmf_out_cb(uint8_t ep, enum usb_dc_ep_cb_status_code ep_status)
 
 	usb_read(ep, NULL, 0, &bytes_to_read);
 	LOG_DBG("ep 0x%x, bytes to read %d ", ep, bytes_to_read);
+
+	/* [ERR-02] Discard if data is smaller than OBMF-ICP header */
+	if (bytes_to_read < OBMF_ICP_HEADER_SIZE) {
+		LOG_WRN("Received data (%u bytes) smaller than OBMF header, discarding",
+			bytes_to_read);
+		usb_read(ep, obmf_buf, bytes_to_read, NULL);
+		return;
+	}
+
 	usb_read(ep, obmf_buf, bytes_to_read, NULL);
 
 	dev_data->ops->read(common->dev, bytes_to_read, obmf_buf);
@@ -179,18 +254,25 @@ int obmf_usb_ep_write(const struct device *dev, const uint8_t *data,
 	return 0;
 }
 
-#if CONFIG_OBMF_INTERRUPT_EP_SUPPORT
+#if CONFIG_OBMF_INTERRUPT_IN_EP_SUPPORT
 int obmf_usb_int_ep_write(const struct device *dev, const uint8_t *data,
 			  uint32_t data_len, uint32_t *bytes_ret)
 {
 	const struct usb_cfg_data *cfg = dev->config;
 	int ret;
 
-	/* transfer data to host */
+	/* [TR-INT-01] Interrupt message must fit in a single transfer */
+	if (data_len > CONFIG_OBMF_INTERRUPT_IN_EP_MPS) {
+		LOG_ERR("Interrupt IN data (%u) exceeds max transfer size (%u)",
+			data_len, CONFIG_OBMF_INTERRUPT_IN_EP_MPS);
+		return -EINVAL;
+	}
+
+	/* Interrupt IN endpoint index: after Bulk IN(0) and Bulk OUT(1) */
 	ret = usb_transfer_sync(cfg->endpoint[2].ep_addr,
 				(uint8_t *)data, data_len, USB_TRANS_WRITE);
 	if (ret != data_len) {
-		LOG_ERR("Transfer failure");
+		LOG_ERR("Interrupt IN transfer failure");
 		return -EINVAL;
 	}
 
@@ -200,20 +282,76 @@ int obmf_usb_int_ep_write(const struct device *dev, const uint8_t *data,
 }
 #endif
 
+#if CONFIG_OBMF_INTERRUPT_OUT_EP_SUPPORT
+static void obmf_int_out_cb(uint8_t ep, enum usb_dc_ep_cb_status_code ep_status)
+{
+	struct obmf_device_info *dev_data;
+	struct usb_dev_data *common;
+	uint32_t bytes_to_read;
+
+	common = usb_get_dev_data_by_ep(&usb_obmf_devlist, ep);
+	if (common == NULL) {
+		LOG_WRN("Device data not found for endpoint %u", ep);
+		return;
+	}
+
+	dev_data = CONTAINER_OF(common, struct obmf_device_info, common);
+
+	if (ep_status != USB_DC_EP_DATA_OUT || dev_data->ops == NULL ||
+	    dev_data->ops->int_read == NULL) {
+		return;
+	}
+
+	usb_read(ep, NULL, 0, &bytes_to_read);
+	LOG_DBG("int out ep 0x%x, bytes to read %d ", ep, bytes_to_read);
+
+	/* [ERR-02] Discard if data is smaller than OBMF-ICP header */
+	if (bytes_to_read < OBMF_ICP_HEADER_SIZE) {
+		LOG_WRN("Interrupt OUT data (%u bytes) smaller than OBMF header, discarding",
+			bytes_to_read);
+		usb_read(ep, obmf_buf, bytes_to_read, NULL);
+		return;
+	}
+
+	usb_read(ep, obmf_buf, bytes_to_read, NULL);
+
+	dev_data->ops->int_read(common->dev, bytes_to_read, obmf_buf);
+}
+#endif
+
 #define INITIALIZER_EP_DATA(cb, addr) \
 	{ \
 		.ep_cb = cb, \
 		.ep_addr = addr, \
 	}
 
-#if CONFIG_OBMF_INTERRUPT_EP_SUPPORT
+#if CONFIG_OBMF_INTERRUPT_IN_EP_SUPPORT && CONFIG_OBMF_INTERRUPT_OUT_EP_SUPPORT
+/* 4 endpoints: Bulk IN, Bulk OUT, Interrupt IN, Interrupt OUT */
+#define DEFINE_OBMF_EP(x, _) \
+	static struct usb_ep_cfg_data obmf_ep_data_##x[] = { \
+		INITIALIZER_EP_DATA(usb_transfer_ep_callback, AUTO_EP_IN), \
+		INITIALIZER_EP_DATA(obmf_out_cb, AUTO_EP_OUT), \
+		INITIALIZER_EP_DATA(usb_transfer_ep_callback, AUTO_EP_IN), \
+		INITIALIZER_EP_DATA(obmf_int_out_cb, AUTO_EP_OUT), \
+	};
+#elif CONFIG_OBMF_INTERRUPT_IN_EP_SUPPORT
+/* 3 endpoints: Bulk IN, Bulk OUT, Interrupt IN */
 #define DEFINE_OBMF_EP(x, _) \
 	static struct usb_ep_cfg_data obmf_ep_data_##x[] = { \
 		INITIALIZER_EP_DATA(usb_transfer_ep_callback, AUTO_EP_IN), \
 		INITIALIZER_EP_DATA(obmf_out_cb, AUTO_EP_OUT), \
 		INITIALIZER_EP_DATA(usb_transfer_ep_callback, AUTO_EP_IN), \
 	};
+#elif CONFIG_OBMF_INTERRUPT_OUT_EP_SUPPORT
+/* 3 endpoints: Bulk IN, Bulk OUT, Interrupt OUT */
+#define DEFINE_OBMF_EP(x, _) \
+	static struct usb_ep_cfg_data obmf_ep_data_##x[] = { \
+		INITIALIZER_EP_DATA(usb_transfer_ep_callback, AUTO_EP_IN), \
+		INITIALIZER_EP_DATA(obmf_out_cb, AUTO_EP_OUT), \
+		INITIALIZER_EP_DATA(obmf_int_out_cb, AUTO_EP_OUT), \
+	};
 #else
+/* 2 endpoints: Bulk IN, Bulk OUT */
 #define DEFINE_OBMF_EP(x, _) \
 	static struct usb_ep_cfg_data obmf_ep_data_##x[] = { \
 		INITIALIZER_EP_DATA(usb_transfer_ep_callback, AUTO_EP_IN), \
@@ -238,8 +376,15 @@ static void obmf_interface_config(struct usb_desc_header *head,
 	struct usb_if_descriptor *if_desc = (struct usb_if_descriptor *)head;
 	struct usb_obmf_config *desc =
 		CONTAINER_OF(if_desc, struct usb_obmf_config, if0);
+	int idx;
 
 	desc->if0.bInterfaceNumber = bInterfaceNumber;
+
+	/* [DESC-INTF-02] Set iInterface string descriptor index */
+	idx = usb_get_str_descriptor_idx(&obmf_iface_str);
+	if (idx) {
+		desc->if0.iInterface = idx;
+	}
 }
 
 #define DEFINE_OBMF_CFG_DATA(x, _) \

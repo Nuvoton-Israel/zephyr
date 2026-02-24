@@ -26,18 +26,44 @@ config OBMF_BULK_EP_MPS
 	help
 	  OBMF class bulk endpoints size.
 
-config OBMF_INTERRUPT_EP_SUPPORT
-    bool "Enable OBMF Interrupt IN endpoint"
-    default y
-    help
-      Enable support for the optional Interrupt IN endpoint.
-
-config OBMF_INTERRUPT_EP_MPS
-	int "OBMF interrupt endpoint size"
-	default 16
-	depends on OBMF_INTERRUPT_EP_SUPPORT
+config OBMF_MULTIMESSAGE_SUPPORT
+	bool "Enable OBMF multi-message support"
+	default n
 	help
-	  OBMF class interrupt endpoint size.
+	  Enable multi-message support (bMultimessageSupport = 0x01).
+	  When enabled, a single USB transfer may contain multiple
+	  OBMF-ICP messages. When disabled, each transfer contains
+	  exactly one message.
+
+config OBMF_INTERRUPT_IN_EP_SUPPORT
+	bool "Enable OBMF Interrupt IN endpoint"
+	default y
+	help
+	  Enable support for the optional Interrupt IN endpoint
+	  (Device -> Host notification/event).
+
+config OBMF_INTERRUPT_IN_EP_MPS
+	int "OBMF Interrupt IN endpoint size"
+	default 16
+	depends on OBMF_INTERRUPT_IN_EP_SUPPORT
+	help
+	  OBMF class Interrupt IN endpoint max packet size.
+	  Recommended <= 64 bytes.
+
+config OBMF_INTERRUPT_OUT_EP_SUPPORT
+	bool "Enable OBMF Interrupt OUT endpoint"
+	default n
+	help
+	  Enable support for the optional Interrupt OUT endpoint
+	  (Host -> Device notification/event).
+
+config OBMF_INTERRUPT_OUT_EP_MPS
+	int "OBMF Interrupt OUT endpoint size"
+	default 16
+	depends on OBMF_INTERRUPT_OUT_EP_SUPPORT
+	help
+	  OBMF class Interrupt OUT endpoint max packet size.
+	  Recommended <= 64 bytes.
 
 module = USB_OBMF
 module-str = usb obmf

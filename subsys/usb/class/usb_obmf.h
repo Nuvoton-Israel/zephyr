@@ -16,6 +16,9 @@ extern "C" {
 
 struct obmf_ops {
 	void (*read)(const struct device *dev, uint32_t len, uint8_t *data);
+#if CONFIG_OBMF_INTERRUPT_OUT_EP_SUPPORT
+	void (*int_read)(const struct device *dev, uint32_t len, uint8_t *data);
+#endif
 };
 
 void usb_obmf_register_device(const struct device *dev,
@@ -24,7 +27,7 @@ void usb_obmf_register_device(const struct device *dev,
 int obmf_usb_ep_write(const struct device *dev, const uint8_t *data,
 		      uint32_t data_len, uint32_t *bytes_ret);
 
-#if CONFIG_OBMF_INTERRUPT_EP_SUPPORT
+#if CONFIG_OBMF_INTERRUPT_IN_EP_SUPPORT
 int obmf_usb_int_ep_write(const struct device *dev, const uint8_t *data,
 			  uint32_t data_len, uint32_t *bytes_ret);
 #endif
