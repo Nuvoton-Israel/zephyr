@@ -26,15 +26,6 @@ config OBMF_BULK_EP_MPS
 	help
 	  OBMF class bulk endpoints size.
 
-config OBMF_MULTIMESSAGE_SUPPORT
-	bool "Enable OBMF multi-message support"
-	default n
-	help
-	  Enable multi-message support (bMultimessageSupport = 0x01).
-	  When enabled, a single USB transfer may contain multiple
-	  OBMF-ICP messages. When disabled, each transfer contains
-	  exactly one message.
-
 config OBMF_INTERRUPT_IN_EP_SUPPORT
 	bool "Enable OBMF Interrupt IN endpoint"
 	default y

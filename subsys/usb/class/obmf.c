@@ -7,6 +7,7 @@
  */
 
 #include <init.h>
+#include <string.h>
 #include <sys/byteorder.h>
 #include <usb/usb_device.h>
 #include <usb_descriptor.h>
@@ -95,11 +96,11 @@ struct usb_obmf_iface_str_descr obmf_iface_str = {
 		.iInterface = 0, /* Set at runtime via obmf_interface_config() */ \
 	}
 
-#if CONFIG_OBMF_MULTIMESSAGE_SUPPORT
-#define OBMF_MULTIMESSAGE_VAL 0x01
-#else
+/*
+ * [1.0rc5] bMultimessageSupport must be 0x00.
+ * Multi-message per USB transfer is not permitted.
+ */
 #define OBMF_MULTIMESSAGE_VAL 0x00
-#endif
 
 #if CONFIG_OBMF_INTERRUPT_IN_EP_SUPPORT
 #define OBMF_INT_IN_EP_SIZE CONFIG_OBMF_INTERRUPT_IN_EP_MPS
@@ -123,7 +124,7 @@ struct usb_obmf_iface_str_descr obmf_iface_str = {
 		.wMaxRdTransferSize = sys_cpu_to_le16(rd_size), \
 		.wMaxWrInterruptSize = sys_cpu_to_le16(wr_int_size), \
 		.wMaxRdInterruptSize = sys_cpu_to_le16(rd_int_size), \
-		.bcdOCPOBMFVersion = sys_cpu_to_le16(0x0091), /* 0.91 */ \
+		.bcdOCPOBMFVersion = sys_cpu_to_le16(0x0100), /* 1.0 */ \
 	}
 
 #define INITIALIZER_EP_DESC(addr, attr, mps, interval) \
@@ -364,10 +365,48 @@ static void obmf_status_cb(struct usb_cfg_data *cfg,
 			       const uint8_t *param)
 {
 	ARG_UNUSED(cfg);
-	ARG_UNUSED(status);
 	ARG_UNUSED(param);
 
-	LOG_DBG("status_cb status %d", status);
+	switch (status) {
+	case USB_DC_RESET:
+		/*
+		 * [1.0rc5 C7] USB bus reset detected.
+		 * Clear USB-layer RX buffer to ensure clean state.
+		 * Upper-layer OBMF-ICP channel state (fragment reassembly,
+		 * ring buffer, etc.) is managed by the application layer.
+		 */
+		LOG_WRN("USB reset: clearing OBMF USB-layer RX buffer");
+		memset(obmf_buf, 0, sizeof(obmf_buf));
+		break;
+	case USB_DC_CLEAR_HALT:
+		/*
+		 * [1.0rc5 C6] CLEAR_FEATURE(ENDPOINT_HALT) received.
+		 * Clear USB-layer RX buffer so the next transfer starts
+		 * cleanly. Upper-layer state cleanup is the application's
+		 * responsibility.
+		 */
+		LOG_WRN("Endpoint halt cleared: clearing OBMF USB-layer RX buffer");
+		memset(obmf_buf, 0, sizeof(obmf_buf));
+		break;
+	case USB_DC_SET_HALT:
+		LOG_WRN("Endpoint halt set");
+		break;
+	case USB_DC_CONFIGURED:
+		LOG_DBG("USB device configured");
+		break;
+	case USB_DC_SUSPEND:
+		LOG_DBG("USB device suspended");
+		break;
+	case USB_DC_RESUME:
+		LOG_DBG("USB device resumed");
+		break;
+	case USB_DC_ERROR:
+		LOG_ERR("USB device error");
+		break;
+	default:
+		LOG_DBG("status_cb status %d", status);
+		break;
+	}
 }
 
 static void obmf_interface_config(struct usb_desc_header *head,
