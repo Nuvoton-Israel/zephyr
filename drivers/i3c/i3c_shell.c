@@ -63,6 +63,86 @@ static uint32_t args_to_wdata(char *arg, uint8_t *buf)
 	return len;
 }
 
+static const char static_addr_helper[] = "i3c static_addr <dev> <static_addr>";
+static int cmd_static_addr(const struct shell *shell, size_t argc, char **argv)
+{
+	const struct device *dev;
+	uint8_t addr;
+
+	dev = device_get_binding(argv[1]);
+	if (!dev) {
+		shell_error(shell, "I3C: Device %s not found.", argv[1]);
+		return -ENODEV;
+	}
+
+	if (argc < 3) {
+		shell_error(shell, "Invalid arguments.");
+		return -EINVAL;
+	}
+
+	addr = strtoul(argv[2], NULL, 0);
+	if (addr < 0x8 || addr > 0x77) {
+		shell_error(shell, "Invalid address.");
+		return -EINVAL;
+	}
+
+	return i3c_slave_set_static_addr(dev, addr);
+}
+
+static const char pid_extra_info_helper[] = "i3c pid_extra_info <dev> <pid_extra_info>";
+static int cmd_pid_extra_info(const struct shell *shell, size_t argc, char **argv)
+{
+	const struct device *dev;
+	uint16_t extra_info;
+
+	dev = device_get_binding(argv[1]);
+	if (!dev) {
+		shell_error(shell, "I3C: Device %s not found.", argv[1]);
+		return -ENODEV;
+	}
+
+	if (argc < 3) {
+		shell_error(shell, "Invalid arguments.");
+		return -EINVAL;
+	}
+
+	extra_info = strtoul(argv[2], NULL, 0);
+
+	return i3c_set_pid_extra_info(dev, extra_info);
+}
+
+static const char ibi_req_helper[] = "i3c ibi_req <dev> <payload>";
+static int cmd_ibi_req(const struct shell *shell, size_t argc, char **argv)
+{
+	const struct device *dev;
+	struct i3c_ibi_payload ibi;
+	uint8_t buf[8];
+	int i, payload_len;
+
+	dev = device_get_binding(argv[1]);
+	if (!dev) {
+		shell_error(shell, "I3C: Device %s not found.", argv[1]);
+		return -ENODEV;
+	}
+
+	if (argc < 3) {
+		shell_error(shell, "Invalid arguments.");
+		return -EINVAL;
+	}
+	if (argc > 10) {
+		shell_error(shell, "Too large IBI payload.");
+		return -EINVAL;
+	}
+
+	payload_len = argc - 2;
+	for (i = 0; i < payload_len; i++)
+		buf[i] = strtoul(argv[i + 2], NULL, 0);
+	ibi.buf = buf;
+	ibi.size = payload_len;
+
+	return i3c_slave_send_sir(dev, &ibi);
+}
+
 static const char hj_req_helper[] = "i3c hj_req <dev>";
 static int cmd_hj_req(const struct shell *shell, size_t argc, char **argv)
 {
@@ -674,6 +754,9 @@ SHELL_STATIC_SUBCMD_SET_CREATE(sub_i3c_cmds,
 	SHELL_CMD(entdaa, &dsub_device_name, entdaa_helper, cmd_entdaa),
 	SHELL_CMD(xfer, &dsub_device_name, priv_xfer_helper, cmd_priv_xfer),
 	SHELL_CMD(hj_req, &dsub_device_name, hj_req_helper, cmd_hj_req),
+	SHELL_CMD(ibi_req, &dsub_device_name, ibi_req_helper, cmd_ibi_req),
+	SHELL_CMD(static_addr, &dsub_device_name, static_addr_helper, cmd_static_addr),
+	SHELL_CMD(pid_extra_info, &dsub_device_name, pid_extra_info_helper, cmd_pid_extra_info),
 #ifdef CONFIG_I3C_SLAVE_MQUEUE
 	SHELL_CMD(smq, &dsub_device_name, smq_xfer_helper, cmd_smq_xfer),
 	SHELL_CMD(stress, &dsub_device_name, do_stress_helper, cmd_do_stress),
