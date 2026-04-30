@@ -124,7 +124,7 @@ struct usb_obmf_iface_str_descr obmf_iface_str = {
 		.wMaxRdTransferSize = sys_cpu_to_le16(rd_size), \
 		.wMaxWrInterruptSize = sys_cpu_to_le16(wr_int_size), \
 		.wMaxRdInterruptSize = sys_cpu_to_le16(rd_int_size), \
-		.bcdOCPOBMFVersion = sys_cpu_to_le16(0x0100), /* 1.0 */ \
+		.bcdOCPOBMFVersion = sys_cpu_to_le16(0x0080), /* 0.80 */ \
 	}
 
 #define INITIALIZER_EP_DESC(addr, attr, mps, interval) \
@@ -198,8 +198,8 @@ void usb_obmf_register_device(const struct device *dev, const struct obmf_ops *o
 		&usb_obmf_devlist);
 }
 
-/* Minimum OBMF-ICP message size (header only, 3 bytes) */
-#define OBMF_ICP_HEADER_SIZE 3
+/* Minimum OBMF-ICP message size (common header, 5 bytes) */
+#define OBMF_ICP_HEADER_SIZE 5
 
 static void obmf_out_cb(uint8_t ep, enum usb_dc_ep_cb_status_code ep_status)
 {
