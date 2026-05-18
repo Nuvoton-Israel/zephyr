@@ -76,6 +76,7 @@ struct i3c_npcm4_config {
 	bool secondary;
 	uint32_t i3c_scl_hz;
 	uint32_t i2c_scl_hz;
+	int32_t hj_timeout_ms; /* -1 = disabled */
 };
 
 typedef int (*isr_cb_t)(const struct device *dev);
@@ -91,6 +92,9 @@ struct i3c_npcm4_obj {
 
 	/* Semaphore for complete event */
 	struct k_sem complete;
+
+	/* Delayed work to cancel hot-join request on timeout */
+	struct k_work_delayable hj_timeout_work;
 
 	/* DMA structure */
 	uint8_t *dma_buf;
@@ -193,10 +197,13 @@ static void i3c_npcm4_register_isr_cb(const struct device *dev, int irq, isr_cb_
 
 	obj->isr_cb[irq - IRQ_START] = cb;
 
-	/* Clear IRQ status and enable interrupt */
-	i3c_npcm4_clear_irq_status(reg, irq);
-	i3c_npcm4_enable_interrupt(reg, irq);
-
+	if (cb) {
+		/* Clear IRQ status and enable interrupt */
+		i3c_npcm4_clear_irq_status(reg, irq);
+		i3c_npcm4_enable_interrupt(reg, irq);
+	} else {
+		i3c_npcm4_disable_interrupt(reg, irq);
+	}
 }
 
 static int i3c_npcm4_dma_read(const struct device *dev)
@@ -768,13 +775,50 @@ int i3c_npcm4_slave_send_sir(const struct device *dev, struct i3c_ibi_payload *p
 /**
  * @brief Send Hot-Join request in slave mode
  */
+static void i3c_npcm4_hj_timeout_handler(struct k_work *work)
+{
+	struct k_work_delayable *dwork = k_work_delayable_from_work(work);
+	struct i3c_npcm4_obj *obj =
+		CONTAINER_OF(dwork, struct i3c_npcm4_obj, hj_timeout_work);
+	struct i3c_npcm4_config *config = DEV_CFG(obj->dev);
+	struct i3c_reg *reg = config->base;
+
+	LOG_ERR("HJ request not sent within timeout, cancelling");
+	i3c_npcm4_register_isr_cb(obj->dev, IRQ_EVENT, NULL);
+	/* Cancel HJ request: clear CTRL bits[1:0] */
+	reg->CTRL &= ~GENMASK(1, 0);
+}
+
+static int i3c_npcm4_isr_hj_event(const struct device *dev)
+{
+	struct i3c_npcm4_obj *obj = DEV_DATA(dev);
+	struct i3c_npcm4_config *config = DEV_CFG(dev);
+	struct i3c_reg *reg = config->base;
+	uint32_t event = (uint32_t)FIELD_GET(GENMASK(21, 20), reg->STATUS);
+
+	/* Clear EVENT status */
+	reg->STATUS = STATUS_EVENT;
+
+	/* HJ request sent: cancel the timeout work */
+	k_work_cancel_delayable(&obj->hj_timeout_work);
+	i3c_npcm4_register_isr_cb(dev, IRQ_EVENT, NULL);
+
+	if ((event & 0x2) == 0)
+		LOG_ERR("HJ request not transmitted, event=0x%x", event);
+	else
+		LOG_DBG("HJ request sent, event=0x%x", event);
+
+	return 0;
+}
+
 int i3c_npcm4_slave_hj_req(const struct device *dev)
 {
 	struct i3c_npcm4_config *config = DEV_CFG(dev);
+	struct i3c_npcm4_obj *obj = DEV_DATA(dev);
 	struct i3c_reg *reg = config->base;
 	uint8_t addr = 0;
 
-	LOG_DBG("hj req");
+	LOG_INF("Send HJ req");
 	if (i3c_npcm4_slave_get_dynamic_addr(dev, &addr) == 0) {
 		LOG_ERR("Dynamic address present = 0x%x\n", addr);
 		return -EINVAL;
@@ -785,7 +829,13 @@ int i3c_npcm4_slave_hj_req(const struct device *dev)
 		LOG_ERR("bus is busy");
 		return -EBUSY;
 	}
-	reg->CTRL = 0x3;
+	if (config->hj_timeout_ms > 0) {
+		/* Register EVENT ISR callback and schedule timeout */
+		i3c_npcm4_register_isr_cb(dev, IRQ_EVENT, i3c_npcm4_isr_hj_event);
+		k_work_schedule(&obj->hj_timeout_work, K_MSEC(config->hj_timeout_ms));
+	}
+
+	reg->CTRL |= 0x3;
 
 	return 0;
 }
@@ -939,6 +989,8 @@ static int i3c_npcm4_init(const struct device *dev)
 		return ret;
 	}
 	obj->apb3_rate = apb3_rate;
+	obj->dev = dev;
+	k_work_init_delayable(&obj->hj_timeout_work, i3c_npcm4_hj_timeout_handler);
 
 	ret = i3c_npcm4_setup_dma(dev);
 	if (ret < 0) {
@@ -973,6 +1025,7 @@ static int i3c_npcm4_init(const struct device *dev)
 		.dma_rx_channel = DT_INST_PROP_OR(n, dma_rx_channel, 0xff),\
 		.i2c_scl_hz = DT_INST_PROP_OR(n, i2c_scl_hz, 0),\
 		.i3c_scl_hz = DT_INST_PROP_OR(n, i3c_scl_hz, 0),\
+		.hj_timeout_ms = DT_INST_PROP_OR(n, hj_request_timeout_ms, -1),\
 		.base = (struct i3c_reg *)DT_INST_REG_ADDR_BY_NAME(n, i3c),\
 		.pdma_base = (struct pdma_reg *)DT_INST_REG_ADDR_BY_NAME(n, pdma),\
 		.pmc_base = DT_INST_REG_ADDR_BY_NAME(n, pmc),\

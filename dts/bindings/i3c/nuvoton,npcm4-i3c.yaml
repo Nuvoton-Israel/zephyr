@@ -72,6 +72,14 @@ properties:
     description: |
       dma channel for read data from bus
 
+  hj-request-timeout-ms:
+    required: false
+    type: int
+    description: |
+      Timeout in milliseconds for the hot-join request. If not
+      sent within this period, the request is cancelled. If absent,
+      no timeout is applied.
+
   pinctrl-0:
     type: phandles
     required: true
