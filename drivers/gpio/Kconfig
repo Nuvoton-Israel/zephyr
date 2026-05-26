@@ -96,6 +96,8 @@ source "drivers/gpio/Kconfig.npcx"
 
 source "drivers/gpio/Kconfig.npcm4xx"
 
+source "drivers/gpio/Kconfig.npcm4xx_vw"
+
 source "drivers/gpio/Kconfig.emul"
 
 source "drivers/gpio/Kconfig.psoc6"
