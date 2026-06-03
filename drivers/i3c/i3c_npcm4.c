@@ -20,7 +20,7 @@ LOG_MODULE_REGISTER(i3c_npcm4);
 
 #include <portability/cmsis_os2.h>
 
-#define DEV_CFG(dev)			((struct i3c_npcm4_config *)(dev)->config)
+#define DEV_CFG(dev)			((const struct i3c_npcm4_config *)(dev)->config)
 #define DEV_DATA(dev)			((struct i3c_npcm4_obj *)(dev)->data)
 
 /* NPCM4 PDMA Definitions */
@@ -154,7 +154,7 @@ static inline int readl_poll_timeout(uintptr_t addr, uint32_t mask,
 
 static inline void i3c_npcm4_stop_dma_rx(const struct device *dev)
 {
-	struct i3c_npcm4_config *config = DEV_CFG(dev);
+	const struct i3c_npcm4_config *config = DEV_CFG(dev);
 	struct i3c_npcm4_obj *obj = DEV_DATA(dev);
 	uint32_t val = config->base->DMACTRL & ~GENMASK(1, 0);
 
@@ -163,7 +163,7 @@ static inline void i3c_npcm4_stop_dma_rx(const struct device *dev)
 	obj->state &= ~SLAVE_WAIT_FOR_RX;
 }
 
-static inline void i3c_npcm4_stop_dma_tx(struct i3c_npcm4_config *config)
+static inline void i3c_npcm4_stop_dma_tx(const struct i3c_npcm4_config *config)
 {
 	uint32_t val = config->base->DMACTRL & ~GENMASK(3, 2);
 
@@ -189,7 +189,7 @@ static inline void i3c_npcm4_clear_irq_status(struct i3c_reg *reg, int irq)
 static void i3c_npcm4_register_isr_cb(const struct device *dev, int irq, isr_cb_t cb)
 {
 	struct i3c_npcm4_obj *obj = DEV_DATA(dev);
-	struct i3c_npcm4_config *config = DEV_CFG(dev);
+	const struct i3c_npcm4_config *config = DEV_CFG(dev);
 	struct i3c_reg *reg = config->base;
 
 	if (irq < IRQ_START || irq > IRQ_EVENT)
@@ -208,7 +208,7 @@ static void i3c_npcm4_register_isr_cb(const struct device *dev, int irq, isr_cb_
 
 static int i3c_npcm4_dma_read(const struct device *dev)
 {
-	struct i3c_npcm4_config *config = DEV_CFG(dev);
+	const struct i3c_npcm4_config *config = DEV_CFG(dev);
 	struct dsct_reg *desc = (struct dsct_reg *)&config->pdma_base->DSCT[config->dma_rx_channel];
 	struct i3c_npcm4_obj *obj = DEV_DATA(dev);
 	uint32_t val = config->base->DMACTRL & ~GENMASK(1, 0);
@@ -243,7 +243,7 @@ static int i3c_npcm4_dma_read(const struct device *dev)
 
 static int i3c_npcm4_dma_write(const struct device *dev, uint8_t *buf, int len)
 {
-	struct i3c_npcm4_config *config = DEV_CFG(dev);
+	const struct i3c_npcm4_config *config = DEV_CFG(dev);
 	struct dsct_reg *head = (struct dsct_reg *)&config->pdma_base->DSCT[config->dma_tx_channel];
 	struct i3c_npcm4_obj *obj = DEV_DATA(dev);
 	struct dsct_reg *desc = &sg_dsct[config->inst_id * 2];
@@ -324,7 +324,7 @@ static int i3c_npcm4_slave_write_fifo(struct i3c_reg *base, uint8_t *buf, int le
 
 static int i3c_npcm4_slave_write(const struct device *dev, uint8_t *buf, int len)
 {
-	struct i3c_npcm4_config *config = DEV_CFG(dev);
+	const struct i3c_npcm4_config *config = DEV_CFG(dev);
 	struct i3c_npcm4_obj *obj = DEV_DATA(dev);
 
 	if (len <= 0 || len > DMA_BUF_SIZE)
@@ -349,7 +349,7 @@ static int i3c_npcm4_slave_write(const struct device *dev, uint8_t *buf, int len
 
 static int i3c_npcm4_slave_generate_ibi(const struct device *dev, uint8_t *payload, int len)
 {
-	struct i3c_npcm4_config *config = DEV_CFG(dev);
+	const struct i3c_npcm4_config *config = DEV_CFG(dev);
 	uint32_t ctrl_val, ibiext_val;
 	int i;
 
@@ -380,7 +380,7 @@ static int i3c_npcm4_slave_generate_ibi(const struct device *dev, uint8_t *paylo
 
 static int i3c_npcm4_isr_rx_done(const struct device *dev)
 {
-	struct i3c_npcm4_config *config = DEV_CFG(dev);
+	const struct i3c_npcm4_config *config = DEV_CFG(dev);
 	struct i3c_npcm4_obj *obj = DEV_DATA(dev);
 	struct dsct_reg *desc = (struct dsct_reg *)&config->pdma_base->DSCT[config->dma_rx_channel];
 	struct i3c_reg *reg = config->base;
@@ -442,7 +442,7 @@ static int i3c_npcm4_isr_rx_done(const struct device *dev)
 
 static int i3c_npcm4_isr_tx_done(const struct device *dev)
 {
-	struct i3c_npcm4_config *config = DEV_CFG(dev);
+	const struct i3c_npcm4_config *config = DEV_CFG(dev);
 	struct i3c_npcm4_obj *obj = DEV_DATA(dev);
 	struct dsct_reg *desc = (struct dsct_reg *)&config->pdma_base->DSCT[config->dma_tx_channel];
 	uint32_t val, tx_done_flag;
@@ -495,7 +495,7 @@ err_quit:
 
 static int i3c_npcm4_isr_check_ibi_done(const struct device *dev)
 {
-	struct i3c_npcm4_config *config = DEV_CFG(dev);
+	const struct i3c_npcm4_config *config = DEV_CFG(dev);
 	struct i3c_npcm4_obj *obj = DEV_DATA(dev);
 	struct i3c_reg *reg = config->base;
 
@@ -518,7 +518,7 @@ static int i3c_npcm4_isr_check_ibi_done(const struct device *dev)
 
 static int i3c_npcm4_isr_receive_stop(const struct device *dev)
 {
-	struct i3c_npcm4_config *config = DEV_CFG(dev);
+	const struct i3c_npcm4_config *config = DEV_CFG(dev);
 	struct i3c_npcm4_obj *obj = DEV_DATA(dev);
 	struct i3c_reg *reg = config->base;
 	uint32_t val;
@@ -544,7 +544,7 @@ static int i3c_npcm4_isr_receive_stop(const struct device *dev)
 
 static int i3c_npcm4_isr_da_changed(const struct device *dev)
 {
-	struct i3c_npcm4_config *config = DEV_CFG(dev);
+	const struct i3c_npcm4_config *config = DEV_CFG(dev);
 	struct i3c_npcm4_obj *obj = DEV_DATA(dev);
 	uint8_t addr = 0;
 
@@ -637,7 +637,7 @@ int i3c_npcm4_master_send_entdaa(struct i3c_dev_desc *i3cdev)
 int i3c_npcm4_slave_register(const struct device *dev, struct i3c_slave_setup *slave_data)
 {
 	struct i3c_npcm4_obj *obj = DEV_DATA(dev);
-	struct i3c_npcm4_config *config = DEV_CFG(dev);
+	const struct i3c_npcm4_config *config = DEV_CFG(dev);
 	struct i3c_reg *reg = config->base;
 	uint32_t status;
 	uint8_t addr;
@@ -667,7 +667,7 @@ int i3c_npcm4_slave_put_read_data(const struct device *dev, struct i3c_slave_pay
 				  struct i3c_ibi_payload *ibi_notify)
 {
 	struct i3c_npcm4_obj *obj = DEV_DATA(dev);
-	struct i3c_npcm4_config *config = DEV_CFG(dev);
+	const struct i3c_npcm4_config *config = DEV_CFG(dev);
 	struct i3c_reg *reg = config->base;
 
 	__ASSERT_NO_MSG(data);
@@ -701,7 +701,7 @@ int i3c_npcm4_slave_put_read_data(const struct device *dev, struct i3c_slave_pay
  */
 int i3c_npcm4_slave_get_dynamic_addr(const struct device *dev, uint8_t *dynamic_addr)
 {
-	struct i3c_npcm4_config *config = DEV_CFG(dev);
+	const struct i3c_npcm4_config *config = DEV_CFG(dev);
 	uint32_t val;
 
 	val = config->base->DYNADDR;
@@ -721,7 +721,7 @@ int i3c_npcm4_slave_get_dynamic_addr(const struct device *dev, uint8_t *dynamic_
  */
 int i3c_npcm4_slave_get_event_enabling(const struct device *dev, uint32_t *event_en)
 {
-	struct i3c_npcm4_config *config = DEV_CFG(dev);
+	const struct i3c_npcm4_config *config = DEV_CFG(dev);
 	uint32_t status;
 
 	status = config->base->STATUS;
@@ -744,7 +744,7 @@ int i3c_npcm4_slave_get_event_enabling(const struct device *dev, uint32_t *event
  */
 int i3c_npcm4_slave_send_sir(const struct device *dev, struct i3c_ibi_payload *payload)
 {
-	struct i3c_npcm4_config *config = DEV_CFG(dev);
+	const struct i3c_npcm4_config *config = DEV_CFG(dev);
 	struct i3c_reg *reg = config->base;
 	uint8_t addr = 0;
 	uint32_t val;
@@ -780,7 +780,7 @@ static void i3c_npcm4_hj_timeout_handler(struct k_work *work)
 	struct k_work_delayable *dwork = k_work_delayable_from_work(work);
 	struct i3c_npcm4_obj *obj =
 		CONTAINER_OF(dwork, struct i3c_npcm4_obj, hj_timeout_work);
-	struct i3c_npcm4_config *config = DEV_CFG(obj->dev);
+	const struct i3c_npcm4_config *config = DEV_CFG(obj->dev);
 	struct i3c_reg *reg = config->base;
 
 	LOG_ERR("HJ request not sent within timeout, cancelling");
@@ -792,7 +792,7 @@ static void i3c_npcm4_hj_timeout_handler(struct k_work *work)
 static int i3c_npcm4_isr_hj_event(const struct device *dev)
 {
 	struct i3c_npcm4_obj *obj = DEV_DATA(dev);
-	struct i3c_npcm4_config *config = DEV_CFG(dev);
+	const struct i3c_npcm4_config *config = DEV_CFG(dev);
 	struct i3c_reg *reg = config->base;
 	uint32_t event = (uint32_t)FIELD_GET(GENMASK(21, 20), reg->STATUS);
 
@@ -813,7 +813,7 @@ static int i3c_npcm4_isr_hj_event(const struct device *dev)
 
 int i3c_npcm4_slave_hj_req(const struct device *dev)
 {
-	struct i3c_npcm4_config *config = DEV_CFG(dev);
+	const struct i3c_npcm4_config *config = DEV_CFG(dev);
 	struct i3c_npcm4_obj *obj = DEV_DATA(dev);
 	struct i3c_reg *reg = config->base;
 	uint8_t addr = 0;
@@ -845,7 +845,7 @@ int i3c_npcm4_slave_hj_req(const struct device *dev)
  */
 int i3c_npcm4_slave_set_static_addr(const struct device *dev, uint8_t static_addr)
 {
-	struct i3c_npcm4_config *config = DEV_CFG(dev);
+	const struct i3c_npcm4_config *config = DEV_CFG(dev);
 	struct i3c_reg *reg = config->base;
 	uint32_t val;
 
@@ -863,7 +863,7 @@ int i3c_npcm4_slave_set_static_addr(const struct device *dev, uint8_t static_add
  */
 int i3c_npcm4_set_pid_extra_info(const struct device *dev, uint16_t extra_info)
 {
-	struct i3c_npcm4_config *config = DEV_CFG(dev);
+	const struct i3c_npcm4_config *config = DEV_CFG(dev);
 	struct i3c_reg *reg = config->base;
 	uint32_t val;
 
@@ -878,7 +878,7 @@ int i3c_npcm4_set_pid_extra_info(const struct device *dev, uint16_t extra_info)
 
 static void i3c_npcm4_slave_isr(const struct device *dev)
 {
-	struct i3c_npcm4_config *config = DEV_CFG(dev);
+	const struct i3c_npcm4_config *config = DEV_CFG(dev);
 	struct i3c_npcm4_obj *obj = DEV_DATA(dev);
 	struct i3c_reg *reg = config->base;
 	uint32_t status = reg->INTMASKED;
@@ -897,7 +897,7 @@ static void i3c_npcm4_slave_isr(const struct device *dev)
 
 static void i3c_npcm4_isr(const struct device *dev)
 {
-	struct i3c_npcm4_config *config = DEV_CFG(dev);
+	const struct i3c_npcm4_config *config = DEV_CFG(dev);
 
 	if (config->slave)
 		return i3c_npcm4_slave_isr(dev);
@@ -905,7 +905,7 @@ static void i3c_npcm4_isr(const struct device *dev)
 
 
 static int i3c_npcm4_slave_init(const struct device *dev,
-				struct i3c_npcm4_config *config)
+				const struct i3c_npcm4_config *config)
 {
 	struct i3c_npcm4_obj *obj = DEV_DATA(dev);
 	struct i3c_reg *reg = config->base;
@@ -932,7 +932,7 @@ static int i3c_npcm4_slave_init(const struct device *dev,
 
 static int i3c_npcm4_setup_dma(const struct device *dev)
 {
-	struct i3c_npcm4_config *config = DEV_CFG(dev);
+	const struct i3c_npcm4_config *config = DEV_CFG(dev);
 	struct i3c_npcm4_obj *obj = DEV_DATA(dev);
 	uint32_t *PDMA_REQSEL;
 	uint32_t val, shift;
@@ -967,7 +967,7 @@ static int i3c_npcm4_setup_dma(const struct device *dev)
 /* Device initialization */
 static int i3c_npcm4_init(const struct device *dev)
 {
-	struct i3c_npcm4_config *config = DEV_CFG(dev);
+	const struct i3c_npcm4_config *config = DEV_CFG(dev);
 	struct i3c_npcm4_obj *obj = DEV_DATA(dev);
 	const struct device *const clk_dev = device_get_binding(NPCM4XX_CLK_CTRL_NAME);
 	uint32_t apb3_rate;

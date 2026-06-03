@@ -37,7 +37,7 @@ struct c2h_npcm_config {
 /* host core-to-host interface local functions */
 static void host_c2h_wait_write_done(const struct device *dev)
 {
-	struct c2h_npcm_config *cfg = (struct c2h_npcm_config *)dev->config;
+	const struct c2h_npcm_config *cfg = (const struct c2h_npcm_config *)dev->config;
 	struct c2h_reg *const inst_c2h = cfg->inst_c2h;
 	uint32_t elapsed_cycles;
 	uint32_t start_cycles = k_cycle_get_32();
@@ -55,7 +55,7 @@ static void host_c2h_wait_write_done(const struct device *dev)
 
 static void host_c2h_wait_read_done(const struct device *dev)
 {
-	struct c2h_npcm_config *cfg = (struct c2h_npcm_config *)dev->config;
+	const struct c2h_npcm_config *cfg = (const struct c2h_npcm_config *)dev->config;
 	struct c2h_reg *const inst_c2h = cfg->inst_c2h;
 	uint32_t elapsed_cycles;
 	uint32_t start_cycles = k_cycle_get_32();
@@ -74,7 +74,7 @@ static void host_c2h_wait_read_done(const struct device *dev)
 void __c2h_config_reg_access(const struct device *dev, SIB_DEVICE_T device,
                 uint16_t offset)
 {
-	struct c2h_npcm_config *cfg = (struct c2h_npcm_config *)dev->config;
+	const struct c2h_npcm_config *cfg = (const struct c2h_npcm_config *)dev->config;
 	struct c2h_reg *const inst_c2h = cfg->inst_c2h;
 
 	/* Enable Core-to-Host access module */
@@ -95,7 +95,7 @@ void __c2h_config_reg_access(const struct device *dev, SIB_DEVICE_T device,
 void __c2h_write_reg(const struct device *dev, SIB_DEVICE_T device,
                 uint16_t offset, uint8_t value)
 {
-	struct c2h_npcm_config *cfg = (struct c2h_npcm_config *)dev->config;
+	const struct c2h_npcm_config *cfg = (const struct c2h_npcm_config *)dev->config;
 	struct c2h_reg *const inst_c2h = cfg->inst_c2h;
 
 	__c2h_config_reg_access(dev, device, offset);
@@ -112,7 +112,7 @@ void __c2h_write_reg(const struct device *dev, SIB_DEVICE_T device,
 uint8_t __c2h_read_reg(const struct device *dev, SIB_DEVICE_T device,
                 uint16_t offset)
 {
-	struct c2h_npcm_config *cfg = (struct c2h_npcm_config *)dev->config;
+	const struct c2h_npcm_config *cfg = (const struct c2h_npcm_config *)dev->config;
 	struct c2h_reg *const inst_c2h = cfg->inst_c2h;
 	uint8_t data_val;
 
@@ -132,7 +132,7 @@ uint8_t __c2h_read_reg(const struct device *dev, SIB_DEVICE_T device,
 
 void c2h_write_io_cfg_reg(const struct device *dev, uint8_t reg_index, uint8_t reg_data)
 {
-	struct c2h_npcm_config *cfg = (struct c2h_npcm_config *)dev->config;
+	const struct c2h_npcm_config *cfg = (const struct c2h_npcm_config *)dev->config;
 	struct c2h_reg *const inst_c2h = cfg->inst_c2h;
 
 	/* Disable interrupts */
@@ -176,7 +176,7 @@ void c2h_write_io_cfg_reg(const struct device *dev, uint8_t reg_index, uint8_t r
 
 uint8_t c2h_read_io_cfg_reg(const struct device *dev, uint8_t reg_index)
 {
-	struct c2h_npcm_config *cfg = (struct c2h_npcm_config *)dev->config;
+	const struct c2h_npcm_config *cfg = (const struct c2h_npcm_config *)dev->config;
 	struct c2h_reg *const inst_c2h = cfg->inst_c2h;
 	uint8_t data_val;
 
@@ -226,7 +226,7 @@ uint8_t c2h_read_io_cfg_reg(const struct device *dev, uint8_t reg_index)
 void rtc_write_offset(const struct device *dev, SIB_RTC_OFFSET_Enum offset,
 		      uint8_t value)
 {
-	struct c2h_npcm_config *cfg = (struct c2h_npcm_config *)dev->config;
+	const struct c2h_npcm_config *cfg = (const struct c2h_npcm_config *)dev->config;
 	struct c2h_reg *const inst_c2h = cfg->inst_c2h;
 
 	/* Disable interrupts */
@@ -248,7 +248,7 @@ void rtc_write_offset(const struct device *dev, SIB_RTC_OFFSET_Enum offset,
 
 uint8_t rtc_read_offset(const struct device *dev, SIB_RTC_OFFSET_Enum offset)
 {
-	struct c2h_npcm_config *cfg = (struct c2h_npcm_config *)dev->config;
+	const struct c2h_npcm_config *cfg = (const struct c2h_npcm_config *)dev->config;
 	struct c2h_reg *const inst_c2h = cfg->inst_c2h;
 	uint8_t value;
 
@@ -280,7 +280,7 @@ uint8_t rtc_read_offset(const struct device *dev, SIB_RTC_OFFSET_Enum offset)
 #define NPCM4XX_C2H_INIT_FUNC_IMPL(inst)				              \
 	static int c2h_init##inst(const struct device *dev)	                      \
 	{								              \
-		struct c2h_npcm_config *cfg = (struct c2h_npcm_config *)dev->config;  \
+		const struct c2h_npcm_config *cfg = (const struct c2h_npcm_config *)dev->config;  \
 		struct c2h_reg *const inst_c2h = cfg->inst_c2h;		              \
 									              \
 		/* Enable Core-to-Host access module */			              \
