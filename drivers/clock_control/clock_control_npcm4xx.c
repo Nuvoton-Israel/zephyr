@@ -36,7 +36,7 @@ static inline int npcm4xx_clock_control_on(const struct device *dev,
 					 clock_control_subsys_t sub_system)
 {
 	ARG_UNUSED(dev);
-	struct npcm4xx_clk_cfg *clk_cfg = (struct npcm4xx_clk_cfg *)(sub_system);
+	const struct npcm4xx_clk_cfg *clk_cfg = (const struct npcm4xx_clk_cfg *)(sub_system);
 	const uint32_t pmc_base = DRV_CONFIG(dev)->base_pmc;
 
 	if (clk_cfg->ctrl >= NPCM4XX_PWDWN_CTL_COUNT)
@@ -51,7 +51,7 @@ static inline int npcm4xx_clock_control_off(const struct device *dev,
 					  clock_control_subsys_t sub_system)
 {
 	ARG_UNUSED(dev);
-	struct npcm4xx_clk_cfg *clk_cfg = (struct npcm4xx_clk_cfg *)(sub_system);
+	const struct npcm4xx_clk_cfg *clk_cfg = (const struct npcm4xx_clk_cfg *)(sub_system);
 	const uint32_t pmc_base = DRV_CONFIG(dev)->base_pmc;
 
 	if (clk_cfg->ctrl >= NPCM4XX_PWDWN_CTL_COUNT)
@@ -66,7 +66,7 @@ static int npcm4xx_clock_control_get_subsys_rate(const struct device *dev,
 						 clock_control_subsys_t sub_system, uint32_t *rate)
 {
 	struct cdcg_reg *const inst_cdcg = HAL_CDCG_INST(dev);
-	struct npcm4xx_clk_cfg *clk_cfg = (struct npcm4xx_clk_cfg *)(sub_system);
+	const struct npcm4xx_clk_cfg *clk_cfg = (const struct npcm4xx_clk_cfg *)(sub_system);
 
 	/* Get divider */
 	uint32_t hfcgp = inst_cdcg->HFCGP;

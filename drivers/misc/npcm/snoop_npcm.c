@@ -77,7 +77,7 @@ int snoop_npcm_register_rx_callback(const struct device *dev, snoop_npcm_rx_call
 static void snoop_npcm_isr(const struct device *dev)
 {
 	uint8_t sts, len;
-	struct snoop_npcm_config *cfg = (struct snoop_npcm_config *)dev->config;
+	const struct snoop_npcm_config *cfg = (const struct snoop_npcm_config *)dev->config;
 	struct snoop_npcm_data *data = (struct snoop_npcm_data *)dev->data;
 
 	sts = sys_read8(cfg->base + DP80STS);
@@ -119,7 +119,7 @@ static void snoop_npcm_isr(const struct device *dev)
 
 static void snoop_npcm_enable(const struct device *dev)
 {
-	struct snoop_npcm_config *cfg = (struct snoop_npcm_config *)dev->config;
+	const struct snoop_npcm_config *cfg = (const struct snoop_npcm_config *)dev->config;
 
 	sys_write8(DP80CTL_RFIFO, cfg->base + DP80CTL);
 	sys_write8(DP80CTL_DP80EN | DP80CTL_RAA, cfg->base + DP80CTL);
