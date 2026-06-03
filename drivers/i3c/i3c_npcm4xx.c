@@ -190,7 +190,7 @@ void work_send_ibi_fun(struct k_work *item)
 
 void work_entdaa_fun(struct k_work *item)
 {
-	struct i3c_npcm4xx_config *config;
+	const struct i3c_npcm4xx_config *config;
 	struct i3c_npcm4xx_obj *obj;
 	struct i3c_npcm4xx_xfer *xfer;
 	uint8_t i;
@@ -1523,7 +1523,7 @@ I3C_ErrCode_Enum hal_I3C_Stop(I3C_PORT_Enum port)
 static void i3c_npcm4xx_reset(I3C_PORT_Enum port)
 {
 	struct i3c_npcm4xx_obj *obj;
-	struct i3c_npcm4xx_config *config;
+	const struct i3c_npcm4xx_config *config;
 	struct pmc_reg *pmc_base;
 	uint8_t sw_rst;
 
@@ -1850,7 +1850,7 @@ hj_end_ok:
     }
 hj_exit:
     if (obj) {
-        obj->config->hj_req = I3C_HOT_JOIN_STATE_None;
+		obj->hj_req = I3C_HOT_JOIN_STATE_None;
     }
     return ret;
 }
@@ -1948,7 +1948,7 @@ void hal_I3C_MemFree(void *pv)
 
 static uint8_t *pec_append(const struct device *dev, uint8_t *ptr, uint16_t len)
 {
-	struct i3c_npcm4xx_config *config = DEV_CFG(dev);
+	const struct i3c_npcm4xx_config *config = DEV_CFG(dev);
 	I3C_PORT_Enum port;
 	uint8_t *xfer_buf;
 	uint8_t pec_v;
@@ -2011,7 +2011,7 @@ static int i3c_npcm4xx_get_pos(struct i3c_npcm4xx_obj *obj, uint8_t addr)
 
 static void i3c_npcm4xx_wr_tx_fifo(struct i3c_npcm4xx_obj *obj, uint8_t *bytes, int nbytes)
 {
-	struct i3c_npcm4xx_config *config;
+	const struct i3c_npcm4xx_config *config;
 	I3C_PORT_Enum port;
 	I3C_DEVICE_INFO_t *pDevice;
 	I3C_ErrCode_Enum ret;
@@ -2025,7 +2025,7 @@ static void i3c_npcm4xx_wr_tx_fifo(struct i3c_npcm4xx_obj *obj, uint8_t *bytes, 
 
 static void i3c_npcm4xx_start_xfer(struct i3c_npcm4xx_obj *obj, struct i3c_npcm4xx_xfer *xfer)
 {
-	struct i3c_npcm4xx_config *config;
+	const struct i3c_npcm4xx_config *config;
 	I3C_PORT_Enum port;
 	I3C_DEVICE_INFO_t *pDevice;
 	I3C_BUS_INFO_t *pBus;
@@ -2070,7 +2070,7 @@ static void i3c_npcm4xx_start_xfer(struct i3c_npcm4xx_obj *obj, struct i3c_npcm4
 int i3c_npcm4xx_master_attach_device(const struct device *dev, struct i3c_dev_desc *slave)
 {
 	struct i3c_npcm4xx_obj *obj = NULL;
-	struct i3c_npcm4xx_config *config = NULL;
+	const struct i3c_npcm4xx_config *config = NULL;
 	I3C_PORT_Enum port;
 
 	struct i3c_npcm4xx_dev_priv *priv;
@@ -2179,7 +2179,7 @@ int i3c_npcm4xx_master_detach_device(const struct device *dev, struct i3c_dev_de
 {
 	struct i3c_npcm4xx_obj *obj = DEV_DATA(dev);
 	struct i3c_npcm4xx_dev_priv *priv = DESC_PRIV(slave);
-	struct i3c_npcm4xx_config *config = NULL;
+	const struct i3c_npcm4xx_config *config = NULL;
 	I3C_DEVICE_INFO_SHORT_t *pDevInfo;
 	I3C_DEVICE_INFO_t *pDevice = NULL;
 	I3C_BUS_INFO_t *pBus = NULL;
@@ -2341,7 +2341,7 @@ int i3c_npcm4xx_slave_register(const struct device *dev, struct i3c_slave_setup 
 
 int i3c_npcm4xx_slave_set_static_addr(const struct device *dev, uint8_t static_addr)
 {
-        struct i3c_npcm4xx_config *config = DEV_CFG(dev);
+	const struct i3c_npcm4xx_config *config = DEV_CFG(dev);
 	I3C_PORT_Enum port = config->inst_id;
 	I3C_DEVICE_INFO_t *pDevice;
 	uint32_t sconfig;
@@ -2362,7 +2362,7 @@ int i3c_npcm4xx_slave_set_static_addr(const struct device *dev, uint8_t static_a
 int i3c_npcm4xx_slave_put_read_data(const struct device *dev, struct i3c_slave_payload *data,
 	struct i3c_ibi_payload *ibi_notify)
 {
-	struct i3c_npcm4xx_config *config;
+	const struct i3c_npcm4xx_config *config;
 	struct i3c_npcm4xx_obj *obj;
 	I3C_TASK_INFO_t *pTaskInfo;
 	I3C_TRANSFER_TASK_t *pTask;
@@ -2492,7 +2492,8 @@ int i3c_npcm4xx_slave_send_sir(const struct device *dev, struct i3c_ibi_payload 
 
 int i3c_npcm4xx_slave_hj_req(const struct device *dev)
 {
-	struct i3c_npcm4xx_config *config = DEV_CFG(dev);
+	const struct i3c_npcm4xx_config *config = DEV_CFG(dev);
+	struct i3c_npcm4xx_obj *obj = DEV_DATA(dev);
 	I3C_PORT_Enum port;
 	uint8_t addr;
 
@@ -2505,20 +2506,20 @@ int i3c_npcm4xx_slave_hj_req(const struct device *dev)
 		return -1;
 	}
 
-	if (config->hj_req == I3C_HOT_JOIN_STATE_None) {
-		if (config->rst_reason == NPCM4XX_RESET_REASON_VCC_POWERUP) {
+	if (obj->hj_req == I3C_HOT_JOIN_STATE_None) {
+		if (obj->rst_reason == NPCM4XX_RESET_REASON_VCC_POWERUP) {
 			LOG_WRN("Auto Hot-Join\n");
-			config->hj_req = I3C_HOT_JOIN_STATE_Request;
+			obj->hj_req = I3C_HOT_JOIN_STATE_Request;
 			/* change reset reason to sw-rst, direct hot-join next time */
-			config->rst_reason = NPCM4XX_RESET_REASON_DEBUGGER_RST;
+			obj->rst_reason = NPCM4XX_RESET_REASON_DEBUGGER_RST;
 		} else {
 			LOG_WRN("Direct Hot-Join\n");
-			config->hj_req = I3C_HOT_JOIN_STATE_Queue;
+			obj->hj_req = I3C_HOT_JOIN_STATE_Queue;
 			I3C_Slave_Insert_Task_HotJoin(port);
 			k_work_submit_to_queue(&npcm4xx_i3c_work_q[port], &work_send_ibi[port]);
 		}
 	} else {
-		LOG_WRN("Hot-Join request progress, state = %d\n", config->hj_req);
+		LOG_WRN("Hot-Join request progress, state = %d\n", obj->hj_req);
 	}
 
 	return 0;
@@ -2526,7 +2527,7 @@ int i3c_npcm4xx_slave_hj_req(const struct device *dev)
 
 int i3c_npcm4xx_slave_get_dynamic_addr(const struct device *dev, uint8_t *dynamic_addr)
 {
-	struct i3c_npcm4xx_config *config = DEV_CFG(dev);
+	const struct i3c_npcm4xx_config *config = DEV_CFG(dev);
 	I3C_PORT_Enum port;
 	uint32_t addr;
 
@@ -2541,7 +2542,7 @@ int i3c_npcm4xx_slave_get_dynamic_addr(const struct device *dev, uint8_t *dynami
 
 int i3c_npcm4xx_slave_get_event_enabling(const struct device *dev, uint32_t *event_en)
 {
-	struct i3c_npcm4xx_config *config = DEV_CFG(dev);
+	const struct i3c_npcm4xx_config *config = DEV_CFG(dev);
 	I3C_PORT_Enum port;
 	uint32_t status;
 
@@ -2561,7 +2562,7 @@ int i3c_npcm4xx_slave_get_event_enabling(const struct device *dev, uint32_t *eve
 
 int i3c_npcm4xx_set_pid_extra_info(const struct device *dev, uint16_t extra_info)
 {
-	struct i3c_npcm4xx_config *config = DEV_CFG(dev);
+	const struct i3c_npcm4xx_config *config = DEV_CFG(dev);
 	I3C_PORT_Enum port = config->inst_id;
 	I3C_DEVICE_INFO_t *pDevice;
 	uint32_t partno;
@@ -2654,7 +2655,7 @@ static uint32_t i3c_npcm4xx_master_send_done(void *pCallbackData, struct I3C_Cal
 int i3c_npcm4xx_master_send_ccc(const struct device *dev, struct i3c_ccc_cmd *ccc)
 {
 	struct i3c_npcm4xx_obj *obj = DEV_DATA(dev);
-	struct i3c_npcm4xx_config *config;
+	const struct i3c_npcm4xx_config *config;
 	struct i3c_npcm4xx_xfer *xfer;
 	int pos = 0, ret = 0;
 	k_spinlock_key_t key;
@@ -3077,7 +3078,7 @@ int i3c_npcm4xx_master_priv_xfer(struct i3c_dev_desc *i3cdev, struct i3c_priv_xf
 
 int i3c_npcm4xx_master_send_entdaa(struct i3c_dev_desc *i3cdev)
 {
-	struct i3c_npcm4xx_config *config;
+	const struct i3c_npcm4xx_config *config;
 	I3C_PORT_Enum port;
 	int ret = 0;
 
@@ -3557,12 +3558,12 @@ void I3C_Slave_ISR(uint8_t I3C_IF)
 	obj = gObj[I3C_IF];
 
 	if (bMATCHSS == false) {
-		if (obj->config->hj_req == I3C_HOT_JOIN_STATE_Request) {
+		if (obj->hj_req == I3C_HOT_JOIN_STATE_Request) {
 			if (intmasked & I3C_INTMASKED_STOP_MASK) {
 				I3C_Slave_Insert_Task_HotJoin(I3C_IF);
 				k_work_submit_to_queue(&npcm4xx_i3c_work_q[I3C_IF],
 						&work_send_ibi[I3C_IF]);
-				obj->config->hj_req = I3C_HOT_JOIN_STATE_Queue;
+				obj->hj_req = I3C_HOT_JOIN_STATE_Queue;
 			}
 		}
 
@@ -3571,10 +3572,10 @@ void I3C_Slave_ISR(uint8_t I3C_IF)
 			bMATCHSS = true;
 		}
 	} else {
-		if (obj->config->hj_req != I3C_HOT_JOIN_STATE_None) {
+		if (obj->hj_req != I3C_HOT_JOIN_STATE_None) {
 			LOG_WRN("MATCHSS set. DA=0x%x\n",
 					I3C_Update_Dynamic_Address((uint32_t) I3C_IF));
-			obj->config->hj_req = I3C_HOT_JOIN_STATE_None;
+			obj->hj_req = I3C_HOT_JOIN_STATE_None;
 		}
 	}
 
@@ -3689,7 +3690,7 @@ void I3C_Slave_ISR(uint8_t I3C_IF)
 				pTaskInfo->result = I3C_ERR_OK;
 				I3C_Slave_End_Request((uint32_t)pTask);
 			}
-			obj->config->hj_req = I3C_HOT_JOIN_STATE_None;
+			obj->hj_req = I3C_HOT_JOIN_STATE_None;
 		}
 
 		intmasked &= ~I3C_INTMASKED_DACHG_MASK;
@@ -4026,7 +4027,7 @@ I3C_ErrCode_Enum GetRegisterIndex(I3C_DEVICE_INFO_t *pDevice, uint16_t rx_cnt, u
 
 static void i3c_npcm4xx_isr(const struct device *dev)
 {
-	struct i3c_npcm4xx_config *config = DEV_CFG(dev);
+	const struct i3c_npcm4xx_config *config = DEV_CFG(dev);
 	I3C_PORT_Enum port = config->inst_id;
 	uint32_t mconfig, sconfig;
 	k_spinlock_key_t key;
@@ -4116,7 +4117,7 @@ static void sir_allowed_worker(struct k_work *work)
 
 static int i3c_npcm4xx_init(const struct device *dev)
 {
-	struct i3c_npcm4xx_config *config = DEV_CFG(dev);
+	const struct i3c_npcm4xx_config *config = DEV_CFG(dev);
 	struct i3c_npcm4xx_obj *obj = DEV_DATA(dev);
 	I3C_PORT_Enum port = config->inst_id;
 	I3C_DEVICE_INFO_t *pDevice;
@@ -4221,9 +4222,9 @@ static int i3c_npcm4xx_init(const struct device *dev)
 	hal_I3C_Config_Device(pDevice);
 
 	/* set hj req as false */
-	config->hj_req = I3C_HOT_JOIN_STATE_None;
+	obj->hj_req = I3C_HOT_JOIN_STATE_None;
 
-	config->rst_reason = npcm4xx_get_reset_reason();
+	obj->rst_reason = npcm4xx_get_reset_reason();
 
 	return 0;
 }

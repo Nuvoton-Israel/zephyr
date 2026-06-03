@@ -87,8 +87,6 @@ struct i3c_npcm4xx_config {
 	struct npcm4xx_clk_cfg clk_cfg;
 	bool slave;
 	bool secondary;
-	uint8_t hj_req;
-	enum npcm4xx_reset_reason rst_reason;
 	uint32_t i3c_scl_hz;
 	uint32_t i2c_scl_hz;
 	/* uint16_t manufacture-id; PID[5:4] */
@@ -111,10 +109,12 @@ struct i3c_npcm4xx_obj {
 	volatile uint8_t task_count;
 	struct I3C_TRANSFER_TASK *pTaskListHead;
 
-	struct i3c_npcm4xx_config *config;
+	const struct i3c_npcm4xx_config *config;
 	struct k_spinlock lock;
 	struct k_work work;
 	bool sir_allowed_by_sw;
+	uint8_t hj_req;
+	enum npcm4xx_reset_reason rst_reason;
 	struct {
 		uint32_t ibi_status_correct :1;
 		uint32_t ibi_pec_force_enable :1;
@@ -141,7 +141,7 @@ struct i3c_npcm4xx_obj {
 	uint32_t apb3_rate;
 };
 
-#define DEV_CFG(dev)			((struct i3c_npcm4xx_config *)(dev)->config)
+#define DEV_CFG(dev)			((const struct i3c_npcm4xx_config *)(dev)->config)
 #define DEV_DATA(dev)			((struct i3c_npcm4xx_obj *)(dev)->data)
 #define DESC_PRIV(desc)			((struct i3c_npcm4xx_dev_priv *)(desc)->priv_data)
 
