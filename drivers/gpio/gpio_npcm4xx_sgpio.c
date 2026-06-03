@@ -48,10 +48,14 @@ struct sgpio_npcm4xx_parent_config {
 	/* clock configuration */
 	struct npcm4xx_clk_cfg clk_cfg;
 	sgpio_irq_config_func_t irq_conf_func;
-	struct k_spinlock lock;
 	uint32_t sgpio_freq;
 	uint8_t nin_sgpio;
 	uint8_t nout_sgpio;
+};
+
+/* Parent driver data (mutable; must not live in the const config) */
+struct sgpio_npcm4xx_parent_data {
+	struct k_spinlock lock;
 	uint8_t in_port;
 	uint8_t out_port;
 };
@@ -84,9 +88,11 @@ static const struct npcm4xx_scfg_config npcm4xx_scfg_cfg = {
 };
 
 /* Driver convenience defines */
-#define DRV_PARENT_CFG(dev) ((struct sgpio_npcm4xx_parent_config *)(dev)->config)
+#define DRV_PARENT_CFG(dev) ((const struct sgpio_npcm4xx_parent_config *)(dev)->config)
 
-#define DRV_CONFIG(dev) ((struct sgpio_npcm4xx_config *)(dev)->config)
+#define DRV_PARENT_DATA(dev) ((struct sgpio_npcm4xx_parent_data *)(dev)->data)
+
+#define DRV_CONFIG(dev) ((const struct sgpio_npcm4xx_config *)(dev)->config)
 
 #define DRV_DATA(dev) ((struct sgpio_npcm4xx_data *)(dev)->data)
 
@@ -118,7 +124,8 @@ static void npcm_sgpio_setup_enable(const struct device *parent, bool enable)
 static int npcm_sgpio_init_port(const struct device *parent)
 {
 	uint8_t in_port, out_port, set_port, reg;
-	struct sgpio_npcm4xx_parent_config *const config = DRV_PARENT_CFG(parent);
+	const struct sgpio_npcm4xx_parent_config *const config = DRV_PARENT_CFG(parent);
+	struct sgpio_npcm4xx_parent_data *const data = DRV_PARENT_DATA(parent);
 	struct sgpio_reg *const inst = HAL_PARENT_INSTANCE(parent);
 
 	in_port = config->nin_sgpio / 8;
@@ -129,8 +136,8 @@ static int npcm_sgpio_init_port(const struct device *parent)
 	if((config->nout_sgpio % 8) > 0 )
 		out_port++;
 
-	config->in_port = in_port;
-	config->out_port = out_port;
+	data->in_port = in_port;
+	data->out_port = out_port;
 
 	set_port = ((out_port & 0xf) << 4) | (in_port & 0xf);
 	inst->IOXCFG2 = set_port;
@@ -452,7 +459,7 @@ int sgpio_npcm4xx_init(const struct device *dev)
 
 int sgpio_npcm4xx_parent_init(const struct device *parent)
 {
-	struct sgpio_npcm4xx_parent_config *const config = DRV_PARENT_CFG(parent);
+	const struct sgpio_npcm4xx_parent_config *const config = DRV_PARENT_CFG(parent);
 	struct sgpio_reg *const inst = HAL_PARENT_INSTANCE(parent);
 	const struct device *const clk_dev =
 					device_get_binding(NPCM4XX_CLK_CTRL_NAME);
@@ -566,7 +573,9 @@ struct device_cont {
 		.child_dev = child_dev_##inst,                                                     \
 		.child_num = ARRAY_SIZE(child_dev_##inst),                                         \
 	};                                                                                         \
-	DEVICE_DT_INST_DEFINE(inst, sgpio_npcm4xx_parent_init, NULL, NULL,                         \
+	static struct sgpio_npcm4xx_parent_data sgpio_npcm4xx_parent_data_##inst;                  \
+	DEVICE_DT_INST_DEFINE(inst, sgpio_npcm4xx_parent_init, NULL,                               \
+			      &sgpio_npcm4xx_parent_data_##inst,                                   \
 			      &sgpio_npcm4xx_parent_cfg_##inst, POST_KERNEL,                       \
 			      CONFIG_GPIO_NPCM4XX_SGPIO_INIT_PRIORITY, NULL);                      \
 	static const struct sgpio_npcm4xx_config sgpio_npcm4xx_cfg_##inst[] = { DT_FOREACH_CHILD(  \
