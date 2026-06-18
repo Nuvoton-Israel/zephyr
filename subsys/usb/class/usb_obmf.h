@@ -19,6 +19,13 @@ struct obmf_ops {
 #if CONFIG_OBMF_INTERRUPT_OUT_EP_SUPPORT
 	void (*int_read)(const struct device *dev, uint32_t len, uint8_t *data);
 #endif
+	/*
+	 * Called when the USB connection to the host is lost (USB bus reset
+	 * or disconnect), e.g. on a host reboot. Runs in USB interrupt
+	 * context, so the implementation must be ISR-safe (no blocking,
+	 * no dynamic memory operations).
+	 */
+	void (*bus_reset)(const struct device *dev);
 };
 
 void usb_obmf_register_device(const struct device *dev,

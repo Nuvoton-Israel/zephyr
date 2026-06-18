@@ -364,19 +364,41 @@ static void obmf_status_cb(struct usb_cfg_data *cfg,
 			       enum usb_dc_status_code status,
 			       const uint8_t *param)
 {
-	ARG_UNUSED(cfg);
+	struct obmf_device_info *dev_data = NULL;
+	struct usb_dev_data *common;
+
 	ARG_UNUSED(param);
+
+	common = usb_get_dev_data_by_cfg(&usb_obmf_devlist, cfg);
+	if (common != NULL) {
+		dev_data = CONTAINER_OF(common, struct obmf_device_info, common);
+	}
 
 	switch (status) {
 	case USB_DC_RESET:
 		/*
 		 * [1.0rc5 C7] USB bus reset detected.
 		 * Clear USB-layer RX buffer to ensure clean state.
-		 * Upper-layer OBMF-ICP channel state (fragment reassembly,
-		 * ring buffer, etc.) is managed by the application layer.
+		 * Notify the application so it can reset upper-layer
+		 * OBMF-ICP channel state (tags, fragment reassembly, etc.),
+		 * e.g. after a host reboot.
 		 */
 		LOG_WRN("USB reset: clearing OBMF USB-layer RX buffer");
 		memset(obmf_buf, 0, sizeof(obmf_buf));
+		if (dev_data && dev_data->ops && dev_data->ops->bus_reset) {
+			dev_data->ops->bus_reset(common->dev);
+		}
+		break;
+	case USB_DC_DISCONNECTED:
+		/*
+		 * Host connection lost. Notify the application to reset
+		 * upper-layer OBMF-ICP channel state.
+		 */
+		LOG_WRN("USB disconnected: clearing OBMF USB-layer RX buffer");
+		memset(obmf_buf, 0, sizeof(obmf_buf));
+		if (dev_data && dev_data->ops && dev_data->ops->bus_reset) {
+			dev_data->ops->bus_reset(common->dev);
+		}
 		break;
 	case USB_DC_CLEAR_HALT:
 		/*
