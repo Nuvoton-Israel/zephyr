@@ -44,8 +44,7 @@ LOG_MODULE_REGISTER(i3c_npcm4);
 #define SLAVE_DA_ASSIGNED	BIT(0)
 #define SLAVE_WAIT_FOR_RX	BIT(1)
 #define SLAVE_WAIT_FOR_TX	BIT(2)
-#define SLAVE_TX_READY		BIT(3)
-#define SLAVE_REQUEST_IBI	BIT(4)
+#define SLAVE_HAS_PENDING_TX	BIT(3)
 
 /* I3C register offsets */
 #define I3C_CONFIG		0x004
@@ -60,7 +59,10 @@ LOG_MODULE_REGISTER(i3c_npcm4);
 #define   I3C_STATUS_STOP	BIT(10)
 #define   I3C_STATUS_MATCHED	BIT(9)
 #define   I3C_STATUS_STNOTSTOP	BIT(0)
+#define   I3C_STATUS_EVENT_NACKED	2
+#define   I3C_STATUS_EVENT_ACKED	3
 #define I3C_CTRL		0x00C
+#define   I3C_CTRL_EVENT(x) FIELD_GET(GENMASK(1, 0), (x))
 #define I3C_INTSET		0x010
 #define I3C_INTCLR		0x014
 #define I3C_INTMASKED		0x018
@@ -74,6 +76,7 @@ LOG_MODULE_REGISTER(i3c_npcm4);
 #define I3C_RDATAB		0x040
 #define I3C_WDATAB1		0x054
 #define I3C_DYNADDR		0x064
+#define I3C_MAXLIMITS		0x068
 #define I3C_PARTNO		0x06C
 #define I3C_IDEXT		0x070
 #define I3C_IBIEXT1		0x140
@@ -109,7 +112,7 @@ struct i3c_npcm4_config {
 	bool secondary;
 	uint32_t i3c_scl_hz;
 	uint32_t i2c_scl_hz;
-	int32_t hj_timeout_ms; /* -1 = disabled */
+	int32_t hj_timeout_ms;
 };
 
 typedef int (*isr_cb_t)(const struct device *dev);
@@ -125,9 +128,7 @@ struct i3c_npcm4_obj {
 
 	/* Semaphore for complete event */
 	struct k_sem complete;
-
-	/* Delayed work to cancel hot-join request on timeout */
-	struct k_work_delayable hj_timeout_work;
+	int xfer_ret;
 
 	/* DMA structure */
 	uint8_t *dma_buf;
@@ -159,6 +160,7 @@ static char dma_buf_pool[DMA_BUF_SIZE * NUM_MODULES];
 struct dsct_reg sg_dsct[NUM_MODULES * 2] __aligned(256);
 
 int i3c_npcm4_slave_get_dynamic_addr(const struct device *dev, uint8_t *dynamic_addr);
+static int i3c_npcm4_isr_ibi_event(const struct device *dev);
 
 /*
  * readl_poll_timeout - Poll until condition becomes true or timeout (may sleep)
@@ -214,15 +216,18 @@ static inline void i3c_npcm4_stop_dma_rx(const struct device *dev)
 	config->pdma_base->STOP = (1 << config->dma_rx_channel);
 	writel(val, config->regs + I3C_DMACTRL);
 	obj->state &= ~SLAVE_WAIT_FOR_RX;
+	obj->rx_desc = NULL;
 }
 
 static inline void i3c_npcm4_stop_dma_tx(const struct device *dev)
 {
 	const struct i3c_npcm4_config *config = DEV_CFG(dev);
+	struct i3c_npcm4_obj *obj = DEV_DATA(dev);
 	uint32_t val = readl(config->regs + I3C_DMACTRL) & ~GENMASK(3, 2);
 
 	config->pdma_base->STOP = (1 << config->dma_tx_channel);
 	writel(val, config->regs + I3C_DMACTRL);
+	obj->tx_desc = NULL;
 }
 
 static void i3c_npcm4_register_isr_cb(const struct device *dev, int irq, isr_cb_t cb)
@@ -366,11 +371,11 @@ static int i3c_npcm4_slave_write(const struct device *dev, uint8_t *buf, int len
 {
 	const struct i3c_npcm4_config *config = DEV_CFG(dev);
 	struct i3c_npcm4_obj *obj = DEV_DATA(dev);
+	int ret;
 
 	if (len <= 0 || len > DMA_BUF_SIZE)
 		return -EINVAL;
 
-	LOG_DBG("len %d", len);
 	/* Flush TX FIFO */
 	writel(I3C_DATACTRL_FLUSHTB, config->regs + I3C_DATACTRL);
 
@@ -382,9 +387,13 @@ static int i3c_npcm4_slave_write(const struct device *dev, uint8_t *buf, int len
 
 	/* Start the DMA write operation */
 	obj->use_dma_tx = true;
-	i3c_npcm4_dma_write(dev, buf, len);
+	ret = i3c_npcm4_dma_write(dev, buf, len);
+	if (ret) {
+		obj->use_dma_tx = false;
+		obj->tx_desc = NULL;
+	}
 
-	return 0;
+	return ret;
 }
 
 static int i3c_npcm4_slave_generate_ibi(const struct device *dev, uint8_t *payload, int len)
@@ -392,6 +401,11 @@ static int i3c_npcm4_slave_generate_ibi(const struct device *dev, uint8_t *paylo
 	const struct i3c_npcm4_config *config = DEV_CFG(dev);
 	uint32_t ctrl_val, ibiext_val;
 	int i;
+
+	if (!payload || len <= 0) {
+		LOG_ERR("Invalid IBI payload");
+		return -EINVAL;
+	}
 
 	if (len > 8) {
 		LOG_ERR("IBI data too large");
@@ -413,69 +427,93 @@ static int i3c_npcm4_slave_generate_ibi(const struct device *dev, uint8_t *paylo
 			ibiext_val |= (payload[i] << (i * 8));
 		writel(ibiext_val, config->regs + I3C_IBIEXT1);
 	}
+
+	writel(I3C_STATUS_EVENT, config->regs + I3C_STATUS);
+	i3c_npcm4_register_isr_cb(dev, IRQ_EVENT, i3c_npcm4_isr_ibi_event);
 	writel(ctrl_val, config->regs + I3C_CTRL);
 
 	return 0;
+}
+
+static inline void i3c_npcm4_rollback_event_state(const struct device *dev)
+{
+	const struct i3c_npcm4_config *config = DEV_CFG(dev);
+	int retry = 100;
+
+	i3c_npcm4_register_isr_cb(dev, IRQ_EVENT, NULL);
+
+	/*
+	 * Stop event request.
+	 * Retrying may be required to cancel the HJ event.
+	 */
+	while (retry--) {
+		if (I3C_CTRL_EVENT(readl(config->regs + I3C_CTRL)))
+			writel(0, config->regs + I3C_CTRL);
+		else
+			break;
+	}
 }
 
 static int i3c_npcm4_isr_rx_done(const struct device *dev)
 {
 	const struct i3c_npcm4_config *config = DEV_CFG(dev);
 	struct i3c_npcm4_obj *obj = DEV_DATA(dev);
-	struct dsct_reg *desc = PDMA_DSCT(config, config->dma_rx_channel);
+	struct dsct_reg *desc = obj->rx_desc;
 	uintptr_t regs = config->regs;
 	const struct i3c_slave_callbacks *cb;
 	struct i3c_slave_payload *payload;
 	uint32_t val;
 	int rxcnt;
 
-	if (!obj->rx_desc) {
-		LOG_WRN("no rx desc");
+	if (!desc)
 		return 0;
-	}
-
-	/* Check MATCHED */
-	val = readl(regs + I3C_STATUS);
-	if ((val & I3C_STATUS_MATCHED) == 0) {
-		LOG_DBG("Not matched: Status=0x%08x", val);
-		return 0;
-	}
-	writel(I3C_STATUS_MATCHED, regs + I3C_STATUS);
 
 	/* Wait for RX FIFO empty */
 	if (readl_poll_timeout_atomic(regs + I3C_STATUS, val,
 				      !(val & I3C_STATUS_RXPEND), 0, 1000) != 0) {
-		LOG_WRN("rx FIFO is not empty");
-		return -EFAULT;
+		LOG_WRN("RX FIFO is not empty, flush FIFO and restart DMA");
+		i3c_npcm4_stop_dma_rx(dev);
+		writel(I3C_DATACTRL_FLUSHFB, regs + I3C_DATACTRL);
+		i3c_npcm4_dma_read(dev);
+		return 0;
 	}
-	val = config->pdma_base->TDSTS;
-	if (val & (1 << config->dma_rx_channel))
+
+	/* Get transfer count */
+	val = FIELD_GET(GENMASK(29, 16), desc->CTL);
+	if ((val == 0) && (config->pdma_base->TDSTS & BIT(config->dma_rx_channel))) {
+		LOG_DBG("DMA transfer is finished");
+		rxcnt = DMA_BUF_SIZE;
+		/* Clear flag */
 		config->pdma_base->TDSTS = (1 << config->dma_rx_channel);
-	val = FIELD_GET(GENMASK(29, 16), desc->CTL) + 1;
-	rxcnt = DMA_BUF_SIZE - val;
+	} else {
+		rxcnt = DMA_BUF_SIZE - (val + 1);
+	}
+
 	if (rxcnt > 0) {
 		LOG_DBG("RX DONE(%d bytes)", rxcnt);
-		obj->rx_desc = NULL;
 		i3c_npcm4_stop_dma_rx(dev);
 	} else {
 		LOG_DBG("no rx data");
 		return 0;
 	}
 
+	/* Execute slave callbacks */
 	cb = obj->slave_data.callbacks;
+	if (!cb) {
+		LOG_WRN("No slave callbacks registered");
+		goto quit;
+	}
 	if (cb->write_requested) {
 		payload = cb->write_requested(obj->slave_data.dev);
 		payload->size = rxcnt;
 		memcpy(payload->buf, obj->dma_buf, rxcnt);
 	}
-
 	if (cb->write_done) {
 		cb->write_done(obj->slave_data.dev);
 	}
-	if (!obj->rx_desc) {
-		/* Start a new dma operation for next transfer */
-		i3c_npcm4_dma_read(dev);
-	}
+quit:
+	/* Start a new dma operation for next transfer */
+	i3c_npcm4_dma_read(dev);
 
 	return 0;
 }
@@ -484,12 +522,11 @@ static int i3c_npcm4_isr_tx_done(const struct device *dev)
 {
 	const struct i3c_npcm4_config *config = DEV_CFG(dev);
 	struct i3c_npcm4_obj *obj = DEV_DATA(dev);
-	struct dsct_reg *desc = PDMA_DSCT(config, config->dma_tx_channel);
+	struct dsct_reg *desc = obj->tx_desc;
 	uint32_t val, tx_done_flag;
 	int txcnt;
 	int ret = 0;
 
-	writel(I3C_STATUS_MATCHED, config->regs + I3C_STATUS);
 	if (!obj->use_dma_tx) {
 		val = readl(config->regs + I3C_DATACTRL);
 		if (I3C_DATACTRL_TXCOUNT(val)) {
@@ -498,10 +535,18 @@ static int i3c_npcm4_isr_tx_done(const struct device *dev)
 			writel(I3C_DATACTRL_FLUSHTB, config->regs + I3C_DATACTRL);
 		}
 		LOG_DBG("FIFO TX DONE");
+		obj->xfer_ret = 0;
 		obj->state &= ~SLAVE_WAIT_FOR_TX;
 		k_sem_give(&obj->complete);
 		return 0;
 	}
+
+	if (!desc) {
+		LOG_WRN("No tx desc");
+		ret = -EFAULT;
+		goto err_quit;
+	}
+
 	/* Wait for Transfer Done flag */
 	tx_done_flag = BIT(config->dma_tx_channel);
 	if (readl_poll_timeout_atomic((uintptr_t)&config->pdma_base->TDSTS, val,
@@ -513,49 +558,43 @@ static int i3c_npcm4_isr_tx_done(const struct device *dev)
 	/* Clear flag */
 	config->pdma_base->TDSTS = (1 << config->dma_tx_channel);
 
-	val = FIELD_GET(GENMASK(29, 16), desc->CTL);
-	txcnt = obj->txlen - val;
+	txcnt = obj->txlen - FIELD_GET(GENMASK(29, 16), desc->CTL);
 	if (txcnt > 0) {
 		LOG_DBG("DMA TX DONE(%d bytes)", txcnt);
-		obj->state &= ~SLAVE_WAIT_FOR_TX;
-		obj->tx_desc = NULL;
-		i3c_npcm4_stop_dma_tx(dev);
-		k_sem_give(&obj->complete);
-
-		return 0;
+	} else {
+		LOG_WRN("tx count is 0");
 	}
-	LOG_WRN("tx count is 0");
 
 err_quit:
+	obj->xfer_ret = ret;
 	obj->state &= ~SLAVE_WAIT_FOR_TX;
-	obj->tx_desc = NULL;
 	i3c_npcm4_stop_dma_tx(dev);
 	k_sem_give(&obj->complete);
 
 	return ret;
 }
 
-static int i3c_npcm4_isr_check_ibi_done(const struct device *dev)
+static int i3c_npcm4_isr_ibi_event(const struct device *dev)
 {
-	const struct i3c_npcm4_config *config = DEV_CFG(dev);
 	struct i3c_npcm4_obj *obj = DEV_DATA(dev);
-	uint32_t val;
 
-	/* Wait for EVENT status */
-	if (readl_poll_timeout_atomic(config->regs + I3C_STATUS, val,
-				      val & I3C_STATUS_EVENT, 0, 1000) != 0) {
-		LOG_WRN("No Event requested");
-		return 0;
-	}
-	LOG_DBG("IBI done, event=%d", (int)FIELD_GET(GENMASK(21, 20),
-		readl(config->regs + I3C_STATUS)));
-	/* Clear EVENT status */
-	writel(I3C_STATUS_EVENT, config->regs + I3C_STATUS);
-	obj->state &= ~SLAVE_REQUEST_IBI;
-	if (obj->state & SLAVE_TX_READY) {
-		obj->state &= ~SLAVE_TX_READY;
+	i3c_npcm4_register_isr_cb(dev, IRQ_EVENT, NULL);
+
+	if (obj->state & SLAVE_HAS_PENDING_TX)
 		obj->state |= SLAVE_WAIT_FOR_TX;
-	}
+	else
+		k_sem_give(&obj->complete);
+
+	return 0;
+}
+
+static int i3c_npcm4_isr_hj_event(const struct device *dev)
+{
+	struct i3c_npcm4_obj *obj = DEV_DATA(dev);
+
+	i3c_npcm4_register_isr_cb(dev, IRQ_EVENT, NULL);
+
+	k_sem_give(&obj->complete);
 
 	return 0;
 }
@@ -568,18 +607,18 @@ static int i3c_npcm4_isr_receive_stop(const struct device *dev)
 
 	LOG_DBG("Received STOP: state=0x%x", obj->state);
 	val = readl(config->regs + I3C_STATUS);
-	if ((val & I3C_STATUS_MATCHED) == 0 && (obj->state & SLAVE_REQUEST_IBI) == 0) {
-		LOG_DBG("Address not matched: Status=0x%08x", val);
+	if ((val & I3C_STATUS_MATCHED) == 0) {
+		LOG_INF("Address not matched: Status=0x%08x", val);
 		return 0;
 	}
+	/* Clear MATCHED */
+	writel(I3C_STATUS_MATCHED, config->regs + I3C_STATUS);
+
 	if ((obj->state & SLAVE_WAIT_FOR_RX) && obj->rx_desc) {
 		i3c_npcm4_isr_rx_done(dev);
 	}
-	if (obj->state & SLAVE_WAIT_FOR_TX) {
+	if ((obj->state & SLAVE_WAIT_FOR_TX)) {
 		i3c_npcm4_isr_tx_done(dev);
-	}
-	if (obj->state & SLAVE_REQUEST_IBI) {
-		i3c_npcm4_isr_check_ibi_done(dev);
 	}
 
 	return 0;
@@ -587,13 +626,12 @@ static int i3c_npcm4_isr_receive_stop(const struct device *dev)
 
 static int i3c_npcm4_isr_da_changed(const struct device *dev)
 {
-	const struct i3c_npcm4_config *config = DEV_CFG(dev);
 	struct i3c_npcm4_obj *obj = DEV_DATA(dev);
 	uint8_t addr = 0;
 
+
 	i3c_npcm4_slave_get_dynamic_addr(dev, &addr);
 	LOG_WRN("DA changed: 0x%x", addr);
-	writel(I3C_STATUS_STOP, config->regs + I3C_STATUS);
 
 	if (addr) {
 		obj->state |= SLAVE_DA_ASSIGNED;
@@ -601,11 +639,32 @@ static int i3c_npcm4_isr_da_changed(const struct device *dev)
 			i3c_npcm4_dma_read(dev);
 		i3c_npcm4_register_isr_cb(dev, IRQ_STOP, i3c_npcm4_isr_receive_stop);
 	} else {
+		i3c_npcm4_stop_dma_rx(dev);
 		obj->state &= ~SLAVE_DA_ASSIGNED;
 		i3c_npcm4_register_isr_cb(dev, IRQ_STOP, NULL);
 	}
 
 	return 0;
+}
+
+static void i3c_npcm4_slave_isr(const struct device *dev)
+{
+	const struct i3c_npcm4_config *config = DEV_CFG(dev);
+	struct i3c_npcm4_obj *obj = DEV_DATA(dev);
+	uint32_t status = readl(config->regs + I3C_INTMASKED);
+	int i;
+
+	LOG_DBG("status=0x%x", status);
+	for (i = IRQ_START; i <= IRQ_EVENT; i++) {
+		if (status & (1 << i)) {
+			/* Clear status bit */
+			writel(1 << i, config->regs + I3C_STATUS);
+
+			/* Run callbacks */
+			if (obj->isr_cb[(i - IRQ_START)])
+				obj->isr_cb[(i - IRQ_START)](dev);
+		}
+	}
 }
 
 /* Master mode API implementations */
@@ -684,6 +743,11 @@ int i3c_npcm4_slave_register(const struct device *dev, struct i3c_slave_setup *s
 	uint32_t status;
 	uint8_t addr;
 
+	if (!slave_data || !slave_data->callbacks) {
+		LOG_ERR("Invalid slave setup");
+		return -EINVAL;
+	}
+
 	obj->slave_data.max_payload_len = slave_data->max_payload_len;
 	obj->slave_data.callbacks = slave_data->callbacks;
 	obj->slave_data.dev = slave_data->dev;
@@ -692,10 +756,14 @@ int i3c_npcm4_slave_register(const struct device *dev, struct i3c_slave_setup *s
 	status = readl(config->regs + I3C_STATUS);
 	writel(status, config->regs + I3C_STATUS);
 
-	if (i3c_npcm4_slave_get_dynamic_addr(dev, &addr) == 0)
+	if (i3c_npcm4_slave_get_dynamic_addr(dev, &addr) == 0) {
 		obj->state |= SLAVE_DA_ASSIGNED;
-	else
+		if (!obj->rx_desc)
+			i3c_npcm4_dma_read(dev);
+		i3c_npcm4_register_isr_cb(dev, IRQ_STOP, i3c_npcm4_isr_receive_stop);
+	} else {
 		obj->state &= ~SLAVE_DA_ASSIGNED;
+	}
 
 	i3c_npcm4_register_isr_cb(dev, IRQ_DACHG, i3c_npcm4_isr_da_changed);
 
@@ -711,31 +779,59 @@ int i3c_npcm4_slave_put_read_data(const struct device *dev, struct i3c_slave_pay
 	struct i3c_npcm4_obj *obj = DEV_DATA(dev);
 	const struct i3c_npcm4_config *config = DEV_CFG(dev);
 	uint32_t val;
+	int ret;
 
 	__ASSERT_NO_MSG(data);
 	__ASSERT_NO_MSG(data->buf);
 	__ASSERT_NO_MSG(data->size);
 
-	LOG_DBG("put data");
+	LOG_DBG("put data: size %d", data->size);
+
 	/* Wait for bus STOP */
-	if (readl_poll_timeout(config->regs + I3C_STATUS, val, !(val & BIT(0)), 0, 10000) != 0) {
-		LOG_ERR("bus is busy");
+	if (readl_poll_timeout(config->regs + I3C_STATUS, val,
+			       !(val & I3C_STATUS_STNOTSTOP), 0, 100000) != 0) {
+		LOG_ERR("%s: Bus is busy", __func__);
 		return -EBUSY;
 	}
 
-	if (i3c_npcm4_slave_write(dev, data->buf, data->size) == 0)
-		obj->state |= SLAVE_TX_READY;
+	/* Copy data to FIFO */
+	ret = i3c_npcm4_slave_write(dev, data->buf, data->size);
+	if (ret) {
+		LOG_ERR("Unable to write data to FIFO");
+		return ret;
+	}
+
+	obj->xfer_ret = 0;
 	k_sem_init(&obj->complete, 0, 1);
 
 	if (ibi_notify) {
-		writel(I3C_STATUS_EVENT, config->regs + I3C_STATUS);
-		obj->state |= SLAVE_REQUEST_IBI;
-		i3c_npcm4_slave_generate_ibi(dev, ibi_notify->buf, ibi_notify->size);
+		obj->state |= SLAVE_HAS_PENDING_TX;
+		/* Generate an IBI event */
+		ret = i3c_npcm4_slave_generate_ibi(dev, ibi_notify->buf,
+						   ibi_notify->size);
+		if (ret) {
+			obj->state &= ~SLAVE_HAS_PENDING_TX;
+			return ret;
+		}
+	} else {
+		obj->state |= SLAVE_WAIT_FOR_TX;
 	}
-	k_sem_take(&obj->complete, K_FOREVER);
-	LOG_DBG("complete");
 
-	return 0;
+	/* Wait for complete */
+	if (k_sem_take(&obj->complete, K_MSEC(3000)))
+		ret = -ETIMEDOUT;
+	else if (obj->xfer_ret)
+		ret = obj->xfer_ret;
+
+	if (ret) {
+		LOG_ERR("Send data failed: %d", ret);
+		if (obj->use_dma_tx)
+			i3c_npcm4_stop_dma_tx(dev);
+		i3c_npcm4_rollback_event_state(dev);
+	}
+	obj->state &= ~(SLAVE_HAS_PENDING_TX | SLAVE_WAIT_FOR_TX);
+
+	return ret;
 }
 
 /**
@@ -787,8 +883,10 @@ int i3c_npcm4_slave_get_event_enabling(const struct device *dev, uint32_t *event
 int i3c_npcm4_slave_send_sir(const struct device *dev, struct i3c_ibi_payload *payload)
 {
 	const struct i3c_npcm4_config *config = DEV_CFG(dev);
+	struct i3c_npcm4_obj *obj = DEV_DATA(dev);
 	uint8_t addr = 0;
 	uint32_t val;
+	int ret;
 
 	LOG_DBG("Send IBI request");
 	if (i3c_npcm4_slave_get_dynamic_addr(dev, &addr) < 0) {
@@ -796,56 +894,33 @@ int i3c_npcm4_slave_send_sir(const struct device *dev, struct i3c_ibi_payload *p
 		return -EINVAL;
 	}
 
-	val = readl(config->regs + I3C_STATUS);
-	if (val & BIT(24)) {
-		LOG_ERR("IBI request is disabled\n");
+	if (readl(config->regs + I3C_STATUS) & I3C_STATUS_IBIDIS) {
+		LOG_ERR("IBI event is disabled\n");
 		return -EINVAL;
 	}
 
+	if (!payload)
+		return -EINVAL;
+
 	/* Wait for bus STOP */
-	if (readl_poll_timeout(config->regs + I3C_STATUS, val, !(val & BIT(0)), 0, 10000) != 0) {
-		LOG_ERR("bus is busy");
+	if (readl_poll_timeout(config->regs + I3C_STATUS, val,
+			       !(val & I3C_STATUS_STNOTSTOP), 0, 10000) != 0) {
+		LOG_ERR("%s: Bus is busy", __func__);
 		return -EBUSY;
 	}
 
-	i3c_npcm4_slave_generate_ibi(dev, payload->buf, payload->size);
+	k_sem_init(&obj->complete, 0, 1);
+	/* Generate an IBI event */
+	ret = i3c_npcm4_slave_generate_ibi(dev, payload->buf, payload->size);
+	if (ret)
+		return ret;
 
-	return 0;
-}
-
-/**
- * @brief Send Hot-Join request in slave mode
- */
-static void i3c_npcm4_hj_timeout_handler(struct k_work *work)
-{
-	struct k_work_delayable *dwork = k_work_delayable_from_work(work);
-	struct i3c_npcm4_obj *obj =
-		CONTAINER_OF(dwork, struct i3c_npcm4_obj, hj_timeout_work);
-	const struct i3c_npcm4_config *config = DEV_CFG(obj->dev);
-
-	LOG_ERR("HJ request not sent within timeout, cancelling");
-	i3c_npcm4_register_isr_cb(obj->dev, IRQ_EVENT, NULL);
-	/* Cancel HJ request: clear CTRL bits[1:0] */
-	writel(readl(config->regs + I3C_CTRL) & ~GENMASK(1, 0), config->regs + I3C_CTRL);
-}
-
-static int i3c_npcm4_isr_hj_event(const struct device *dev)
-{
-	struct i3c_npcm4_obj *obj = DEV_DATA(dev);
-	const struct i3c_npcm4_config *config = DEV_CFG(dev);
-	uint32_t event = (uint32_t)FIELD_GET(GENMASK(21, 20), readl(config->regs + I3C_STATUS));
-
-	/* Clear EVENT status */
-	writel(I3C_STATUS_EVENT, config->regs + I3C_STATUS);
-
-	/* HJ request sent: cancel the timeout work */
-	k_work_cancel_delayable(&obj->hj_timeout_work);
-	i3c_npcm4_register_isr_cb(dev, IRQ_EVENT, NULL);
-
-	if ((event & 0x2) == 0)
-		LOG_ERR("HJ request not transmitted, event=0x%x", event);
-	else
-		LOG_DBG("HJ request sent, event=0x%x", event);
+	/* Wait for complete */
+	if (k_sem_take(&obj->complete, K_MSEC(3000))) {
+		LOG_ERR("IBI timeout");
+		i3c_npcm4_rollback_event_state(dev);
+		return -ETIMEDOUT;
+	}
 
 	return 0;
 }
@@ -854,30 +929,45 @@ int i3c_npcm4_slave_hj_req(const struct device *dev)
 {
 	const struct i3c_npcm4_config *config = DEV_CFG(dev);
 	struct i3c_npcm4_obj *obj = DEV_DATA(dev);
-	uint8_t addr = 0;
-	uint32_t val;
+	uint32_t val, timeout_ms;
+	uint8_t addr;
+	int ret = 0;
 
-	LOG_INF("Send HJ req");
+	LOG_DBG("Send HJ req");
 	if (i3c_npcm4_slave_get_dynamic_addr(dev, &addr) == 0) {
-		LOG_ERR("Dynamic address present = 0x%x\n", addr);
+		LOG_WRN("Dynamic address present = 0x%x\n", addr);
+		return 0;
+	}
+
+	if (readl(config->regs + I3C_STATUS) & I3C_STATUS_HJDIS) {
+		LOG_ERR("Hot-join event is disabled\n");
 		return -EINVAL;
 	}
 
 	/* Wait for bus STOP */
 	if (readl_poll_timeout(config->regs + I3C_STATUS, val,
 			       !(val & I3C_STATUS_STNOTSTOP), 0, 10000) != 0) {
-		LOG_ERR("bus is busy");
+		LOG_ERR("%s: Bus is busy", __func__);
 		return -EBUSY;
 	}
-	if (config->hj_timeout_ms > 0) {
-		/* Register EVENT ISR callback and schedule timeout */
-		i3c_npcm4_register_isr_cb(dev, IRQ_EVENT, i3c_npcm4_isr_hj_event);
-		k_work_schedule(&obj->hj_timeout_work, K_MSEC(config->hj_timeout_ms));
-	}
 
+	k_sem_init(&obj->complete, 0, 1);
+	i3c_npcm4_register_isr_cb(dev, IRQ_EVENT, i3c_npcm4_isr_hj_event);
+
+	/* Generate a HJ event */
 	writel(readl(config->regs + I3C_CTRL) | 0x3, config->regs + I3C_CTRL);
 
-	return 0;
+	/* Wait for complete */
+	timeout_ms = config->hj_timeout_ms > 0 ? config->hj_timeout_ms : 100;
+	if (k_sem_take(&obj->complete, K_MSEC(timeout_ms))) {
+		i3c_npcm4_rollback_event_state(dev);
+		LOG_INF("HJ event timeout");
+		ret = -ETIMEDOUT;
+	} else {
+		LOG_INF("HJ event sent");
+	}
+
+	return ret;
 }
 
 /**
@@ -914,24 +1004,6 @@ int i3c_npcm4_set_pid_extra_info(const struct device *dev, uint16_t extra_info)
 	return 0;
 }
 
-static void i3c_npcm4_slave_isr(const struct device *dev)
-{
-	const struct i3c_npcm4_config *config = DEV_CFG(dev);
-	struct i3c_npcm4_obj *obj = DEV_DATA(dev);
-	uint32_t status = readl(config->regs + I3C_INTMASKED);
-	int i;
-
-	LOG_DBG("status=0x%x", readl(config->regs + I3C_STATUS));
-	for (i = IRQ_START; i <= IRQ_EVENT; i++) {
-		if (status & (1 << i)) {
-			/* Clear status bit */
-			writel(1 << i, config->regs + I3C_STATUS);
-			if (obj->isr_cb[(i - IRQ_START)])
-				obj->isr_cb[(i - IRQ_START)](dev);
-		}
-	}
-}
-
 static void i3c_npcm4_isr(const struct device *dev)
 {
 	const struct i3c_npcm4_config *config = DEV_CFG(dev);
@@ -956,11 +1028,13 @@ static int i3c_npcm4_slave_init(const struct device *dev,
 	/* Setup slave BCR/DCR/PID */
 	writel((config->bcr << 16) | (config->dcr << 8), config->regs + I3C_IDEXT);
 	writel((config->part_id << 16) | (config->vendor_def_id), config->regs + I3C_PARTNO);
+	/* Setup max rd/wr length */
+	writel((DMA_BUF_SIZE << 16) | DMA_BUF_SIZE, config->regs + I3C_MAXLIMITS);
 
 	/* Setup static address and enable slave mode */
 	val = FIELD_PREP(GENMASK(31, 25), config->assigned_addr);
 	val |= FIELD_PREP(GENMASK(22, 16), (obj->apb3_rate / 1000000UL));
-	val |= BIT(0); /* Enable */
+	val |= I3C_CONFIG_MATCHSS | I3C_CONFIG_SLVENA;
 	writel(val, config->regs + I3C_CONFIG);
 
 	return 0;
@@ -1028,7 +1102,6 @@ static int i3c_npcm4_init(const struct device *dev)
 	}
 	obj->apb3_rate = apb3_rate;
 	obj->dev = dev;
-	k_work_init_delayable(&obj->hj_timeout_work, i3c_npcm4_hj_timeout_handler);
 
 	ret = i3c_npcm4_setup_dma(dev);
 	if (ret < 0) {
