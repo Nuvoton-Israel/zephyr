@@ -6,6 +6,7 @@
 &pinmux {
 	pinctrl_uart0_default: uart0_default {};
 	pinctrl_uart1_default: uart1_default {};
+	pinctrl_uart2_default: uart2_default {};
 	pinctrl_i2c1a_default: i2c1a_default {};
 	pinctrl_i2c1b_default: i2c1b_default {};
 	pinctrl_i2c2a_default: i2c2a_default {};
