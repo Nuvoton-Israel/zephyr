@@ -5,6 +5,7 @@
  */
 
 #include <zephyr.h>
+#include <sys/byteorder.h>
 #include <sys/printk.h>
 #include <string.h>
 #include <device.h>
@@ -155,6 +156,63 @@ int i3c_master_send_getbcr(const struct device *master, uint8_t addr, uint8_t *b
 	return 0;
 }
 
+int i3c_master_send_getdcr(const struct device *master, uint8_t addr, uint8_t *dcr)
+{
+	struct i3c_ccc_cmd ccc;
+
+	ccc.addr = addr;
+	ccc.payload.length = 1;
+	ccc.payload.data = dcr;
+	ccc.rnw = 1;
+	ccc.id = I3C_CCC_GETDCR;
+	ccc.ret = 0;
+
+	return i3c_master_send_ccc(master, &ccc);
+}
+
+int i3c_master_send_getmwl(const struct device *master, uint8_t addr, uint16_t *mwl)
+{
+	struct i3c_ccc_cmd ccc;
+	uint8_t data[2];
+	int ret;
+
+	ccc.addr = addr;
+	ccc.payload.length = 2;
+	ccc.payload.data = data;
+	ccc.rnw = 1;
+	ccc.id = I3C_CCC_GETMWL;
+	ccc.ret = 0;
+
+	ret = i3c_master_send_ccc(master, &ccc);
+	if (!ret)
+		*mwl = sys_get_be16(data);
+
+	return ret;
+}
+
+int i3c_master_send_getmrl(const struct device *master, uint8_t addr, uint16_t *mrl,
+			   uint8_t *ibi_payload_sz)
+{
+	struct i3c_ccc_cmd ccc;
+	uint8_t data[3];
+	int ret;
+
+	ccc.addr = addr;
+	ccc.payload.length = 3;
+	ccc.payload.data = data;
+	ccc.rnw = 1;
+	ccc.id = I3C_CCC_GETMRL;
+	ccc.ret = 0;
+
+	ret = i3c_master_send_ccc(master, &ccc);
+	if (!ret) {
+		*mrl = sys_get_be16(data);
+		if (ccc.payload.length == 3)
+			*ibi_payload_sz = data[2];
+	}
+
+	return ret;
+}
 /**
  * @brief data read for the JESD compliant devices
  * @param slave the JESD compliant device
@@ -291,4 +349,92 @@ int i3c_i2c_write(struct i3c_dev_desc *slave, uint8_t addr, uint8_t *buf, int le
 	k_free(out);
 
 	return ret;
+}
+
+int i3c_master_register_i3c_dev(const struct device *master, uint8_t addr)
+{
+	struct i3c_dev_desc *desc;
+	int ret;
+
+	desc = (struct i3c_dev_desc *)k_calloc(sizeof(struct i3c_dev_desc), 1);
+	if (!desc) {
+		printk("bus_init: OOM for addr 0x%02x\n", addr);
+		return -ENOMEM;
+	}
+
+	desc->info.assigned_dynamic_addr = addr;
+
+	ret = i3c_master_send_getpid(master, addr, &desc->info.pid);
+	if (ret)
+		printk("bus_init: GETPID 0x%02x failed: %d\n", addr, ret);
+
+	ret = i3c_master_send_getbcr(master, addr, &desc->info.bcr);
+	if (ret)
+		printk("bus_init: GETBCR 0x%02x failed: %d\n", addr, ret);
+
+	ret = i3c_master_send_getdcr(master, addr, &desc->info.dcr);
+	if (ret)
+		printk("bus_init: GETDCR 0x%02x failed: %d\n", addr, ret);
+
+	i3c_master_send_getmwl(master, addr, &desc->info.mwl);
+	i3c_master_send_getmrl(master, addr, &desc->info.mrl, &desc->info.ibi_payload_sz);
+
+	printk("Register an I3C device: 0x%02x pid=0x%012llx bcr=0x%02x dcr=0x%02x\n",
+	       addr, desc->info.pid, desc->info.bcr, desc->info.dcr);
+
+	ret = i3c_master_attach_device(master, desc);
+	if (ret) {
+		printk("bus_init: attach 0x%02x failed: %d\n", addr, ret);
+		k_free(desc);
+	}
+
+	return ret;
+}
+
+/**
+ * @brief Initialize the I3C bus: reset all dynamic addresses, run DAA, and
+ *        query device information (PID/BCR/DCR) for each discovered device.
+ *
+ * Flow:
+ *  1. Broadcast RSTDAA to clear all slaves' dynamic addresses.
+ *  2. Disable all slave events.
+ *  3. Run DAA — assigns dynamic addresses.
+ *  4. Register new i3c devices.
+ */
+int i3c_master_bus_init(const struct device *master)
+{
+	uint8_t addrs[I3C_MAX_ADDR];
+	int count = 0;
+	int ret, i;
+
+	/* Step 1: broadcast RSTDAA */
+	ret = i3c_master_send_rstdaa(master);
+	if (ret)
+		printk("bus_init: RSTDAA failed: %d (continuing)\n", ret);
+
+	/* Step 2: disable all slave events (SIR, MR, HJ) before DAA */
+	ret = i3c_master_send_disec(master, I3C_BROADCAST_ADDR,
+				    I3C_CCC_EVT_SIR | I3C_CCC_EVT_MR | I3C_CCC_EVT_HJ);
+	if (ret)
+		printk("bus_init: DISEC failed: %d (continuing)\n", ret);
+
+	/* Step 3: run DAA */
+#ifdef i3c_master_do_daa
+	ret = i3c_master_do_daa(master, addrs, &count);
+#else
+	ret = -ENOTSUP;
+#endif
+	if (ret < 0) {
+		printk("bus_init: DAA failed: %d\n", ret);
+		return ret;
+	}
+	printk("bus_init: DAA assigned %d device(s)\n", count);
+
+	/* Step 4: register i3c devices */
+	for (i = 0; i < count; i++) {
+		if (i3c_master_register_i3c_dev(master, addrs[i])) {
+			printk("Fail to register i3c dev@%02x\n", addrs[i]);
+		}
+	}
+	return 0;
 }

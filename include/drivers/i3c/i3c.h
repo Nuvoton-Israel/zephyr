@@ -77,6 +77,9 @@ struct i3c_device_info {
 	uint64_t pid;
 	uint8_t dcr;
 	uint8_t bcr;
+	uint16_t mwl;
+	uint16_t mrl;
+	uint8_t ibi_payload_sz;
 	uint8_t static_addr;
 	uint8_t assigned_dynamic_addr;
 	uint8_t dynamic_addr;
@@ -283,6 +286,12 @@ int i3c_master_send_setmrl(const struct device *master, uint8_t addr, uint16_t m
 			   uint8_t ibi_payload_size);
 int i3c_master_send_getpid(const struct device *master, uint8_t addr, uint64_t *pid);
 int i3c_master_send_getbcr(const struct device *master, uint8_t addr, uint8_t *bcr);
+int i3c_master_send_getdcr(const struct device *master, uint8_t addr, uint8_t *dcr);
+int i3c_master_send_getmwl(const struct device *master, uint8_t addr, uint16_t *mwl);
+int i3c_master_send_getmrl(const struct device *master, uint8_t addr, uint16_t *mrl,
+			   uint8_t *ibi_payload_sz);
+int i3c_master_bus_init(const struct device *master);
+int i3c_master_register_i3c_dev(const struct device *master, uint8_t addr);
 
 
 #ifdef CONFIG_I3C_ASPEED
