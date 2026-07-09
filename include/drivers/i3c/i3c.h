@@ -190,6 +190,8 @@ int i3c_npcm4_master_priv_xfer(struct i3c_dev_desc *i3cdev, struct i3c_priv_xfer
 int i3c_npcm4_master_request_ibi(struct i3c_dev_desc *i3cdev, struct i3c_ibi_callbacks *cb);
 int i3c_npcm4_master_enable_ibi(struct i3c_dev_desc *i3cdev);
 int i3c_npcm4_master_send_entdaa(struct i3c_dev_desc *i3cdev);
+int i3c_npcm4_master_do_daa(const struct device *dev, uint8_t *addrs, int *count);
+struct i3c_dev_desc *i3c_npcm4_master_get_desc(const struct device *dev, uint8_t addr);
 int i3c_npcm4_slave_register(const struct device *dev, struct i3c_slave_setup *slave_data);
 
 /**
@@ -335,6 +337,8 @@ int i3c_master_register_i3c_dev(const struct device *master, uint8_t addr);
 #define i3c_master_request_ibi		i3c_npcm4_master_request_ibi
 #define i3c_master_enable_ibi		i3c_npcm4_master_enable_ibi
 #define i3c_master_send_entdaa		i3c_npcm4_master_send_entdaa
+#define i3c_master_do_daa		i3c_npcm4_master_do_daa
+#define i3c_master_get_desc		i3c_npcm4_master_get_desc
 #define i3c_slave_register		i3c_npcm4_slave_register
 #define i3c_slave_set_static_addr	i3c_npcm4_slave_set_static_addr
 #define i3c_slave_send_sir		i3c_npcm4_slave_send_sir

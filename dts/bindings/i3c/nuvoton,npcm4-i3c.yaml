@@ -80,6 +80,15 @@ properties:
       sent within this period, the request is cancelled. If absent,
       no timeout is applied.
 
+  enable-hj:
+    required: false
+    type: boolean
+    description: |
+      When set, the master enables the SLVSTART interrupt (hot-join) during
+      initialization so that slave hot-join requests are handled automatically
+      via the work queue DAA flow.  Omit this property (default) to leave the
+      interrupt disabled at init time.
+
   pinctrl-0:
     type: phandles
     required: true
