@@ -353,40 +353,34 @@ int i3c_i2c_write(struct i3c_dev_desc *slave, uint8_t addr, uint8_t *buf, int le
 
 int i3c_master_register_i3c_dev(const struct device *master, uint8_t addr)
 {
-	struct i3c_dev_desc *desc;
+	struct i3c_dev_desc desc;
 	int ret;
 
-	desc = (struct i3c_dev_desc *)k_calloc(sizeof(struct i3c_dev_desc), 1);
-	if (!desc) {
-		printk("bus_init: OOM for addr 0x%02x\n", addr);
-		return -ENOMEM;
-	}
+	desc.info.assigned_dynamic_addr = addr;
 
-	desc->info.assigned_dynamic_addr = addr;
-
-	ret = i3c_master_send_getpid(master, addr, &desc->info.pid);
+	ret = i3c_master_send_getpid(master, addr, &desc.info.pid);
 	if (ret)
 		printk("bus_init: GETPID 0x%02x failed: %d\n", addr, ret);
 
-	ret = i3c_master_send_getbcr(master, addr, &desc->info.bcr);
+	ret = i3c_master_send_getbcr(master, addr, &desc.info.bcr);
 	if (ret)
 		printk("bus_init: GETBCR 0x%02x failed: %d\n", addr, ret);
 
-	ret = i3c_master_send_getdcr(master, addr, &desc->info.dcr);
+	ret = i3c_master_send_getdcr(master, addr, &desc.info.dcr);
 	if (ret)
 		printk("bus_init: GETDCR 0x%02x failed: %d\n", addr, ret);
 
-	i3c_master_send_getmwl(master, addr, &desc->info.mwl);
-	i3c_master_send_getmrl(master, addr, &desc->info.mrl, &desc->info.ibi_payload_sz);
+	i3c_master_send_getmwl(master, addr, &desc.info.mwl);
+	i3c_master_send_getmrl(master, addr, &desc.info.mrl, &desc.info.ibi_payload_sz);
 
-	printk("Register an I3C device: 0x%02x pid=0x%012llx bcr=0x%02x dcr=0x%02x\n",
-	       addr, desc->info.pid, desc->info.bcr, desc->info.dcr);
-
-	ret = i3c_master_attach_device(master, desc);
+	ret = i3c_master_attach_device(master, &desc);
 	if (ret) {
 		printk("bus_init: attach 0x%02x failed: %d\n", addr, ret);
-		k_free(desc);
 	}
+
+	printk("Register an I3C device: 0x%02x pid=0x%012llx bcr=0x%02x dcr=0x%02x\n",
+	       addr, desc.info.pid, desc.info.bcr, desc.info.dcr);
+
 
 	return ret;
 }

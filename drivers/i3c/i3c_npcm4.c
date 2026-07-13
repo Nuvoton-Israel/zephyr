@@ -1786,20 +1786,21 @@ int i3c_npcm4_master_attach_device(const struct device *dev, struct i3c_dev_desc
 {
 	struct i3c_npcm4_obj *master = DEV_DATA(dev);
 	struct i3c_dev_data *priv;
+	struct i3c_dev_desc *desc, *old;
 	int slot;
 
 	if (!slave->info.assigned_dynamic_addr)
 		return -EINVAL;
 
-	/* If the same dynamic address is already tracked, detach and free the old descriptor */
+	/* Check for duplicated device attachment */
 	for (int i = 0; i < I3C_MAX_DEVS; i++) {
-		if (master->addrs[i] == slave->info.assigned_dynamic_addr) {
-			struct i3c_dev_desc *old = master->i3c_devs[i];
-
-			LOG_WRN("attach: addr 0x%02x already attached at slot %d, replacing",
-				slave->info.assigned_dynamic_addr, i);
+		old = master->i3c_devs[i];
+		if (!old)
+			continue;
+		if (old->info.pid == slave->info.pid) {
+			LOG_DBG("PID 0x%llx already attached at slot %d, replacing",
+				old->info.pid, i);
 			i3c_npcm4_master_detach_device(dev, old);
-			k_free(old);
 			break;
 		}
 	}
@@ -1808,21 +1809,26 @@ int i3c_npcm4_master_attach_device(const struct device *dev, struct i3c_dev_desc
 	if (slot < 0)
 		return slot;
 
-	/* Allocate private data of the device */
+	/* Allocate descriptor */
+	desc = (struct i3c_dev_desc *)k_calloc(sizeof(struct i3c_dev_desc), 1);
+	if (!desc)
+		return -ENOMEM;
+
 	priv = (struct i3c_dev_data *)k_calloc(sizeof(struct i3c_dev_data), 1);
 	if (!priv) {
+		k_free(desc);
 		i3c_npcm4_master_release_slot(master, slot);
 		return -ENOMEM;
 	}
+	memcpy(desc, slave, sizeof(struct i3c_dev_desc));
 
 	priv->index = slot;
-	slave->priv_data = priv;
-	slave->bus = dev;
-	slave->info.dynamic_addr = slave->info.assigned_dynamic_addr;
+	desc->priv_data = priv;
+	desc->bus = dev;
+	desc->info.dynamic_addr = slave->info.assigned_dynamic_addr;
 	master->addrs[slot] = slave->info.assigned_dynamic_addr;
-	master->i3c_devs[slot] = slave;
-	i3c_addr_slot_set(master, slave->info.assigned_dynamic_addr,
-			  I3C_ADDR_SLOT_I3C_DEV);
+	master->i3c_devs[slot] = desc;
+	i3c_addr_slot_set(master, desc->info.dynamic_addr, I3C_ADDR_SLOT_I3C_DEV);
 
 	return 0;
 }
@@ -1840,6 +1846,11 @@ int i3c_npcm4_master_detach_device(const struct device *dev, struct i3c_dev_desc
 		return -EINVAL;
 	}
 
+	if (master->i3c_devs[data->index] != slave) {
+		LOG_WRN("Unknown descriptor to detach");
+		return -EINVAL;
+	}
+
 	if (master->addrs[data->index])
 		i3c_addr_slot_set(master, master->addrs[data->index], I3C_ADDR_SLOT_FREE);
 	master->addrs[data->index] = 0;
@@ -1847,6 +1858,7 @@ int i3c_npcm4_master_detach_device(const struct device *dev, struct i3c_dev_desc
 	i3c_npcm4_master_release_slot(master, data->index);
 	if (slave->priv_data)
 		k_free(slave->priv_data);
+	k_free(slave);
 
 	return 0;
 }
