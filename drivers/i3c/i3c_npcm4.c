@@ -1156,6 +1156,21 @@ static int i3c_master_get_free_addr(struct i3c_npcm4_obj *obj, uint8_t start_add
 }
 
 static struct i3c_dev_desc *
+i3c_npcm4_master_dev_from_pid(struct i3c_npcm4_obj *master, uint64_t pid)
+{
+	int i;
+
+	for (i = 0; i < I3C_MAX_DEVS; i++)
+		if (master->i3c_devs[i] && master->i3c_devs[i]->info.pid == pid)
+			break;
+
+	if (i == I3C_MAX_DEVS)
+		return NULL;
+
+	return master->i3c_devs[i];
+}
+
+static struct i3c_dev_desc *
 i3c_npcm4_master_dev_from_addr(struct i3c_npcm4_obj *master, unsigned int ibiaddr)
 {
 	int i;
@@ -1839,15 +1854,19 @@ int i3c_npcm4_master_attach_device(const struct device *dev, struct i3c_dev_desc
 int i3c_npcm4_master_detach_device(const struct device *dev, struct i3c_dev_desc *slave)
 {
 	struct i3c_npcm4_obj *master = DEV_DATA(dev);
-	struct i3c_dev_data *data = DESC_PRIV(slave);
+	struct i3c_dev_data *data;
+	struct i3c_dev_desc *desc;
 
-	if (data->index >= I3C_MAX_DEVS) {
-		LOG_WRN("Invalid slave index %u\n", data->index);
+	/* Find the matched descriptor */
+	desc = i3c_npcm4_master_dev_from_pid(master, slave->info.pid);
+	if (!desc) {
+		LOG_WRN("Unknown device(0x%llx) to detach", slave->info.pid);
 		return -EINVAL;
 	}
 
-	if (master->i3c_devs[data->index] != slave) {
-		LOG_WRN("Unknown descriptor to detach");
+	data = DESC_PRIV(desc);
+	if (!data || data->index >= I3C_MAX_DEVS) {
+		LOG_WRN("Invalid descriptor\n");
 		return -EINVAL;
 	}
 
@@ -1856,9 +1875,9 @@ int i3c_npcm4_master_detach_device(const struct device *dev, struct i3c_dev_desc
 	master->addrs[data->index] = 0;
 	master->i3c_devs[data->index] = NULL;
 	i3c_npcm4_master_release_slot(master, data->index);
-	if (slave->priv_data)
-		k_free(slave->priv_data);
-	k_free(slave);
+	if (desc->priv_data)
+		k_free(desc->priv_data);
+	k_free(desc);
 
 	return 0;
 }
