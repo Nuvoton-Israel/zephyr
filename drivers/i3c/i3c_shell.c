@@ -230,7 +230,7 @@ static int cmd_priv_xfer(const struct shell *shell, size_t argc, char **argv)
 
 	for (int i = 0; i < nxfers; i++) {
 		if (xfers[i].rnw) {
-			shell_hexdump(shell, xfers[i].data.out, xfers[i].len);
+			shell_hexdump(shell, xfers[i].data.in, xfers[i].len);
 		}
 	}
 
