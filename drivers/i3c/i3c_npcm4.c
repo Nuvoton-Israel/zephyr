@@ -923,6 +923,16 @@ int i3c_npcm4_slave_put_read_data(const struct device *dev, struct i3c_slave_pay
 }
 
 /**
+ * @brief Query whether controller is configured as slave mode
+ */
+int i3c_npcm4_is_slave_mode(const struct device *dev)
+{
+	const struct i3c_npcm4_config *config = DEV_CFG(dev);
+
+	return config->slave ? 1 : 0;
+}
+
+/**
  * @brief Get dynamically assigned address in slave mode
  */
 int i3c_npcm4_slave_get_dynamic_addr(const struct device *dev, uint8_t *dynamic_addr)

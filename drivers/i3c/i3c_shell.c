@@ -34,6 +34,10 @@ static struct i3c_dev_desc *find_matching_desc(const struct device *dev, uint8_t
 	struct i3c_dev_desc *desc = NULL;
 	int i;
 
+#ifdef i3c_master_get_desc
+	return i3c_master_get_desc(dev, desc_addr);
+#endif
+
 	for (i = 0; i < I3C_SHELL_MAX_DESC_NUM; i++) {
 		if (i3c_shell_desc_tbl[i].bus == dev &&
 		    i3c_shell_desc_tbl[i].info.dynamic_addr == desc_addr) {
@@ -748,7 +752,134 @@ static int cmd_do_stress(const struct shell *shell, size_t argc, char **argv)
 	return 0;
 }
 
+static const char bus_init_helper[] = "i3c bus_init <dev>";
+static int cmd_bus_init(const struct shell *shell, size_t argc, char **argv)
+{
+	const struct device *dev;
+	struct getopt_state *state;
+	int c, ret;
+
+	dev = device_get_binding(argv[1]);
+	if (!dev) {
+		shell_error(shell, "I3C: Device %s not found.", argv[1]);
+		return -ENODEV;
+	}
+
+#ifdef i3c_is_slave_mode
+	if (i3c_is_slave_mode(dev)) {
+		shell_error(shell, "I3C: bus_init only supports master mode.");
+		return -ENOTSUP;
+	}
+#endif
+
+	while ((c = shell_getopt(shell, argc - 1, &argv[1], "hi:")) != -1) {
+		state = shell_getopt_state_get(shell);
+		switch (c) {
+		case 'h':
+			shell_help(shell);
+			return SHELL_CMD_HELP_PRINTED;
+		case '?':
+			if (state->optopt == 'i') {
+				shell_print(shell, "Option -%c requires an argument.",
+					    state->optopt);
+			} else if (isprint(state->optopt)) {
+				shell_print(shell, "Unknown option `-%c'.", state->optopt);
+			} else {
+				shell_print(shell, "Unknown option character `\\x%x'.",
+					    state->optopt);
+			}
+			return 1;
+		default:
+			break;
+		}
+	}
+
+	ret = i3c_master_bus_init(dev);
+	if (ret) {
+		printk("bus init error\n");
+		return ret;
+	}
+
+	return 0;
+}
+
+static const char detach_helper[] = "i3c detach <dev> -a <addr>";
+static int cmd_detach(const struct shell *shell, size_t argc, char **argv)
+{
+	const struct device *dev;
+	struct i3c_dev_desc *desc;
+	struct getopt_state *state;
+	uint32_t addr = 0;
+	int c, ret;
+
+	dev = device_get_binding(argv[1]);
+	if (!dev) {
+		shell_error(shell, "I3C: Device %s not found.", argv[1]);
+		return -ENODEV;
+	}
+
+#ifdef i3c_is_slave_mode
+	if (i3c_is_slave_mode(dev)) {
+		shell_error(shell, "I3C: detach only supports master mode.");
+		return -ENOTSUP;
+	}
+#endif
+
+	while ((c = shell_getopt(shell, argc - 1, &argv[1], "ha:m:")) != -1) {
+		state = shell_getopt_state_get(shell);
+		switch (c) {
+		case 'a':
+			addr = strtoul(state->optarg, NULL, 0);
+			break;
+		case 'h':
+			shell_help(shell);
+			return SHELL_CMD_HELP_PRINTED;
+		case '?':
+			if ((state->optopt == 'a') || (state->optopt == 'm')) {
+				shell_print(shell, "Option -%c requires an argument.",
+					    state->optopt);
+			} else if (isprint(state->optopt)) {
+				shell_print(shell, "Unknown option `-%c'.", state->optopt);
+			} else {
+				shell_print(shell, "Unknown option character `\\x%x'.",
+					    state->optopt);
+			}
+			return 1;
+		default:
+			break;
+		}
+	}
+	if (addr == 0) {
+		for (addr = 0x9; addr < 0x60; addr++) {
+			desc = find_matching_desc(dev, addr);
+			if (!desc)
+				continue;
+			shell_print(shell, "Detach address 0x%02x from %s", addr, dev->name);
+			i3c_master_detach_device(dev, desc);
+		}
+		i3c_master_send_rstdaa(dev);
+		return 0;
+	}
+
+	desc = find_matching_desc(dev, addr);
+	if (!desc) {
+		shell_print(shell, "can't find i3c dev@%02x", addr);
+		return -ENODEV;
+	}
+	shell_print(shell, "Detach address 0x%02x from %s", addr, dev->name);
+	ret = i3c_master_detach_device(dev, desc);
+	if (ret) {
+		shell_print(shell, "Failed to detach device: %d", ret);
+	} else {
+		i3c_master_send_rstdaa_addr(dev, addr);
+	}
+
+	return ret;
+}
+
 SHELL_STATIC_SUBCMD_SET_CREATE(sub_i3c_cmds,
+	SHELL_CMD(bus_init, &dsub_device_name, bus_init_helper, cmd_bus_init),
+	SHELL_CMD(detach, &dsub_device_name, detach_helper, cmd_detach),
 	SHELL_CMD(attach, &dsub_device_name, attach_helper, cmd_attach),
 	SHELL_CMD(ccc, &dsub_device_name, send_ccc_helper, cmd_send_ccc),
 	SHELL_CMD(entdaa, &dsub_device_name, entdaa_helper, cmd_entdaa),

@@ -193,6 +193,7 @@ int i3c_npcm4_master_send_entdaa(struct i3c_dev_desc *i3cdev);
 int i3c_npcm4_master_do_daa(const struct device *dev, uint8_t *addrs, int *count);
 struct i3c_dev_desc *i3c_npcm4_master_get_desc(const struct device *dev, uint8_t addr);
 int i3c_npcm4_slave_register(const struct device *dev, struct i3c_slave_setup *slave_data);
+int i3c_npcm4_is_slave_mode(const struct device *dev);
 
 /**
  * @brief get the assigned dynamic address of the i3c controller
@@ -281,6 +282,7 @@ int i3c_npcm4_set_pid_extra_info(const struct device *dev, uint16_t extra_info);
 /* common API */
 int i3c_master_send_enec(const struct device *master, uint8_t addr, uint8_t evt);
 int i3c_master_send_disec(const struct device *master, uint8_t addr, uint8_t evt);
+int i3c_master_send_rstdaa_addr(const struct device *master, uint8_t addr);
 int i3c_master_send_rstdaa(const struct device *master);
 int i3c_master_send_sethid(const struct device *master);
 int i3c_master_send_aasa(const struct device *master);
@@ -347,6 +349,7 @@ int i3c_master_register_i3c_dev(const struct device *master, uint8_t addr);
 #define i3c_slave_get_dynamic_addr	i3c_npcm4_slave_get_dynamic_addr
 #define i3c_slave_get_event_enabling	i3c_npcm4_slave_get_event_enabling
 #define i3c_set_pid_extra_info		i3c_npcm4_set_pid_extra_info
+#define i3c_is_slave_mode		i3c_npcm4_is_slave_mode
 #endif
 
 int i3c_jesd403_read(struct i3c_dev_desc *slave, uint8_t *addr, int addr_size, uint8_t *data,

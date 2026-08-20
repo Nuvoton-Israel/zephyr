@@ -40,19 +40,27 @@ int i3c_master_send_disec(const struct device *master, uint8_t addr, uint8_t evt
 	return i3c_master_send_enec_disec(master, addr, false, evt);
 }
 
-int i3c_master_send_rstdaa(const struct device *master)
+int i3c_master_send_rstdaa_addr(const struct device *master, uint8_t addr)
 {
 	struct i3c_ccc_cmd ccc;
 
 	/* RSTDAA CCC */
-	ccc.addr = I3C_BROADCAST_ADDR;
+	ccc.addr = addr;
 	ccc.id = I3C_CCC_RSTDAA;
+	if (addr != I3C_BROADCAST_ADDR) {
+		ccc.id |= I3C_CCC_DIRECT;
+	}
 	ccc.payload.length = 0;
 	ccc.payload.data = NULL;
 	ccc.rnw = 0;
 	ccc.ret = 0;
 
 	return i3c_master_send_ccc(master, &ccc);
+}
+
+int i3c_master_send_rstdaa(const struct device *master)
+{
+	return i3c_master_send_rstdaa_addr(master, I3C_BROADCAST_ADDR);
 }
 
 int i3c_master_send_sethid(const struct device *master)
