@@ -417,10 +417,23 @@ static void obmf_status_cb(struct usb_cfg_data *cfg,
 		LOG_DBG("USB device configured");
 		break;
 	case USB_DC_SUSPEND:
-		LOG_DBG("USB device suspended");
+		/*
+		* No SOF from the host. With no VBUS pin this is the only
+		* early indication that the host is gone, so let the
+		* application take its channels down. Upper-layer tag state
+		* is left alone: a resume may follow without a bus reset.
+		*/
+		LOG_WRN("USB suspended: OBMF link down");
+		if (dev_data && dev_data->ops && dev_data->ops->link_down) {
+			dev_data->ops->link_down(common->dev);
+		}
 		break;
 	case USB_DC_RESUME:
-		LOG_DBG("USB device resumed");
+		/* Undo the suspend-time link down; no bus reset is involved here */
+		LOG_WRN("USB resumed: OBMF link up");
+		if (dev_data && dev_data->ops && dev_data->ops->link_up) {
+			dev_data->ops->link_up(common->dev);
+		}
 		break;
 	case USB_DC_ERROR:
 		LOG_ERR("USB device error");

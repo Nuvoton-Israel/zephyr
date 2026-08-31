@@ -26,6 +26,19 @@ struct obmf_ops {
 	 * no dynamic memory operations).
 	 */
 	void (*bus_reset)(const struct device *dev);
+
+	/*
+	* Called when the USB link goes idle (suspend), which on a port
+	* without a VBUS pin is the earliest indication that the host is
+	* gone. Runs in USB interrupt context and must be ISR-safe.
+	*/
+	void (*link_down)(const struct device *dev);
+
+	/*
+	* Called when the USB link comes back (resume). Runs in USB interrupt
+	* context and must be ISR-safe.
+	*/
+	void (*link_up)(const struct device *dev);
 };
 
 void usb_obmf_register_device(const struct device *dev,
