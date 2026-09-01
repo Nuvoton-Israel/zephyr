@@ -222,6 +222,15 @@ properties:
       Power-down (turn off clock) the modules during system initialization for
       better power consumption.
 
+  pwdwn-ctl-start:
+    type: int
+    default: 1
+    description: |
+      Index of the first Power-Down Control (PWDWN_CTL) register described by
+      the pwdwn-ctl-val array. Series whose first meaningful register is
+      PWDWN_CTL0 must set this to 0. The default of 1 matches the npcx series,
+      where PWDWN_CTL0 is not used.
+
 clock-cells:
   - bus
   - ctl

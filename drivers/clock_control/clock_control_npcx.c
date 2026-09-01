@@ -13,11 +13,12 @@
 #include <zephyr/logging/log.h>
 LOG_MODULE_REGISTER(clock_control_npcx, CONFIG_CLOCK_CONTROL_LOG_LEVEL);
 
-#if defined(CONFIG_NPCX_SOC_VARIANT_NPCXN)
-#define NPCX_PWDWN_CTL_START_OFFSET NPCX_PWDWN_CTL1
-#elif defined(CONFIG_NPCX_SOC_VARIANT_NPCKN)
-#define NPCX_PWDWN_CTL_START_OFFSET NPCX_PWDWN_CTL0
-#endif
+/*
+ * Index of the first PWDWN_CTL register covered by the 'pwdwn-ctl-val' array.
+ * It differs between series, so it is described by the pcc node rather than
+ * hard-coded here.
+ */
+#define NPCX_PWDWN_CTL_START_OFFSET DT_INST_PROP(0, pwdwn_ctl_start)
 
 /* Driver config */
 struct npcx_pcc_config {
@@ -164,6 +165,15 @@ static DEVICE_API(clock_control, npcx_clock_control_api) = {
 BUILD_ASSERT(CONFIG_SYS_CLOCK_HW_CYCLES_PER_SEC == OFMCLK / (APB2DIV_VAL + 1),
 	     "SYS_CLOCK_HW_CYCLES_PER_SEC must equal to OFMCLK/APB2DIV_VAL");
 BUILD_ASSERT(OFMCLK <= MAX_OFMCLK, "Exceed maximum OFMCLK setting");
+/*
+ * Upper bound of an APB bus clock. Most series cannot clock an APB bus faster
+ * than half of the frequency multiplier output, but a series whose soc.h
+ * defines MAX_APB_CLOCK may raise that limit.
+ */
+#ifndef MAX_APB_CLOCK
+#define MAX_APB_CLOCK (MAX_OFMCLK / 2)
+#endif
+
 BUILD_ASSERT(CORE_CLK <= MAX_OFMCLK && CORE_CLK >= MHZ(4) &&
 	     OFMCLK % CORE_CLK == 0 &&
 	     OFMCLK / CORE_CLK <= 10,
@@ -179,17 +189,17 @@ BUILD_ASSERT(CORE_CLK / (FIU1DIV_VAL + 1) <= (MAX_OFMCLK / 2) &&
 BUILD_ASSERT(CORE_CLK / (AHB6DIV_VAL + 1) <= (MAX_OFMCLK / 2) &&
 	     CORE_CLK / (AHB6DIV_VAL + 1) >= MHZ(4),
 	     "Invalid AHB6_CLK setting");
-BUILD_ASSERT(APBSRC_CLK / (APB1DIV_VAL + 1) <= (MAX_OFMCLK / 2) &&
-	     APBSRC_CLK / (APB1DIV_VAL + 1) >= MHZ(4) &&
-	     (APB1DIV_VAL + 1) % (FPRED_VAL + 1) == 0,
+BUILD_ASSERT(APBSRC_CLK / (APB1DIV_VAL + 1) <= MAX_APB_CLOCK &&
+		     APBSRC_CLK / (APB1DIV_VAL + 1) >= MHZ(4) &&
+		     (APB1DIV_VAL + 1) % (FPRED_VAL + 1) == 0,
 	     "Invalid APB1_CLK setting");
-BUILD_ASSERT(APBSRC_CLK / (APB2DIV_VAL + 1) <= (MAX_OFMCLK / 2) &&
-	     APBSRC_CLK / (APB2DIV_VAL + 1) >= MHZ(8) &&
-	     (APB2DIV_VAL + 1) % (FPRED_VAL + 1) == 0,
+BUILD_ASSERT(APBSRC_CLK / (APB2DIV_VAL + 1) <= MAX_APB_CLOCK &&
+		     APBSRC_CLK / (APB2DIV_VAL + 1) >= MHZ(8) &&
+		     (APB2DIV_VAL + 1) % (FPRED_VAL + 1) == 0,
 	     "Invalid APB2_CLK setting");
-BUILD_ASSERT(APBSRC_CLK / (APB3DIV_VAL + 1) <= (MAX_OFMCLK / 2) &&
-	     APBSRC_CLK / (APB3DIV_VAL + 1) >= KHZ(12500) &&
-	     (APB3DIV_VAL + 1) % (FPRED_VAL + 1) == 0,
+BUILD_ASSERT(APBSRC_CLK / (APB3DIV_VAL + 1) <= MAX_APB_CLOCK &&
+		     APBSRC_CLK / (APB3DIV_VAL + 1) >= KHZ(12500) &&
+		     (APB3DIV_VAL + 1) % (FPRED_VAL + 1) == 0,
 	     "Invalid APB3_CLK setting");
 #if defined(APB4DIV_VAL)
 BUILD_ASSERT(APBSRC_CLK / (APB4DIV_VAL + 1) <= MAX_OFMCLK &&

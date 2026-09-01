@@ -70,6 +70,7 @@
 			apb2-prescaler = <6>; /* APB2_CLK runs at 15MHz */
 			apb3-prescaler = <6>; /* APB3_CLK runs at 15MHz */
 			ram-pd-depth = <15>; /* Valid bit-depth of RAM_PDn reg */
+			pwdwn-ctl-start = <NPCX_PWDWN_CTL0>;
 			pwdwn-ctl-val = <0xe7 /* Start with PWDWN_CTL0 */
 					 0xfb /* No FIU_PD */
 					 0xff
