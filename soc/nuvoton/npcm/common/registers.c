@@ -1,0 +1,136 @@
+/*
+ * Copyright (c) 2026 Nuvoton Technology Corporation.
+ *
+ * SPDX-License-Identifier: Apache-2.0
+ */
+
+#include <zephyr/sys/util.h>
+#include <soc.h>
+
+/*
+ * Verify that the register structures declared in reg_def.h agree with the
+ * register offsets published in the NPCM400 devicetree binding headers.
+ *
+ * The binding headers are the single source of truth for the hardware
+ * layout: they are what the devicetree and the reused npcx drivers both
+ * consume. These assertions make any disagreement a build failure instead of
+ * a silent access to the wrong register.
+ */
+
+/* Core Domain Clock Generator */
+NPCX_REG_OFFSET_CHECK(cdcg_reg, HFCGCTRL, NPCM4_HFCGCTRL_OFFSET);
+NPCX_REG_OFFSET_CHECK(cdcg_reg, HFCGML, NPCM4_HFCGML_OFFSET);
+NPCX_REG_OFFSET_CHECK(cdcg_reg, HFCGMH, NPCM4_HFCGMH_OFFSET);
+NPCX_REG_OFFSET_CHECK(cdcg_reg, HFCGN, NPCM4_HFCGN_OFFSET);
+NPCX_REG_OFFSET_CHECK(cdcg_reg, HFCGP, NPCM4_HFCGP_OFFSET);
+NPCX_REG_OFFSET_CHECK(cdcg_reg, HFCBCD, NPCM4_HFCBCD_OFFSET);
+NPCX_REG_OFFSET_CHECK(cdcg_reg, HFCBCD1, NPCM4_HFCBCD1_OFFSET);
+NPCX_REG_OFFSET_CHECK(cdcg_reg, HFCBCD2, NPCM4_HFCBCD2_OFFSET);
+NPCX_REG_OFFSET_CHECK(cdcg_reg, HFCBCD3, NPCM4_HFCBCD3_OFFSET);
+NPCX_REG_OFFSET_CHECK(cdcg_reg, LFCGCTL, NPCM4_LFCGCTL_OFFSET);
+NPCX_REG_OFFSET_CHECK(cdcg_reg, LFCGCTL2, NPCM4_LFCGCTL2_OFFSET);
+
+/* Power Management Controller */
+NPCX_REG_OFFSET_CHECK(pmc_reg, PMCSR, NPCM4_PMCSR_OFFSET);
+NPCX_REG_OFFSET_CHECK(pmc_reg, ENIDL_CTL, NPCM4_ENIDL_CTL_OFFSET);
+NPCX_REG_OFFSET_CHECK(pmc_reg, DISIDL_CTL, NPCM4_DISIDL_CTL_OFFSET);
+NPCX_REG_OFFSET_CHECK(pmc_reg, DISIDL_CTL1, NPCM4_DISIDL_CTL1_OFFSET);
+NPCX_REG_OFFSET_CHECK(pmc_reg, RAM_PD, NPCM4_RAM_PD_OFFSET);
+
+/*
+ * The power-down control registers are reached through an offset formula
+ * because they are not contiguous. Pin the formula itself so that a change to
+ * it cannot silently move a clock gate.
+ */
+BUILD_ASSERT(NPCM4_PWDWN_CTL_OFFSET(NPCM4_PWDWN_CTL0) == 0x007, "Unexpected offset of PWDWN_CTL0");
+BUILD_ASSERT(NPCM4_PWDWN_CTL_OFFSET(NPCM4_PWDWN_CTL6) == 0x00d, "Unexpected offset of PWDWN_CTL6");
+BUILD_ASSERT(NPCM4_PWDWN_CTL_OFFSET(NPCM4_PWDWN_CTL7) == 0x015, "Unexpected offset of PWDWN_CTL7");
+BUILD_ASSERT(NPCM4_PWDWN_CTL_OFFSET(NPCM4_PWDWN_CTL8) == 0x016, "Unexpected offset of PWDWN_CTL8");
+
+/* System Configuration */
+NPCX_REG_OFFSET_CHECK(scfg_reg, DEVCNT, NPCM4_SCFG_DEVCNT_OFFSET);
+NPCX_REG_OFFSET_CHECK(scfg_reg, STRPST, NPCM4_SCFG_STRPST_OFFSET);
+NPCX_REG_OFFSET_CHECK(scfg_reg, RSTCTL, NPCM4_SCFG_RSTCTL_OFFSET);
+NPCX_REG_OFFSET_CHECK(scfg_reg, DEV_CTL3, NPCM4_SCFG_DEV_CTL3_OFFSET);
+NPCX_REG_OFFSET_CHECK(scfg_reg, DEV_CTL4, NPCM4_SCFG_DEV_CTL4_OFFSET);
+NPCX_REG_OFFSET_CHECK(scfg_reg, DEVALT10, NPCM4_SCFG_DEVALT10_OFFSET);
+NPCX_REG_OFFSET_CHECK(scfg_reg, DEVALT11, NPCM4_SCFG_DEVALT11_OFFSET);
+NPCX_REG_OFFSET_CHECK(scfg_reg, DEVALT12, NPCM4_SCFG_DEVALT12_OFFSET);
+NPCX_REG_OFFSET_CHECK(scfg_reg, DEVALTCX, NPCM4_SCFG_DEVALTCX_OFFSET);
+NPCX_REG_OFFSET_CHECK(scfg_reg, DEVPU0, NPCM4_SCFG_DEVPU0_OFFSET);
+NPCX_REG_OFFSET_CHECK(scfg_reg, DEVPD1, NPCM4_SCFG_DEVPD1_OFFSET);
+NPCX_REG_OFFSET_CHECK(scfg_reg, LV_CTL0, NPCM4_SCFG_LV_CTL0_OFFSET);
+NPCX_REG_OFFSET_CHECK(scfg_reg, LV_CTL1, NPCM4_SCFG_LV_CTL1_OFFSET);
+
+/* DEVALT0 - DEVALTF are addressed by group index */
+BUILD_ASSERT(NPCM4_DEVALT_OFFSET(0) == 0x000, "Unexpected offset of DEVALT0");
+BUILD_ASSERT(NPCM4_DEVALT_OFFSET(15) == 0x00f, "Unexpected offset of DEVALTF");
+
+/* The pull-up/down and low-voltage groups are only partly contiguous */
+BUILD_ASSERT(NPCM4_PUPD_EN_OFFSET(0) == NPCM4_SCFG_DEVPU0_OFFSET, "Unexpected offset of DEVPU0");
+BUILD_ASSERT(NPCM4_PUPD_EN_OFFSET(1) == NPCM4_SCFG_DEVPD1_OFFSET, "Unexpected offset of DEVPD1");
+BUILD_ASSERT(NPCM4_PUPD_EN_OFFSET(2) == 0x073, "Unexpected offset of DEVPU2");
+BUILD_ASSERT(NPCM4_PUPD_EN_OFFSET(3) == 0x07b, "Unexpected offset of DEVPU3");
+BUILD_ASSERT(NPCM4_LV_GPIO_CTL_OFFSET(0) == NPCM4_SCFG_LV_CTL0_OFFSET,
+	     "Unexpected offset of LV_CTL0");
+BUILD_ASSERT(NPCM4_LV_GPIO_CTL_OFFSET(1) == NPCM4_SCFG_LV_CTL1_OFFSET,
+	     "Unexpected offset of LV_CTL1");
+BUILD_ASSERT(NPCM4_LV_GPIO_CTL_OFFSET(4) == 0x06e, "Unexpected offset of LV_CTL4");
+
+/* System Glue */
+NPCX_REG_OFFSET_CHECK(glue_reg, SMB_SBD, NPCM4_GLUE_SMB_SBD_OFFSET);
+NPCX_REG_OFFSET_CHECK(glue_reg, SMB_EEN, NPCM4_GLUE_SMB_EEN_OFFSET);
+NPCX_REG_OFFSET_CHECK(glue_reg, SDPD0, NPCM4_GLUE_SDPD0_OFFSET);
+NPCX_REG_OFFSET_CHECK(glue_reg, SDPD1, NPCM4_GLUE_SDPD1_OFFSET);
+NPCX_REG_OFFSET_CHECK(glue_reg, SDP_CTS, NPCM4_GLUE_SDP_CTS_OFFSET);
+NPCX_REG_OFFSET_CHECK(glue_reg, SMB_SEL, NPCM4_GLUE_SMB_SEL_OFFSET);
+NPCX_REG_OFFSET_CHECK(glue_reg, PSL_CTS, NPCM4_GLUE_PSL_CTS_OFFSET);
+
+/* Universal Asynchronous Receiver-Transmitter */
+NPCX_REG_OFFSET_CHECK(uart_reg, UTBUF, NPCM4_UART_UTBUF_OFFSET);
+NPCX_REG_OFFSET_CHECK(uart_reg, URBUF, NPCM4_UART_URBUF_OFFSET);
+NPCX_REG_OFFSET_CHECK(uart_reg, UICTRL, NPCM4_UART_UICTRL_OFFSET);
+NPCX_REG_OFFSET_CHECK(uart_reg, USTAT, NPCM4_UART_USTAT_OFFSET);
+NPCX_REG_OFFSET_CHECK(uart_reg, UFRS, NPCM4_UART_UFRS_OFFSET);
+NPCX_REG_OFFSET_CHECK(uart_reg, UMDSL, NPCM4_UART_UMDSL_OFFSET);
+NPCX_REG_OFFSET_CHECK(uart_reg, UBAUD, NPCM4_UART_UBAUD_OFFSET);
+NPCX_REG_OFFSET_CHECK(uart_reg, UPSR, NPCM4_UART_UPSR_OFFSET);
+NPCX_REG_OFFSET_CHECK(uart_reg, UFCTRL, NPCM4_UART_UFCTRL_OFFSET);
+NPCX_REG_OFFSET_CHECK(uart_reg, UTXFLV, NPCM4_UART_UTXFLV_OFFSET);
+NPCX_REG_OFFSET_CHECK(uart_reg, URXFLV, NPCM4_UART_URXFLV_OFFSET);
+
+/* General-Purpose I/O */
+NPCX_REG_SIZE_CHECK(gpio_reg, NPCM4_GPIO_PORT_PIN_NUM);
+NPCX_REG_OFFSET_CHECK(gpio_reg, PDOUT, NPCM4_GPIO_PDOUT_OFFSET);
+NPCX_REG_OFFSET_CHECK(gpio_reg, PDIN, NPCM4_GPIO_PDIN_OFFSET);
+NPCX_REG_OFFSET_CHECK(gpio_reg, PDIR, NPCM4_GPIO_PDIR_OFFSET);
+NPCX_REG_OFFSET_CHECK(gpio_reg, PPULL, NPCM4_GPIO_PPULL_OFFSET);
+NPCX_REG_OFFSET_CHECK(gpio_reg, PPUD, NPCM4_GPIO_PPUD_OFFSET);
+NPCX_REG_OFFSET_CHECK(gpio_reg, PENVDD, NPCM4_GPIO_PENVDD_OFFSET);
+NPCX_REG_OFFSET_CHECK(gpio_reg, PTYPE, NPCM4_GPIO_PTYPE_OFFSET);
+NPCX_REG_OFFSET_CHECK(gpio_reg, PLOCK_CTL, NPCM4_GPIO_PLOCK_CTL_OFFSET);
+
+/* Pulse Width Modulator */
+NPCX_REG_OFFSET_CHECK(pwm_reg, PRSC, NPCM4_PWM_PRSC_OFFSET);
+NPCX_REG_OFFSET_CHECK(pwm_reg, CTR, NPCM4_PWM_CTR_OFFSET);
+NPCX_REG_OFFSET_CHECK(pwm_reg, PWMCTL, NPCM4_PWM_PWMCTL_OFFSET);
+NPCX_REG_OFFSET_CHECK(pwm_reg, DCR, NPCM4_PWM_DCR_OFFSET);
+NPCX_REG_OFFSET_CHECK(pwm_reg, PWMCTLEX, NPCM4_PWM_PWMCTLEX_OFFSET);
+
+/*
+ * Multi-Input Wake-Up Unit. The wake-up registers are interleaved rather than
+ * grouped, so the offset formulas are pinned at their boundaries: the first
+ * group, the last group of the first address window and the first group of
+ * the second window.
+ */
+BUILD_ASSERT(NPCM4_WKEDG_OFFSET(0) == 0x000, "Unexpected offset of WKEDG group 1");
+BUILD_ASSERT(NPCM4_WKAEDG_OFFSET(0) == 0x001, "Unexpected offset of WKAEDG group 1");
+BUILD_ASSERT(NPCM4_WKPND_OFFSET(0) == 0x00a, "Unexpected offset of WKPND group 1");
+BUILD_ASSERT(NPCM4_WKPCL_OFFSET(0) == 0x00c, "Unexpected offset of WKPCL group 1");
+BUILD_ASSERT(NPCM4_WKEN_OFFSET(0) == 0x01e, "Unexpected offset of WKEN group 1");
+BUILD_ASSERT(NPCM4_WKINEN_OFFSET(0) == 0x01f, "Unexpected offset of WKINEN group 1");
+BUILD_ASSERT(NPCM4_WKMOD_OFFSET(0) == 0x070, "Unexpected offset of WKMOD group 1");
+BUILD_ASSERT(NPCM4_WKEDG_OFFSET(4) == 0x008, "Unexpected offset of WKEDG group 5");
+BUILD_ASSERT(NPCM4_WKEDG_OFFSET(5) == 0x028, "Unexpected offset of WKEDG group 6");
+BUILD_ASSERT(NPCM4_WKPND_OFFSET(5) == 0x02e, "Unexpected offset of WKPND group 6");
+BUILD_ASSERT(NPCM4_WKEN_OFFSET(5) == 0x03a, "Unexpected offset of WKEN group 6");

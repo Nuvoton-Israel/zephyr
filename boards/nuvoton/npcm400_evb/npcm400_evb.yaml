@@ -16,3 +16,6 @@ flash: 1024
 vendor: nuvoton
 supported:
   - clock
+  - uart
+  - pwm
+  - flash

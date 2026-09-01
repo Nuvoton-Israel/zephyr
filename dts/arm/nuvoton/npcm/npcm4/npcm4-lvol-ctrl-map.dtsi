@@ -1,0 +1,8 @@
+/*
+ * Copyright (c) 2024 Nuvoton Technology Corporation.
+ *
+ * SPDX-License-Identifier: Apache-2.0
+ */
+
+/* Common Low-Voltage level configurations in npcm family */
+#include <nuvoton/npcm/npcm-lvol-ctrl-map.dtsi>

@@ -2,8 +2,14 @@
 # Copyright (c) 2024 Nuvoton Technology Corporation.
 #
 # SPDX-License-Identifier: Apache-2.0
+#
 
 zephyr_include_directories(.)
+
+zephyr_sources(
+  registers.c
+  scfg.c
+)
 
 set(NPCM_BIN_NAME ${CONFIG_KERNEL_BIN_NAME}.npcm.bin)
 string(TOUPPER "${CONFIG_SOC}" soc_name_upper)

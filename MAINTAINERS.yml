@@ -5009,7 +5009,7 @@ Nuvoton NPCM Platforms:
     - boards/nuvoton/npcm*/
     - dts/arm/nuvoton/
     - drivers/*/*_npcm*
-    - include/zephyr/dt-bindings/*/npcm_*
+    - include/zephyr/dt-bindings/*/npcm*
   labels:
     - "platform: Nuvoton NPCM"
 
