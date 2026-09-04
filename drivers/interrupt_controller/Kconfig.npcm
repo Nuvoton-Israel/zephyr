@@ -1,0 +1,15 @@
+# NPCM MIWU driver configuration options
+
+# Copyright (c) 2024 Nuvoton Technology Corporation.
+# SPDX-License-Identifier: Apache-2.0
+
+config NPCM_MIWU
+	bool "Nuvoton NPCM Multi-Input Wake-Up (MIWU) driver"
+	default y
+	depends on DT_HAS_NUVOTON_NPCM_MIWU_ENABLED
+	help
+	  This option enables the MIWU driver for the NPCM family of
+	  processors. It services the wake-up input groups shared by several
+	  peripherals, such as SMBus, RTC, and eSPI virtual wires, and
+	  dispatches their interrupts to the owning drivers. GPIO ports
+	  program their own groups and do not need this driver.
