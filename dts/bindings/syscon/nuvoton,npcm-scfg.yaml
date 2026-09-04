@@ -1,0 +1,16 @@
+# Copyright (c) 2024 Nuvoton Technology Corporation.
+# SPDX-License-Identifier: Apache-2.0
+
+description: |
+  Nuvoton NPCM System Configuration (SCFG) register block.
+
+  SCFG holds device-wide controls, including pin multiplexing (DEVALTx), some pull-up/down
+  enables, low-voltage selects, reset state, and strap status. It is shared by drivers. The pin
+  controller accesses SCFG through its nuvoton,scfg phandle; other drivers use their own
+  phandles and the syscon API, avoiding dependencies between drivers.
+
+  Registers are one byte wide, hence reg-io-width = <1>.
+
+compatible: "nuvoton,npcm-scfg"
+
+include: syscon.yaml

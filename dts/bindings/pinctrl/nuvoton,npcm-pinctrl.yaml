@@ -1,0 +1,111 @@
+# Copyright (c) 2024 Nuvoton Technology Corporation.
+# SPDX-License-Identifier: Apache-2.0
+
+description: |
+  Nuvoton NPCM pin controller.
+
+  The controller programs pin multiplexing, peripheral pull-up/down, and voltage-level bits in
+  the System Configuration (SCFG) block through the nuvoton,scfg phandle. The
+  nuvoton,npcm-pinfunc node describes the settings for every pin function for each SoC series.
+
+  The children of this node are pin groups that peripherals reference through their pinctrl-N
+  property. Each pin-group child configures one pin by selecting a function through a phandle.
+  It can also enable the function's pull resistor, select its voltage level, or write an
+  additional SCFG control bit.
+
+  The SoC provides the groups for every peripheral port in npcm<n>-pinctrl.dtsi, marked
+  /omit-if-no-ref/. A board only has to pick them and add per-pin settings.
+
+  Example, I2C6B on GPIO16 (SCL) and GPIO17 (SDA), with a 1.8V pull-up on SDA:
+
+    /* npcm4-pinctrl.dtsi, provided by the SoC */
+    &pinctrl {
+      /omit-if-no-ref/ i2c6b_scl_sda_gpio16_17: periph-i2c6b {
+        scl {
+          pinmux = <&pin_gpio16_scl6b>;
+        };
+        sda {
+          pinmux = <&pin_gpio17_sda6b>;
+        };
+      };
+    };
+
+    /* board DTS */
+    &i2c6b_scl_sda_gpio16_17 {
+      sda {
+        bias-pull-up;
+        nuvoton,voltage-level-mv = <1800>;
+      };
+    };
+
+    &i2c6b {
+      pinctrl-0 = <&i2c6b_scl_sda_gpio16_17>;
+      pinctrl-names = "default";
+    };
+
+  Reclaiming a pin for GPIO uses the same mechanism: every multiplexed pin has a
+  pin_gpioNN_gpio function that a group can select.
+
+compatible: "nuvoton,npcm-pinctrl"
+
+include: base.yaml
+
+properties:
+  nuvoton,scfg:
+    type: phandle
+    required: true
+    description: The System Configuration (SCFG) register block the controller writes.
+
+child-binding:
+  description: |
+    A pin group. Peripherals reference it from pinctrl-N. Its children each configure one
+    pin.
+
+  child-binding:
+    description: One pin of a group.
+
+    include:
+      - name: pincfg-node.yaml
+        property-allowlist:
+          - bias-disable
+          - bias-pull-up
+          - bias-pull-down
+
+    properties:
+      pinmux:
+        type: phandle
+        required: true
+        description: The pin function to select, a child of the nuvoton,npcm-pinfunc node.
+
+      bias-pull-up:
+        description: |
+          Enable the function's internal pull-up. The function must declare one with
+          nuvoton,pull-up-reg; asking for the direction the hardware does not have fails
+          with -ENOTSUP. Without a bias property the resistor is left as it is.
+
+      bias-pull-down:
+        description: |
+          Enable the function's internal pull-down. The function must declare one with
+          nuvoton,pull-down-reg.
+
+      bias-disable:
+        description: |
+          Disable the function's internal pull resistor. Like the pull properties, this needs
+          a function that declares one; otherwise it fails with -ENOTSUP.
+
+      nuvoton,voltage-level-mv:
+        type: int
+        enum: [1800, 3300]
+        description: |
+          Signal voltage of the pin. Only functions with a nuvoton,low-voltage-reg can be set
+          to 1800; others fail with -ENOTSUP.
+
+          The low-voltage selects reset to 1.8 V, so a board running such a pin at 3.3 V must
+          say so with <3300>; leaving the property out keeps the reset level. A pin used at
+          1.8 V must have its internal pull disabled, which is the reset state of PxPULL.
+
+      nuvoton,device-control:
+        type: array
+        description: |
+          One extra SCFG bit to write with this pin, as <register bit value>, for per-port
+          controls such as tri-state or write protect. Use one child node per bit.
