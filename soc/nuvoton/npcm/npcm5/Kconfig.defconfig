@@ -1,0 +1,10 @@
+# Copyright (c) 2026 Nuvoton Technology Corporation.
+#
+# SPDX-License-Identifier: Apache-2.0
+
+if SOC_SERIES_NPCM5
+
+config NUM_IRQS
+	default 82
+
+endif # SOC_SERIES_NPCM5
