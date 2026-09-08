@@ -1,0 +1,54 @@
+/*
+ * Copyright (c) 2026 Nuvoton Technology Corporation.
+ *
+ * SPDX-License-Identifier: Apache-2.0
+ */
+
+/* Device tree declarations of npcm soc family */
+#include "npcm.dtsi"
+#include <zephyr/dt-bindings/pinctrl/npcm5-pinctrl.h>
+#include "npcm5/npcm5-pinfunc.dtsi"
+#include "npcm5/npcm5-pinctrl.dtsi"
+#include <freq.h>
+
+/ {
+	soc {
+		pcc: clock-controller@4000d000 {
+			clock-frequency = <DT_FREQ_M(96)>; /* OFMCLK runs at 96MHz */
+			core-prescaler = <1>; /* CORE_CLK runs at 96MHz */
+			apb1-prescaler = <8>; /* APB1_CLK runs at 12MHz */
+			apb2-prescaler = <1>; /* APB2_CLK runs at 96MHz */
+			apb3-prescaler = <1>; /* APB3_CLK runs at 96MHz */
+			ahb6-prescaler = <1>; /* AHB6_CLK runs at 96MHz */
+			fiu-prescaler = <1>; /* FIU_CLK runs at 96MHz */
+			i3c-prescaler = <1>; /* I3C_CLK runs at 96MHz */
+		};
+
+		/*
+		 * npcm.dtsi declares CR_UART1 and CR_UART2, the two the NPCM4
+		 * series brings out. NPCM5 has four core UARTs.
+		 */
+		uart2: serial@400c4400 {
+			compatible = "nuvoton,npcm-uart";
+			reg = <0x400c4400 0x100>;
+			interrupts = <77 3>;
+			clocks = <&pcc NPCM_CLOCK_UART3>;
+			status = "disabled";
+		};
+
+		uart3: serial@400c4600 {
+			compatible = "nuvoton,npcm-uart";
+			reg = <0x400c4600 0x100>;
+			interrupts = <78 3>;
+			clocks = <&pcc NPCM_CLOCK_UART4>;
+			status = "disabled";
+		};
+	};
+
+	soc-if {};
+};
+
+/* The NPCM5 series has a Cortex-M7 core; npcm.dtsi declares the NPCM4 Cortex-M4. */
+&cpu0 {
+	compatible = "arm,cortex-m7";
+};
