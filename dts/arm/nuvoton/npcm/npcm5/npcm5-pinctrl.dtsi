@@ -64,6 +64,16 @@
 		};
 	};
 
+	/*
+	 * Flash write-protect pin function. NPCM500 only implements
+	 * WP_INT_FL in DEV_CTL3 (no WP_GPIO55/WP_GPIO76, NPCM400 only).
+	 */
+	/omit-if-no-ref/ fiu0_wp_int_fl: periph-fiu0-wp-int-fl {
+		wp {
+			pinmux = <&pin_scfg_wp_int_fl>;
+		};
+	};
+
 	/* PSPI Intefaces */
 	/omit-if-no-ref/ pspi1_clk_gpio66_67_70_73_76_77: periph-pspi1 {
 		clk {

@@ -1295,18 +1295,15 @@
 		nuvoton,alts = <NPCM_SCFG_DEVALTC 3 1>;
 	};
 
-	/* GPIO55 / SHD_DIO2 / WP_GPIO55: DEVALTC.SHD_SPI_QUAD DEV_CTL3.WP_GPIO55 */
+	/*
+	 * GPIO55 / SHD_DIO2: DEVALTC.SHD_SPI_QUAD
+	 * Note: NPCM500 has no WP_GPIO55 bit in DEV_CTL3 (NPCM400 only).
+	 */
 	/omit-if-no-ref/ pin_gpio55_gpio: pin-gpio55-gpio {
-		nuvoton,alts = <NPCM_SCFG_DEVALTC 2 0>,
-			       <NPCM_SCFG_DEV_CTL3 1 0>;
+		nuvoton,alts = <NPCM_SCFG_DEVALTC 2 0>;
 	};
 	/omit-if-no-ref/ pin_gpio55_shd_dio2: pin-gpio55-shd-dio2 {
-		nuvoton,alts = <NPCM_SCFG_DEVALTC 2 1>,
-			       <NPCM_SCFG_DEV_CTL3 1 0>;
-	};
-	/omit-if-no-ref/ pin_gpio55_wp_gpio55: pin-gpio55-wp-gpio55 {
-		nuvoton,alts = <NPCM_SCFG_DEVALTC 2 0>,
-			       <NPCM_SCFG_DEV_CTL3 1 1>;
+		nuvoton,alts = <NPCM_SCFG_DEVALTC 2 1>;
 	};
 
 	/* GPIO56 / SHD_DIO3: DEVALTC.SHD_SPI_QUAD */
@@ -1655,18 +1652,15 @@
 		nuvoton,alts = <NPCM_SCFG_DEVALT6A 0 1>;
 	};
 
-	/* GPIO76 / WP_GPIO76 / SPIP1_DIO2: DEVALTC.SPIP1_SL DEV_CTL3.WP_GPIO76 */
+	/*
+	 * GPIO76 / SPIP1_DIO2: DEVALTC.SPIP1_SL
+	 * Note: NPCM500 has no WP_GPIO76 bit in DEV_CTL3 (NPCM400 only).
+	 */
 	/omit-if-no-ref/ pin_gpio76_gpio: pin-gpio76-gpio {
-		nuvoton,alts = <NPCM_SCFG_DEVALTC 1 0>,
-			       <NPCM_SCFG_DEV_CTL3 2 0>;
-	};
-	/omit-if-no-ref/ pin_gpio76_wp_gpio76: pin-gpio76-wp-gpio76 {
-		nuvoton,alts = <NPCM_SCFG_DEVALTC 1 0>,
-			       <NPCM_SCFG_DEV_CTL3 2 1>;
+		nuvoton,alts = <NPCM_SCFG_DEVALTC 1 0>;
 	};
 	/omit-if-no-ref/ pin_gpio76_spip1_dio2: pin-gpio76-spip1-dio2 {
-		nuvoton,alts = <NPCM_SCFG_DEVALTC 1 1>,
-			       <NPCM_SCFG_DEV_CTL3 2 0>;
+		nuvoton,alts = <NPCM_SCFG_DEVALTC 1 1>;
 	};
 
 	/* GPIO77 / SPIP1_DIO3: DEVALTC.SPIP1_SL */
@@ -2040,5 +2034,10 @@
 		nuvoton,alts = <NPCM_SCFG_DEVALTA 1 1>;
 		nuvoton,pull-up-reg = <NPCM_SCFG_DEVPU0 4>; /* SMB3A_PUE */
 		nuvoton,low-voltage-reg = <NPCM_SCFG_LV_CTL1 1>; /* SCL3A_LV */
+	};
+
+	/* Flash write protect via internal flash (WP_INT_FL): DEV_CTL3.WP_INT_FL */
+	/omit-if-no-ref/ pin_scfg_wp_int_fl: pin-scfg-wp-int-fl {
+		nuvoton,alts = <NPCM_SCFG_DEV_CTL3 0 1>;
 	};
 };
