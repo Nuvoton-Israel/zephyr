@@ -1,0 +1,12 @@
+common:
+  tags:
+    - drivers
+    - flash
+  harness: ztest
+tests:
+  drivers.flash.npcm_nor:
+    platform_allow:
+      - npcm400_evb
+    # Add the FPGA target here once its board devicetree wires up a
+    # `nuvoton,npcm-nor` node with real pinctrl/qspi-flags data. Do not
+    # guess board-specific hardware details ahead of that.
