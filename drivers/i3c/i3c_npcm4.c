@@ -245,6 +245,9 @@ struct i3c_npcm4_obj {
 
 	/* Work item for DAA process triggered by hot-join event */
 	struct k_work hj_work;
+	/* Called once hj_work has run DAA */
+	i3c_hj_callback_t hj_cb;
+	void *hj_cb_data;
 
 	/* DMA structure */
 	uint8_t *dma_buf;
@@ -1678,6 +1681,9 @@ static void i3c_npcm4_hj_work_handler(struct k_work *work)
 			printk("Fail to register i3c dev@%02x\n", addrs[i]);
 		}
 	}
+
+	if (obj->hj_cb)
+		obj->hj_cb(obj->dev, obj->hj_cb_data);
 }
 
 /**
@@ -1851,6 +1857,22 @@ struct i3c_dev_desc *i3c_npcm4_master_get_desc(const struct device *dev, uint8_t
 	struct i3c_npcm4_obj *obj = DEV_DATA(dev);
 
 	return i3c_npcm4_master_dev_from_addr(obj, addr);
+}
+
+/**
+ * @brief Register a callback run after the DAA triggered by a hot-join event
+ *
+ * The callback runs in the system workqueue. Pass NULL to unregister.
+ */
+int i3c_npcm4_master_register_hj_callback(const struct device *dev, i3c_hj_callback_t cb,
+					   void *user_data)
+{
+	struct i3c_npcm4_obj *obj = DEV_DATA(dev);
+
+	obj->hj_cb_data = user_data;
+	obj->hj_cb = cb;
+
+	return 0;
 }
 
 /**

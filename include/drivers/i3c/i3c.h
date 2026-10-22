@@ -131,6 +131,13 @@ struct i3c_ibi_callbacks {
 	void (*write_done)(struct i3c_dev_desc *i3cdev);
 };
 
+/**
+ * @brief Hot-Join callback, called after the controller has run DAA for a Hot-Join request
+ * @param dev the I3C controller
+ * @param user_data the pointer passed when the callback was registered
+ */
+typedef void (*i3c_hj_callback_t)(const struct device *dev, void *user_data);
+
 /* slave driver structure */
 struct i3c_slave_payload {
 	int size;
@@ -192,6 +199,8 @@ int i3c_npcm4_master_enable_ibi(struct i3c_dev_desc *i3cdev);
 int i3c_npcm4_master_send_entdaa(struct i3c_dev_desc *i3cdev);
 int i3c_npcm4_master_do_daa(const struct device *dev, uint8_t *addrs, int *count);
 struct i3c_dev_desc *i3c_npcm4_master_get_desc(const struct device *dev, uint8_t addr);
+int i3c_npcm4_master_register_hj_callback(const struct device *dev, i3c_hj_callback_t cb,
+					   void *user_data);
 int i3c_npcm4_slave_register(const struct device *dev, struct i3c_slave_setup *slave_data);
 int i3c_npcm4_is_slave_mode(const struct device *dev);
 
@@ -341,6 +350,7 @@ int i3c_master_register_i3c_dev(const struct device *master, uint8_t addr);
 #define i3c_master_send_entdaa		i3c_npcm4_master_send_entdaa
 #define i3c_master_do_daa		i3c_npcm4_master_do_daa
 #define i3c_master_get_desc		i3c_npcm4_master_get_desc
+#define i3c_master_register_hj_callback	i3c_npcm4_master_register_hj_callback
 #define i3c_slave_register		i3c_npcm4_slave_register
 #define i3c_slave_set_static_addr	i3c_npcm4_slave_set_static_addr
 #define i3c_slave_send_sir		i3c_npcm4_slave_send_sir
