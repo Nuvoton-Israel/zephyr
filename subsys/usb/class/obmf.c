@@ -247,6 +247,8 @@ int obmf_usb_ep_write(const struct device *dev, const uint8_t *data,
 				(uint8_t *)data, data_len, USB_TRANS_WRITE);
 	if (ret != data_len) {
 		LOG_ERR("Transfer failure");
+		/* The host stopped polling: drop the packet left in the FIFO */
+		usb_dc_ep_flush(cfg->endpoint[0].ep_addr);
 		return -EINVAL;
 	}
 
