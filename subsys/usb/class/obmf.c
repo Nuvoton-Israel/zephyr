@@ -124,7 +124,7 @@ struct usb_obmf_iface_str_descr obmf_iface_str = {
 		.wMaxRdTransferSize = sys_cpu_to_le16(rd_size), \
 		.wMaxWrInterruptSize = sys_cpu_to_le16(wr_int_size), \
 		.wMaxRdInterruptSize = sys_cpu_to_le16(rd_int_size), \
-		.bcdOCPOBMFVersion = sys_cpu_to_le16(0x0080), /* 0.80 */ \
+		.bcdOCPOBMFVersion = sys_cpu_to_le16(0x0100), /* OBMF-ICP 1.0 */ \
 	}
 
 #define INITIALIZER_EP_DESC(addr, attr, mps, interval) \
