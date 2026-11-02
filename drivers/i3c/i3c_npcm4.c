@@ -475,7 +475,8 @@ static int i3c_npcm4_dma_write(const struct device *dev, uint8_t *buf, int len)
 		desc->ENDDA = (uint32_t)(config->regs + I3C_MWDATABE);
 	desc->NEXT = 0;
 
-	/* Enable PDMA TX channel */
+	/* Clear stale transfer-done flag, then enable PDMA TX channel */
+	config->pdma_base->TDSTS = BIT(config->dma_tx_channel);
 	config->pdma_base->CHCTL |= 1 << config->dma_tx_channel;
 
 	/*
@@ -658,7 +659,7 @@ static inline void i3c_npcm4_rollback_event_state(const struct device *dev)
 	}
 }
 
-static int i3c_npcm4_isr_rx_done(const struct device *dev)
+static int i3c_npcm4_isr_check_rx(const struct device *dev)
 {
 	const struct i3c_npcm4_config *config = DEV_CFG(dev);
 	struct i3c_npcm4_obj *obj = DEV_DATA(dev);
@@ -679,7 +680,7 @@ static int i3c_npcm4_isr_rx_done(const struct device *dev)
 		i3c_npcm4_stop_dma_rx(dev);
 		writel(I3C_DATACTRL_FLUSHFB, regs + I3C_DATACTRL);
 		i3c_npcm4_dma_read(dev, DMA_BUF_SIZE);
-		return 0;
+		return -EIO;
 	}
 
 	/* Get transfer count */
@@ -719,10 +720,10 @@ quit:
 	/* Start a new dma operation for next transfer */
 	i3c_npcm4_dma_read(dev, DMA_BUF_SIZE);
 
-	return 0;
+	return rxcnt;
 }
 
-static int i3c_npcm4_isr_tx_done(const struct device *dev)
+static int i3c_npcm4_isr_check_tx(const struct device *dev)
 {
 	const struct i3c_npcm4_config *config = DEV_CFG(dev);
 	struct i3c_npcm4_obj *obj = DEV_DATA(dev);
@@ -733,11 +734,9 @@ static int i3c_npcm4_isr_tx_done(const struct device *dev)
 
 	if (!obj->use_dma_tx) {
 		val = readl(config->regs + I3C_DATACTRL);
-		if (I3C_DATACTRL_TXCOUNT(val)) {
-			LOG_WRN("TX FIFO is not empty: %d", (int)I3C_DATACTRL_TXCOUNT(val));
-			/* Flush TX FIFO */
-			writel(I3C_DATACTRL_FLUSHTB, config->regs + I3C_DATACTRL);
-		}
+		if (I3C_DATACTRL_TXCOUNT(val))
+			return 0;
+
 		LOG_DBG("FIFO TX DONE");
 		obj->xfer_ret = 0;
 		obj->state &= ~SLAVE_WAIT_FOR_TX;
@@ -754,11 +753,9 @@ static int i3c_npcm4_isr_tx_done(const struct device *dev)
 	/* Wait for Transfer Done flag */
 	tx_done_flag = BIT(config->dma_tx_channel);
 	if (readl_poll_timeout_atomic((uintptr_t)&config->pdma_base->TDSTS, val,
-				      (val & tx_done_flag) == tx_done_flag, 0, 1000) != 0) {
-		LOG_WRN("DMA transfer is not finished");
-		ret = -ETIMEDOUT;
-		goto err_quit;
-	}
+				      (val & tx_done_flag) == tx_done_flag, 0, 100) != 0)
+		return 0;
+
 	/* Clear flag */
 	config->pdma_base->TDSTS = (1 << config->dma_tx_channel);
 
@@ -807,6 +804,7 @@ static int i3c_npcm4_isr_receive_stop(const struct device *dev)
 {
 	const struct i3c_npcm4_config *config = DEV_CFG(dev);
 	struct i3c_npcm4_obj *obj = DEV_DATA(dev);
+	int rxcnt = 0;
 	uint32_t val;
 
 	LOG_DBG("Received STOP: state=0x%x", obj->state);
@@ -819,10 +817,15 @@ static int i3c_npcm4_isr_receive_stop(const struct device *dev)
 	writel(I3C_STATUS_MATCHED, config->regs + I3C_STATUS);
 
 	if ((obj->state & SLAVE_WAIT_FOR_RX) && obj->rx_desc) {
-		i3c_npcm4_isr_rx_done(dev);
+		rxcnt = i3c_npcm4_isr_check_rx(dev);
 	}
-	if ((obj->state & SLAVE_WAIT_FOR_TX)) {
-		i3c_npcm4_isr_tx_done(dev);
+	/*
+	 * Data received means this STOP ended a private write (e.g. a new
+	 * request sent after IBI ACK), not a read of the pending TX data.
+	 * Skip the TX check and keep SLAVE_WAIT_FOR_TX for the real read.
+	 */
+	if ((obj->state & SLAVE_WAIT_FOR_TX) && rxcnt == 0) {
+		i3c_npcm4_isr_check_tx(dev);
 	}
 
 	return 0;
@@ -970,6 +973,7 @@ int i3c_npcm4_slave_put_read_data(const struct device *dev, struct i3c_slave_pay
 		if (obj->use_dma_tx)
 			i3c_npcm4_stop_dma_tx(dev);
 		i3c_npcm4_rollback_event_state(dev);
+		writel(I3C_DATACTRL_FLUSHTB, config->regs + I3C_DATACTRL);
 	}
 	obj->state &= ~(SLAVE_HAS_PENDING_TX | SLAVE_WAIT_FOR_TX);
 
