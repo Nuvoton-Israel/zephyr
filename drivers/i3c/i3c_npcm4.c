@@ -805,15 +805,7 @@ static int i3c_npcm4_isr_receive_stop(const struct device *dev)
 	const struct i3c_npcm4_config *config = DEV_CFG(dev);
 	struct i3c_npcm4_obj *obj = DEV_DATA(dev);
 	int rxcnt = 0;
-	uint32_t val;
 
-	LOG_DBG("Received STOP: state=0x%x", obj->state);
-	val = readl(config->regs + I3C_STATUS);
-	if ((val & I3C_STATUS_MATCHED) == 0) {
-		LOG_INF("Address not matched: Status=0x%08x", val);
-		return 0;
-	}
-	/* Clear MATCHED */
 	writel(I3C_STATUS_MATCHED, config->regs + I3C_STATUS);
 
 	if ((obj->state & SLAVE_WAIT_FOR_RX) && obj->rx_desc) {
