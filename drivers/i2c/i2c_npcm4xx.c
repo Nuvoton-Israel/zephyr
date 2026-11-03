@@ -1123,8 +1123,8 @@ static int i2c_npcm4xx_transfer(const struct device *dev, struct i2c_msg *msgs,
 	struct i2c_reg *const inst = I2C_INSTANCE(dev);
 	const struct i2c_npcm4xx_config *const config = I2C_DRV_CONFIG(dev);
 	struct i2c_npcm4xx_data *const data = I2C_DRV_DATA(dev);
-	int i, ret;
-	bool bus_busy;
+	int i, ret, retry;
+	bool bus_busy ,slave_active;
 
 	if (i2c_npcm4xx_mutex_lock(dev, I2C_WAITING_TIME) != 0)
 		return -EBUSY;
@@ -1134,8 +1134,13 @@ static int i2c_npcm4xx_transfer(const struct device *dev, struct i2c_msg *msgs,
 		return -ENODEV;
 	}
 
-	for (i = 0; i < 3; i++) {
-		bus_busy = inst->SMBnCST & BIT(NPCM4XX_SMBnCST_BB);
+	for (retry = 0; retry < 3; retry++) {
+
+		slave_active = (data->slave_oper_state == I2C_NPCM4XX_OPER_STA_READ) ||
+				    (data->slave_oper_state == I2C_NPCM4XX_OPER_STA_WRITE) ||
+				    (data->slave_oper_state == I2C_NPCM4XX_OPER_STA_QUICK);
+
+		bus_busy = (inst->SMBnCST & BIT(NPCM4XX_SMBnCST_BB)) || slave_active;
 		if (!bus_busy) {
 			/* save original slave addr setting and disable all the slave devices */
 			for (i = 0; i < I2C_SLAVE_NUM; i++) {
