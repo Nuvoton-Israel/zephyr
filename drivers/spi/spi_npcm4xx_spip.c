@@ -11,6 +11,7 @@ LOG_MODULE_REGISTER(spip_npcm4xx);
 #include <drivers/clock_control.h>
 #include <dt-bindings/clock/npcm4xx_clock.h>
 #include <drivers/spi.h>
+#include <sys/byteorder.h>
 #include <soc.h>
 #include "spi_context.h"
 
@@ -276,7 +277,22 @@ static int spi_npcm_spip_process_tx_buf(struct npcm4xx_spip_data *const data, ui
 
 	/* Get the tx_frame from tx_buf only when tx_buf != NULL */
 	if (spi_context_tx_buf_on(&data->ctx)) {
-		*tx_frame = UNALIGNED_GET((uint8_t *)(data->ctx.tx_buf));
+		const uint8_t *buf = data->ctx.tx_buf;
+
+		switch (data->bytes_per_frame) {
+		case 2:
+			*tx_frame = sys_get_le16(buf);
+			break;
+		case 3:
+			*tx_frame = sys_get_le24(buf);
+			break;
+		case 4:
+			*tx_frame = sys_get_le32(buf);
+			break;
+		default:
+			*tx_frame = *buf;
+			break;
+		}
 	} else {
 		ret = -ENOBUFS;
 	}
@@ -293,7 +309,22 @@ static int spi_npcm_spip_process_tx_buf(struct npcm4xx_spip_data *const data, ui
 static void spi_npcm_spip_process_rx_buf(struct npcm4xx_spip_data *const data, uint32_t rx_frame)
 {
 	if (spi_context_rx_buf_on(&data->ctx)) {
-		UNALIGNED_PUT(rx_frame, (uint8_t *)data->ctx.rx_buf);
+		uint8_t *buf = data->ctx.rx_buf;
+
+		switch (data->bytes_per_frame) {
+		case 2:
+			sys_put_le16((uint16_t)rx_frame, buf);
+			break;
+		case 3:
+			sys_put_le24(rx_frame, buf);
+			break;
+		case 4:
+			sys_put_le32(rx_frame, buf);
+			break;
+		default:
+			*buf = (uint8_t)rx_frame;
+			break;
+		}
 	}
 
 	spi_context_update_rx(&data->ctx, data->bytes_per_frame, 1);
@@ -365,7 +396,7 @@ static int spip_npcm4xx_transceive(const struct device *dev,
 		return ret;
 	}
 
-	spi_context_buffers_setup(ctx, tx_bufs, rx_bufs, 1);
+	spi_context_buffers_setup(ctx, tx_bufs, rx_bufs, data->bytes_per_frame);
 	if (!spi_npcm_spip_transfer_ongoing(data)) {
 		spi_context_release(ctx, 0);
 		return 0;
