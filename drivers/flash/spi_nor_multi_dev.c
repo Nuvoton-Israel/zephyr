@@ -768,6 +768,7 @@ end:
 #define SPI_NOR_QE_SR1_BIT6       0x2 /* MXIC, ISSI */
 #define SPI_NOR_QE_SR2_BIT1       0x4 /* Winbond */
 #define SPI_NOR_QE_CF1_BIT1       0x5 /* Cypress */
+#define SPI_NOR_QE_SR2_BIT1_WR31  0x6 /* SR2 bit1, read 35h / write 31h (Winbond) */
 
 static int spi_nor_qe_config(const struct device *dev, uint32_t qer)
 {
@@ -787,6 +788,7 @@ static int spi_nor_qe_config(const struct device *dev, uint32_t qer)
 		ret = spi_nor_sr1_bit6_config(dev);
 		break;
 	case SPI_NOR_QE_SR2_BIT1:
+	case SPI_NOR_QE_SR2_BIT1_WR31:
 		ret = spi_nor_sr2_bit1_config(dev);
 		break;
 	case SPI_NOR_QE_CF1_BIT1:
