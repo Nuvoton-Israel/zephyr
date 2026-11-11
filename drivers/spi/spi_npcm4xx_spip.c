@@ -22,6 +22,7 @@ LOG_MODULE_REGISTER(spip_npcm4xx);
 /* Transfer this NOP value when tx buf is null */
 #define SPI_NPCM_SPIP_TX_NOP                 0x00
 #define SPI_NPCM_SPIP_WAIT_STATUS_TIMEOUT_US 1000
+#define SPI_NPCM_SPIP_MAX_FREQ               48000000
 
 #if defined(CONFIG_ARCH_POSIX)
 #define Z_SPIN_DELAY(t) k_busy_wait(t)
@@ -249,6 +250,13 @@ static int spip_npcm4xx_configure(const struct device *dev,
 			LOG_WRN("Frequency %d is larger than APB3 clock %d, clamping to APB3",
 				target_freq, data->apb3);
 			target_freq = data->apb3;
+		}
+
+		/* SPIP master mode is specified up to 48 MHz */
+		if (target_freq > SPI_NPCM_SPIP_MAX_FREQ) {
+			LOG_WRN("Frequency %d exceeds %d, clamping", target_freq,
+				SPI_NPCM_SPIP_MAX_FREQ);
+			target_freq = SPI_NPCM_SPIP_MAX_FREQ;
 		}
 
 		/* Calculate divider with proper rounding */
