@@ -565,7 +565,7 @@
 			reg = <0x40016000 0x100>;
 			clocks = <&pcc NPCM4XX_CLOCK_BUS_MCLK NPCM4XX_PWDWN_CTL4 7>,
 					<&pcc NPCM4XX_CLOCK_BUS_APB3 NPCM4XX_PWDWN_CTL4 7>;
-			spi-ctrl-caps-mask = <0x000f0f0c>;
+			spi-ctrl-caps-mask = <0x000c0c0c>;
 			pinctrl-0 = <&pinctrl_spip1_default &pinctrl_spip1_quad>;
 			cs-sw;
 			cs-gpios = <&gpio7 3 GPIO_ACTIVE_LOW>;
@@ -577,7 +577,7 @@
 				/* slave */
 				reg = <0>;
 				spi-max-buswidth = <1>;
-				spi-max-frequency = <48000000>;
+				spi-max-frequency = <24000000>;
 				jedec-id = [];
 				label = "spi_spip1_cs0";
 				status = "disabled";
